@@ -7,7 +7,12 @@ I have developed a multi-platform client/server version of the Hasbro game Yahtz
 
 At this point in time, I am only going to be providing binaries for PC and Android because I don't have the required development tools for iOS and Mac and the C64 version is rather unfinished.
 
-**Note:** The binaries will be uploaded soon.
+## Download and Installation
+The Windows x86 (32 bit) binaries are available in the bin/Win32 folder as compressed files.  You will need to decompress them before you can run them.
+
+The Android client binary (I have not compiled or tested the server on this platform) is available in the bin/Android folder.  It is currently compiled only for debugging and you will need to manually install it using adb.
+
+The Commodore64 binaries are available in the bin/C64 folder.  It is only available as a test right now and the game is not yet playable on this platform.
 
 ## Compiling
 The PC, Android, iOS and Mac versions require Delphi FMX.  I am using Delphi XE8 at the present time.  You should find all you need in the _src_ folder.
