@@ -326,7 +326,7 @@ offsY		=	50
 	.define	OPT_AUTOCHECK	$20
 	.define OPT_TEXTACCEL2X	$40
 	.define OPT_TEXTCONTMRK $80
-
+	
 
 	.struct	ELEMENT
 		prepare	.word
@@ -346,6 +346,8 @@ offsY		=	50
 	
 	.struct PAGE
 		_element .tag ELEMENT
+		nxtpage	.word
+		bakpage	.word
 		textptr	.word
 		testoffx .byte
 		panels	.word
@@ -439,6 +441,7 @@ downCtrl:
 actvCtrl:
 			.res	2
 
+			
 inetproc:
 			.res	1
 inetstat:
@@ -466,10 +469,10 @@ keyZPAbort:
 ;===============================================================================
 	.segment 	"STARTUP"
 ;===============================================================================
-;		Ends up at $080D
+;	Ends up at $080D
 		JMP 	main
 		
-;		* = $0810
+;	* = $0810
 		.byte	           %10000000, %00000000
 		.byte	%01010000, %01000000, %00000000
 		.byte	%01101000, %00100000, %00000000
@@ -1306,7 +1309,7 @@ userHandleMouse:
 		LDA	mouseTemp0
 		STA	mouseYRow
 
-;		Find last panel on page
+;	Find last panel on page
 		
 		LDY	#PAGE::panels
 		LDA	(pageptr0), Y
@@ -1322,7 +1325,7 @@ userHandleMouse:
 		DEC	ctrlvar_a
 
 @panel0:
-;		for each panel on page rev
+;	for each panel on page rev
 		LDY	ctrlvar_a
 
 		LDA	(ctrlptr0), Y
@@ -1348,7 +1351,7 @@ userHandleMouse:
 		AND	#OPT_NONAVIGATE
 		BNE	@panelnext
 
-;		find coord in panel
+;	find coord in panel
 
 		LDA	panlptr0
 		STA	elemptr0
@@ -1358,7 +1361,7 @@ userHandleMouse:
 		JSR	userMouseInCtrl
 		BCC	@panelnext
 
-;		for each elem in panel 
+;	for each elem in panel 
 
 		LDY	#PANEL::controls
 		LDA	(panlptr0), Y
@@ -1381,7 +1384,7 @@ userHandleMouse:
 		
 		STY	ctrlvar_b
 
-;		find coord in elem on panel
+;	find coord in elem on panel
 		
 		LDY	#ELEMENT::state
 		LDA	(elemptr0), Y
@@ -1397,7 +1400,7 @@ userHandleMouse:
 		AND	#OPT_NONAVIGATE
 		BNE	@elemnext
 
-;		find coord in elem
+;	find coord in elem
 
 		JSR	userMouseInCtrl
 		BCC	@elemnext
@@ -1915,6 +1918,8 @@ page_splsh:
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
 			.byte	$00		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	$0000		;bakpage
 			.word	$0000		;textptr	.word
 			.byte	$00		;textoffx .byte
 			.word	page_splsh_pnls ;panels	.word
@@ -2206,7 +2211,7 @@ tab_main:
 			.byte	$00		;tag	.byte
 			.word	$0000
 			.word	tab_main_ctrls	;controls .word
-			.byte	$04
+			.byte	$06
 			.word	$0000		;page	.word
 			
 tab_main_ctrls:
@@ -2214,6 +2219,8 @@ tab_main_ctrls:
 			.word	tlabel_main_chat
 			.word	tlabel_main_play
 			.word	hlabel_main_page
+			.word 	button_main_back
+			.word 	button_main_next
 			.word	$0000
 
 tlabel_main_begin:
@@ -2261,7 +2268,7 @@ tlabel_main_chat:
 tlabel_main_play:
 			.word	$0000		;prepare
 			.word	$0000		;present	.word
-			.word	$0000		;changed .word
+			.word	clientMainPlayChng	;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_LABEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
@@ -2300,12 +2307,50 @@ hlabel_main_page:
 			.byte	$00		;accelchar .byte
 			.word	$0000		;actvctrl .word
 
+button_main_back:
+			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	clientMainBackChng
+			.word	$0000		;keypress .word
+			.byte	$00 
+			.byte	OPT_TEXTACCEL2X	;options	.byte
+			.byte	CLR_FOCUS	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$02		;posy	.byte
+			.byte	$0A		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	tab_main	;panel	.word
+			.word	text_main_back	;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$01		;textaccel .byte
+			.byte	KEY_C64_F8	;accelchar .byte
+			
+button_main_next:
+			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	clientMainNextChng
+			.word	$0000		;keypress .word
+			.byte	$00
+			.byte	OPT_TEXTACCEL2X	;options	.byte
+			.byte	CLR_FOCUS	;colour	.byte
+			.byte	$1E		;posx	.byte
+			.byte	$02		;posy	.byte
+			.byte	$0A		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	tab_main	;panel	.word
+			.word	text_main_next	;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$01		;textaccel .byte
+			.byte	KEY_C64_F7	;accelchar .byte
+
+
 page_connect:
 			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
-;			.byte	TYPE_PAGE
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00 		;options	.byte
 			.byte	CLR_INSET	;colour	.byte
@@ -2314,6 +2359,8 @@ page_connect:
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
 			.byte	$00		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	$0000		;bakpage
 			.word	text_page_connect;textptr	.word
 			.byte	$10		;testoffx .byte
 			.word	page_connect_pnls;panels	.word
@@ -2604,8 +2651,10 @@ page_room:
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
 			.byte	$00		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	$0000		;bakpage
 			.word	text_page_room	;textptr	.word
-			.byte	$10		;testoffx .byte
+			.byte	$12		;testoffx .byte
 			.word	page_room_pnls	;panels	.word
 			.byte	$05
 
@@ -2852,6 +2901,8 @@ panel_room_log:
 			.word	panel_room_log_ctrls	;controls .word
 			.byte	$00
 
+;!!TODO - Make this a log panel
+
 panel_room_log_ctrls:
 			.word	$0000
 
@@ -2898,6 +2949,938 @@ edit_room_text:
 			.byte	$00		;accelchar .byte
 
 
+page_play:
+			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	$0000		;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00 		;options	.byte
+			.byte	CLR_TEXT	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	page_ovrvw	;nxtpage
+			.word	$0000		;bakpage
+			.word	text_page_play	;textptr	.word
+			.byte	$12		;testoffx .byte
+			.word	page_play_pnls	;panels	.word
+			.byte	$05
+
+page_play_pnls:
+			.word	tab_main
+			.word	panel_play_more
+			.word	panel_play_log
+			.word	panel_play_data
+			.word 	panel_play_less
+			.word	$0000
+			
+panel_play_less:
+			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	$00
+			.byte	$00
+			.byte	CLR_INSET		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$03			;posy	.byte
+			.byte	$28			;width	.byte
+			.byte	$02			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	page_play
+			.word	panel_play_less_ctrls	;controls 
+			.byte	$01
+			
+panel_play_less_ctrls:
+			.word	button_play_more
+			.word	$0000
+			
+button_play_more:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientPlayMoreChng
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options	.byte
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$1E			;posx	.byte
+			.byte	$04			;posy	.byte
+			.byte	$0A			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_less		;panel	.word
+			.word	text_room_more		;textptr	.word
+			.byte	$00			;textoffx .byte
+			.byte	$08			;textaccel .byte
+			.byte	'>'			;accelchar .byte			
+
+panel_play_more:
+			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00
+			.byte	CLR_INSET		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$03			;posy	.byte
+			.byte	$28			;width	.byte
+			.byte	$07			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	page_play
+			.word	panel_play_more_ctrls	;controls 
+			.byte	$07
+			
+panel_play_more_ctrls:
+			.word	label_play_game
+			.word	edit_play_game
+			.word	button_play_list
+			.word	label_play_pwd
+			.word	edit_play_pwd
+			.word	button_play_join
+			.word	button_play_less
+			.word	$0000
+
+label_play_game:
+			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	$0000			;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$04			;posy	.byte
+			.byte	$0C			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_play_game  	;textptr	.word
+			.byte	$00			;testoffx .byte
+			.byte	$00			;testaccel .byte
+			.byte	'g'			;accelchar .byte
+			.word	edit_play_game		;actvctrl .word
+
+edit_play_game:
+			.word	$0000			;prepare
+			.word	ctrlsEditDefPresent
+			.word	$0000			;changed .word
+			.word	ctrlsEditDefKeyPress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_DOWNCAPTURE
+			.byte	CLR_PAPER		;colour	.byte
+			.byte	$0C			;posx	.byte
+			.byte	$04			;posy	.byte
+			.byte	$09			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	edit_play_game_buf
+			.byte	$00			;testoffx .byte
+			.byte	$FF			;testaccel .byte
+			.byte	$00			;accelchar .byte
+			.byte	$00			;textsiz
+			.byte	$08			;textmaxsz
+
+edit_play_game_buf:
+	.repeat	9	
+			.byte	$00
+	.endrep
+
+button_play_list:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options	.byte
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$1E			;posx	.byte
+			.byte	$04			;posy	.byte
+			.byte	$0A			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_room_list		;textptr	.word
+			.byte	$00			;textoffx .byte
+			.byte	$01			;textaccel .byte
+			.byte	'l'			;accelchar .byte			
+
+label_play_pwd:
+			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	$0000			;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$06			;posy	.byte
+			.byte	$0C			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_room_pwd	  	;textptr	.word
+			.byte	$00			;testoffx .byte
+			.byte	$00			;testaccel .byte
+			.byte	'p'			;accelchar .byte
+			.word	edit_room_pwd		;actvctrl .word
+
+edit_play_pwd:
+			.word	$0000			;prepare
+			.word	ctrlsEditDefPresent
+			.word	$0000			;changed .word
+			.word	ctrlsEditDefKeyPress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_DOWNCAPTURE
+			.byte	CLR_PAPER		;colour	.byte
+			.byte	$0C			;posx	.byte
+			.byte	$06			;posy	.byte
+			.byte	$09			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	edit_play_pwd_buf
+			.byte	$00			;testoffx .byte
+			.byte	$FF			;testaccel .byte
+			.byte	$00			;accelchar .byte
+			.byte	$00			;textsiz
+			.byte	$08			;textmaxsz
+
+edit_play_pwd_buf:
+	.repeat	9	
+			.byte	$00
+	.endrep
+
+button_play_join:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options	.byte
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$1E			;posx	.byte
+			.byte	$06			;posy	.byte
+			.byte	$0A			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_room_join		;textptr	.word
+			.byte	$00			;textoffx .byte
+			.byte	$01			;textaccel .byte
+			.byte	'j'			;accelchar .byte			
+
+button_play_less:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientPlayLessChng
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options	.byte
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$1E			;posx	.byte
+			.byte	$08			;posy	.byte
+			.byte	$0A			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_room_less		;textptr	.word
+			.byte	$00			;textoffx .byte
+			.byte	$08			;textaccel .byte
+			.byte	'<'			;accelchar .byte			
+
+panel_play_log:
+			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$0A		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$0D		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	page_play
+			.word	panel_play_log_ctrls	;controls .word
+			.byte	$00
+
+;!!TODO - Make this a log panel
+
+panel_play_log_ctrls:
+			.word	$0000
+
+panel_play_data:
+			.word	$0000		;prepare
+			.word	ctrlsPanelDefPresent	;present	.word
+			.word	ctrlsPanelDefChanged	;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00	 	;options	.byte
+			.byte	CLR_INSET	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$17		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$02		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	page_play
+			.word	panel_play_data_ctrls	;controls .word
+			.byte	$01
+
+panel_play_data_ctrls:
+			.word	edit_play_text
+			.word	$0000
+
+edit_play_text:
+			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	$0000		;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_DOWNCAPTURE
+			.byte	CLR_PAPER	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$18		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_play_data	;panel	.word
+			.word	$0000 		;textptr	.word
+			.byte	$00		;testoffx .byte
+			.byte	$FF		;testaccel .byte
+			.byte	$00		;accelchar .byte
+
+page_ovrvw:
+			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	$0000		;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00 		;options	.byte
+			.byte	CLR_TEXT	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	page_play	;bakpage
+			.word	text_page_ovrvw	;textptr	.word
+			.byte	$10		;testoffx .byte
+			.word	page_ovrvw_pnls	;panels	.word
+			.byte	$02
+
+page_ovrvw_pnls:
+			.word	tab_main
+			.word	panel_ovrvw_ovrvw
+			.word	$0000
+
+panel_ovrvw_ovrvw:
+			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00
+			.byte	CLR_INSET		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$03			;posy	.byte
+			.byte	$28			;width	.byte
+			.byte	$16			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	page_ovrvw
+			.word	panel_ovrvw_ovrvw_ctrls	;controls 
+			.byte	$1C
+			
+panel_ovrvw_ovrvw_ctrls:
+			.word	label_ovrvw_cntrl
+			.word	button_ovrvw_cntrl
+			.word	button_ovrvw_1p_det
+			.word	label_ovrvw_1p_name
+			.word	label_ovrvw_1p_stat
+			.word	label_ovrvw_1p_score
+			.word	button_ovrvw_2p_det
+			.word	label_ovrvw_2p_name
+			.word	label_ovrvw_2p_stat
+			.word	label_ovrvw_2p_score
+			.word	button_ovrvw_3p_det
+			.word	label_ovrvw_3p_name
+			.word	label_ovrvw_3p_stat
+			.word	label_ovrvw_3p_score
+			.word	button_ovrvw_4p_det
+			.word	label_ovrvw_4p_name
+			.word	label_ovrvw_4p_stat
+			.word	label_ovrvw_4p_score
+			.word	button_ovrvw_5p_det
+			.word	label_ovrvw_5p_name
+			.word	label_ovrvw_5p_stat
+			.word	label_ovrvw_5p_score
+			.word	button_ovrvw_6p_det
+			.word	label_ovrvw_6p_name
+			.word	label_ovrvw_6p_stat
+			.word	label_ovrvw_6p_score
+			.word	label_ovrvw_round
+			.word	label_ovrwv_round_det
+			.word	$0000
+
+label_ovrvw_cntrl:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_FACE	;colour	
+			.byte	$00		;posx	
+			.byte	$04		;posy	
+			.byte	$0D		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_cntrl  ;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_cntrl:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1E			;posx	
+			.byte	$04			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_ready	;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'r'			;accelchar
+
+button_ovrvw_1p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$07			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_1p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'1'			;accelchar
+
+label_ovrvw_1p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$04		;posx	
+			.byte	$07		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_1p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$04		;posx	
+			.byte	$08		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_1p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_MONEY	;colour	
+			.byte	$04		;posx	
+			.byte	$09		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_2p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$0D			;posx	
+			.byte	$07			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_2p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'2'			;accelchar
+
+label_ovrvw_2p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$11		;posx	
+			.byte	$07		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_2p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$11		;posx	
+			.byte	$08		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_2p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_MONEY	;colour	
+			.byte	$11		;posx	
+			.byte	$09		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_3p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1A			;posx	
+			.byte	$07			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_3p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'3'			;accelchar
+
+label_ovrvw_3p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$1E		;posx	
+			.byte	$07		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_3p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$1E		;posx	
+			.byte	$08		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_3p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_MONEY	;colour	
+			.byte	$1E		;posx	
+			.byte	$09		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_4p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$0B			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_4p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'4'			;accelchar
+
+label_ovrvw_4p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$04		;posx	
+			.byte	$0B		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_4p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$04		;posx	
+			.byte	$0C		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_4p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_MONEY	;colour	
+			.byte	$04		;posx	
+			.byte	$0D		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_5p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$0D			;posx	
+			.byte	$0B			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_5p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'5'			;accelchar
+
+label_ovrvw_5p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$11		;posx	
+			.byte	$0B		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_5p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$11		;posx	
+			.byte	$0C		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_5p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_MONEY	;colour	
+			.byte	$11		;posx	
+			.byte	$0D		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+button_ovrvw_6p_det:
+			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1A			;posx	
+			.byte	$0B			;posy	
+			.byte	$04			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_6p		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'6'			;accelchar
+
+label_ovrvw_6p_name:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	
+			.byte	$1E		;posx	
+			.byte	$0B		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_6p_stat:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	
+			.byte	$1E		;posx	
+			.byte	$0C		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_6p_score:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_MONEY	;colour	
+			.byte	$1E		;posx	
+			.byte	$0D		;posy	
+			.byte	$08		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrvw_round:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_FACE	;colour	
+			.byte	$00		;posx	
+			.byte	$11		;posy	
+			.byte	$0D		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	text_ovrvw_round	;textptr
+			.byte	$00		;testoffx
+			.byte	$FF		;testaccel
+			.byte	$00		;accelchar
+			.word	$0000		;actvctrl 
+
+label_ovrwv_round_det:
+			.word	$0000		;prepare
+			.word	$0000		;present
+			.word	$0000		;changed
+			.word	$0000		;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE	;options
+			.byte	CLR_TEXT	;colour	
+			.byte	$0D		;posx	
+			.byte	$11		;posy	
+			.byte	$1B		;width	
+			.byte	$01		;height	
+			.byte	$00		;tag	
+			.word	panel_ovrvw_ovrvw	;panel	
+			.word	$0000		;textptr
+			.byte	$00		;testoffx
+			.byte	$00		;testaccel
+			.byte	$FF		;accelchar
+			.word	$0000		;actvctrl 
+
 
 
 ;===============================================================================
@@ -2923,7 +3906,7 @@ main:
 		
 		JSR	initCore
 
-;		Reset the stack pointer
+;	Reset the stack pointer
 		LDX	#$FF
 		TXS
 
@@ -4716,6 +5699,58 @@ clientMainChatChng:
 
 
 ;-------------------------------------------------------------------------------
+clientMainNextChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		SEI
+
+		LDA	pageNext
+		STA	elemptr0
+		LDA	pageNext + 1
+		STA	elemptr0 + 1
+
+		JSR	ctrlsPageSelect
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientMainBackChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		SEI
+
+		LDA	pageBack
+		STA	elemptr0
+		LDA	pageBack + 1
+		STA	elemptr0 + 1
+
+		JSR	ctrlsPageSelect
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
 clientRoomMoreChng:
 ;-------------------------------------------------------------------------------
 		LDY	#ELEMENT::state
@@ -4891,6 +5926,228 @@ clientRoomLessChng:
 		
 @exit:
 		RTS
+
+
+;-------------------------------------------------------------------------------
+clientMainPlayChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDY	#ELEMENT::options
+		LDA	tlabel_main_play, Y
+		AND	#OPT_NONAVIGATE
+		BNE	@exit
+
+		JSR	clientMainUnsetTabs
+
+		LDY	#ELEMENT::colour
+		LDA	#CLR_FOCUS
+		STA	tlabel_main_play, Y
+
+		LDY	#ELEMENT::options
+		LDA	#(OPT_NODOWNACTV | OPT_NONAVIGATE | OPT_TEXTACCEL2X)
+		STA	tlabel_main_play, Y
+
+		SEI
+		LDA	#<page_play
+		STA	elemptr0
+		LDA	#>page_play
+		STA	elemptr0 + 1
+		JSR	ctrlsPageSelect
+@exit:
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientPlayMoreChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#STATE_DOWN
+		BNE	@down
+
+		JSR	ctrlsControlInvalidate
+		JMP	@exit
+		
+@down:
+		LDA	(elemptr0), Y
+		AND	#($FF ^ (STATE_DOWN | STATE_PICK | STATE_ACTIVE))
+		STA	(elemptr0), Y
+
+		LDA	#$00
+		STA	downCtrl
+		STA	downCtrl + 1
+
+;		JSR	ctrlsControlInvalidate
+
+		LDA	#<panel_play_more
+		STA	elemptr0
+		LDA	#>panel_play_more
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		
+		LDA	#<panel_play_less
+		STA	elemptr0
+		LDA	#>panel_play_less
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+
+;		JSR	userMouseUnPickCtrl
+;		JSR	ctrlsDeactivateCtrl
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+;		STA	actvCtrl
+;		STA	actvCtrl + 1
+
+		LDA	#<edit_play_game
+		STA	elemptr0
+		LDA	#>edit_play_game
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsActivateCtrl
+
+		LDA	#<panel_play_log
+		STA	elemptr0
+		LDA	#>panel_play_log
+		STA	elemptr0 + 1
+				
+;!!TODO: Change an offset parameter to hide/show top lines
+		
+		LDY	#ELEMENT::posy
+		LDA	#$0A
+		STA	(elemptr0), Y
+		INY
+		INY
+		LDA	#$0D
+		STA	(elemptr0), Y
+		
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		
+		AND	#STATE_CHANGED
+		BNE	@exit
+
+		LDA	(elemptr0), Y
+		ORA	#STATE_CHANGED
+		STA	(elemptr0), Y
+
+		LDA	#$00
+		STA	msgsdat1
+
+		JSR	msgsPushChanging		
+		
+@exit:
+		RTS
+		
+		
+;-------------------------------------------------------------------------------
+clientPlayLessChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#STATE_DOWN
+		BNE	@down
+
+		JSR	ctrlsControlInvalidate
+		JMP	@exit
+		
+@down:
+		LDA	(elemptr0), Y
+		AND	#($FF ^ (STATE_DOWN | STATE_PICK | STATE_ACTIVE))
+		STA	(elemptr0), Y
+
+		LDA	#$00
+		STA	downCtrl
+		STA	downCtrl + 1
+		
+;		JSR	ctrlsControlInvalidate
+
+		LDA	#<panel_play_less
+		STA	elemptr0
+		LDA	#>panel_play_less
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		
+		LDA	#<panel_play_more
+		STA	elemptr0
+		LDA	#>panel_play_more
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+
+;		JSR	userMouseUnPickCtrl
+;		JSR	ctrlsDeactivateCtrl
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+;		STA	actvCtrl
+;		STA	actvCtrl + 1
+
+		LDA	#<edit_play_text
+		STA	elemptr0
+		LDA	#>edit_play_text
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsActivateCtrl
+
+		LDA	#<panel_play_log
+		STA	elemptr0
+		LDA	#>panel_play_log
+		STA	elemptr0 + 1
+		
+;!!TODO: Change an offset parameter to hide/show top lines
+
+		LDY	#ELEMENT::posy
+		LDA	#$06
+		STA	(elemptr0), Y
+		INY
+		INY
+		LDA	#$11
+		STA	(elemptr0), Y
+		
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		
+		AND	#STATE_CHANGED
+		BNE	@exit
+
+		LDA	(elemptr0), Y
+		ORA	#STATE_CHANGED
+		STA	(elemptr0), Y
+
+		LDA	#$00
+		STA	msgsdat1
+
+		JSR	msgsPushChanging		
+		
+@exit:
+		RTS
+
 
 
 	.export	initCore
@@ -6048,8 +7305,12 @@ ctrlsPageSelect:
 		STA	ctrlsPrep
 		CLI
 
+;	Got a current page?
+
 		LDA	pageptr0 + 1
 		BEQ	@cont0
+
+;	Hide the current page
 
 		LDY	#ELEMENT::state
 		LDA	(pageptr0), Y
@@ -6057,6 +7318,8 @@ ctrlsPageSelect:
 		STA	(pageptr0), Y
 
 @cont0:
+;	Set the current page
+
 		LDA	elemptr0
 		STA	pageptr0
 		LDA	elemptr0 + 1
@@ -6067,6 +7330,8 @@ ctrlsPageSelect:
 		ORA	#STATE_VISIBLE
 		STA	(pageptr0), Y
 
+;	Clear picked, down and active controls
+
 		LDA	#$00
 		STA	pickCtrl
 		STA	pickCtrl + 1
@@ -6074,6 +7339,8 @@ ctrlsPageSelect:
 		STA	downCtrl + 1
 		STA	actvCtrl
 		STA	actvCtrl + 1
+
+;	Copy header text
 
 		LDY	#PAGE::textptr
 		LDA	(pageptr0), Y
@@ -6094,6 +7361,41 @@ ctrlsPageSelect:
 		INY
 		LDA	tempvar_c
 		STA	hlabel_main_page, Y
+		
+;	Set-up the back and next buttons
+
+		LDA	#$00
+		STA	button_main_next + ELEMENT::state
+		STA	button_main_back + ELEMENT::state
+
+		LDY	#PAGE::nxtpage + 1
+		LDA	(pageptr0), Y
+		BEQ	@chkback
+		
+		STA	pageNext + 1
+		DEY
+		LDA	(pageptr0), Y
+		STA	pageNext
+		
+		LDA	#STATE_VISIBLE | STATE_ENABLED
+		STA	button_main_next + ELEMENT::state
+
+@chkback:
+		LDY	#PAGE::bakpage + 1
+		LDA	(pageptr0), Y
+		BEQ	@tabhdr
+		
+		STA	pageBack + 1
+		DEY
+		LDA	(pageptr0), Y
+		STA	pageBack
+		
+		LDA	#STATE_VISIBLE | STATE_ENABLED
+		STA	button_main_back + ELEMENT::state
+
+@tabhdr:
+		
+;	Put tab header on page
 		
 		LDY	#PANEL::page
 		LDA	pageptr0
@@ -6879,6 +8181,16 @@ ctrlsPageKeyPress:
 		INY
 		
 		STY	ctrlvar_b
+
+;	Check that the control is both enabled and visible!
+
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#STATE_VISIBLE | STATE_ENABLED
+		CMP	#STATE_VISIBLE | STATE_ENABLED
+		BNE	@nextctrl
+		
+;	Check the control's accelerator
 		
 		LDY	#CONTROL::accelchar
 		LDA	(elemptr0), Y
@@ -7389,19 +8701,29 @@ ctrlsControlDefPresent:
 		LDA	(elemptr0), Y
 		AND	#STATE_PICK
 		BEQ	@checkactv
-		
-;		LDA	pickBlinkState
-;		BEQ	@normal
+
+		LDA	(elemptr0), Y		;Check that its not active
+		AND	#STATE_ACTIVE
+		BNE	@normal
 
 @picked:
+		LDY	#ELEMENT::colour	;Check its not already FOCUS
+		LDA	(elemptr0), Y
+		CMP	#CLR_FOCUS
+		BNE	@pickednrm
+		
+		LDA	#CLR_FACE
+		JMP	@draw
+
+@pickednrm:
 		LDA	#CLR_FOCUS
 		JMP	@draw
 
 @checkactv:
 		LDA	(elemptr0), Y
 		AND	#STATE_ACTIVE
-		BNE	@picked
-
+		BNE	@picked			;Make it the same as picked
+		
 @normal:
 		LDY	#ELEMENT::colour
 		LDA	(elemptr0), Y
@@ -7503,6 +8825,11 @@ actvctrlp:
 			.res	1
 actvctrlc:
 			.res	1
+
+pageNext:
+			.res	2
+pageBack:
+			.res 	2
 
 temp_bin: 
 			.res 	2
@@ -7623,7 +8950,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"c64"
 text_ident_verlbl:
-			.asciiz	"0.00.22A"
+			.asciiz	"0.00.23A"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -7635,7 +8962,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.22A"
+			.asciiz	"VERSION:  0.00.23A"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
@@ -7649,6 +8976,13 @@ text_main_chat:
 			.asciiz	"F3-CHAT"
 text_main_play:
 			.asciiz	"F5-PLAY"
+			
+text_main_back:
+			.asciiz	"[F8 <-BAK]"
+text_main_next:
+			.asciiz	"[F7 NXT->]"
+			
+			
 text_page_connect:
 			.asciiz	"CONNECT"
 text_cnct_host:
@@ -7682,6 +9016,36 @@ text_room_part:
 			.asciiz	"[PART    ]"
 
 
+text_page_play:
+			.asciiz	"GAME"
+			
+text_play_game:
+			.asciiz	"GAME:"
+
+
+text_page_ovrvw:
+			.asciiz	"OVERVIEW"
+
+text_ovrvw_cntrl:
+			.asciiz	"GAME CONTROL:"
+text_ovrvw_ready:
+			.asciiz	"[READY   ]"
+text_ovrvw_1p:
+			.asciiz	"[1P]"
+text_ovrvw_2p:
+			.asciiz	"[2P]"
+text_ovrvw_3p:
+			.asciiz	"[3P]"
+text_ovrvw_4p:
+			.asciiz	"[4P]"
+text_ovrvw_5p:
+			.asciiz	"[5P]"
+text_ovrvw_6p:
+			.asciiz	"[6P]"
+text_ovrvw_round:
+			.asciiz	"GAME ROUND  :"
+
+
 text_driver_pref:
 			.asciiz "= USING DRIVER: "
 text_iobase_pref:
@@ -7694,7 +9058,7 @@ text_trace_init:
 text_trace_cnct:
 			.asciiz	"# CONNECTING..."
 text_trace_unkmsg:
-			.asciiz "> UNKNOWN MESSAGE IDENT"
+			.asciiz "- UNKNOWN MESSAGE IDENT"
 
 text_syserr_pref:
 			.asciiz	"!!"
