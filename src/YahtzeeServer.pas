@@ -1260,7 +1260,7 @@ constructor TMessageList.Create(APlayer: TPlayer);
 	Dec(p);
 
 	u:= 0;
-		repeat
+	repeat
 		s[p + Low(AnsiString)]:= AnsiChar(u + Ord(AnsiChar('0')));
 
 		f:= False;
@@ -1373,7 +1373,7 @@ procedure TPlayGame.Add(APlayer: TPlayer);
 
 		m.Params.Add(Desc);
 		m.Params.Add(AName);
-		m.Params.Add(AnsiChar(ASlot));
+		m.Params.Add(AnsiChar(ASlot + $30));
 //		m.Params.Add(AnsiChar(Ord(State)));
 
 		m.DataFromParams;
@@ -2028,7 +2028,8 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 	i,
 	j: Integer;
 	s: Integer;
-//	m: TMessage;
+	r: Integer;
+	m: TMessage;
 	f: Boolean;
 
 	procedure PartMessageFromPeer(APeer: TPlayer; AName: AnsiString; ASlot: Integer);
@@ -2091,20 +2092,134 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 			end
 		else if  State > gsPreparing then
 			begin
-			Slots[s].State:= psFinished;
-
-			if  SlotCount = 1 then
+			if  Slots[s].State = psPlaying then
 				begin
-				f:= True;
-				State:= gsFinished;
-				for i:= 0 to 5 do
-					if  Assigned(Slots[i].Player) then
-						Slots[i].State:= psWinner;
+//dengland      Optimise this with handling in message $0B, above
+
+				while True do
+					begin
+					Inc(Turn);
+					if  Turn > 5 then
+						Turn:= 0;
+
+					if  Slots[Turn].First then
+						begin
+						f:= True;
+						Inc(Round);
+						if  Round > 13 then
+							begin
+							State:= gsFinished;
+							Turn:= -1;
+
+							r:= 0;
+							for i:= 0 to 5 do
+								if  Slots[i].Score > r then
+									r:= Slots[i].Score;
+
+							for i:= 0 to 5 do
+								if  Slots[i].State > psIdle then
+									if  Slots[i].Score = r then
+										Slots[i].State:= psWinner
+									else
+										Slots[i].State:= psFinished;
+
+							Break;
+							end;
+						end;
+
+					if  Assigned(Slots[Turn].Player)
+					and (Slots[Turn].State = psWaiting) then
+						Break;
+					end;
+
+				if  Turn > -1 then
+					begin
+					Slots[Turn].State:= psPlaying;
+
+					Slots[Turn].Keepers:= [];
+					for i:= 0 to 4 do
+						Slots[Turn].Dice[i]:= 0;
+					Slots[Turn].RollNo:= 0;
+					end;
+
+				if  f
+				and (State = gsFinished) then
+					begin
+					for i:= 0 to 5 do
+						for j:= 0 to 5 do
+							if  Assigned(Slots[i].Player) then
+								SendSlotStatus(Slots[i].Player, j);
+					end
+				else
+					begin
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							SendSlotStatus(Slots[i].Player, s);
+
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							SendSlotStatus(Slots[i].Player, Turn);
+
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							begin
+							m:= TMessage.Create;
+							m.Category:= mcPlay;
+							m.Method:= $08;
+
+							SetLength(m.Data, 6);
+
+							m.Data[0]:= Turn;
+
+							for j:= 0 to 4 do
+								m.Data[1 + j]:= Slots[Turn].Dice[j];
+
+							Slots[i].Player.Messages.PushItem(m);
+
+							for j:= 1 to 5 do
+								begin
+								m:= TMessage.Create;
+								m.Category:= mcPlay;
+								m.Method:= $09;
+
+								SetLength(m.Data, 3);
+
+								m.Data[0]:= Turn;
+								m.Data[1]:= j;
+								m.Data[2]:= 0;
+
+								Slots[i].Player.Messages.PushItem(m);
+								end;
+							end;
+					end;
+
+				if  f then
+					begin
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							SendGameStatus(Slots[i].Player);
+					end;
+				end;
+
+			if  State <> gsFinished then
+				begin
+				Slots[s].State:= psFinished;
+
+				if  SlotCount = 1 then
+					begin
+					f:= True;
+					State:= gsFinished;
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							Slots[i].State:= psWinner;
+					end;
 				end;
 			end
 		else
 			Slots[s].State:= psNone;
 
+//dengland  This is really nasty when the game has ended or control otherwise changed
+//      due to the currently playing player leaving
 		if  not f then
 			begin
 			for i:= 0 to 5 do
@@ -2391,7 +2506,8 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 					or  (Length(g.Password) = 0) then
 						for i:= 0 to 5 do
 							if  Assigned(g.Slots[i].Player) then
-								ml.Data.Enqueue(g.Slots[i].Name + ' ' + AnsiChar(i));
+								ml.Data.Enqueue(g.Slots[i].Name + ' ' +
+										AnsiChar(i + $30));
 
 					finally
 					g.Lock.Release;
@@ -2457,10 +2573,8 @@ initialization
 	PlayZone:= TPlayZone.Create;
 
 finalization
-	PlayZone.Free;
-	LobbyZone.Free;
-	LimboZone.Free;
-	SystemZone.Free;
+	while ExpireZones.QueueSize > 0 do
+		ExpireZones.PopItem.Free;
 
 	while ServerMsgs.QueueSize > 0 do
 		with ServerMsgs.PopItem do
@@ -2477,10 +2591,12 @@ finalization
 
 	DoDestroyListMessages;
 
-	while ExpireZones.QueueSize > 0 do
-		ExpireZones.PopItem.Free;
-
 	ExpireZones.Free;
+
+	PlayZone.Free;
+	LobbyZone.Free;
+	LimboZone.Free;
+	SystemZone.Free;
 
 //	MessageLock.Free;
 

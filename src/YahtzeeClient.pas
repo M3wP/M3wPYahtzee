@@ -548,9 +548,9 @@ procedure TPlayer.ExecuteMessages;
 
 						Client.Game.State:= gsWaiting;
 {$IFDEF ANDROID}
-						Client.Game.OurSlot:= Byte(AMessage.Params[2].Chars[0]);
+						Client.Game.OurSlot:= Byte(AMessage.Params[2].Chars[0]) - $30;
 {$ELSE}
-						Client.Game.OurSlot:= Ord(AMessage.Params[2][Low(AnsiString)]);
+						Client.Game.OurSlot:= Ord(AMessage.Params[2][Low(AnsiString)]) - $30;
 {$ENDIF}
 						Client.Game.VisibleSlot:= -1;
 
@@ -575,9 +575,9 @@ procedure TPlayer.ExecuteMessages;
 {$IFDEF ANDROID}
 //						DebugMsgs.PushItem(AnsiString(AMessage.DataText));
 
-						i:= Byte(AMessage.Params[2].Chars[0]);
+						i:= Byte(AMessage.Params[2].Chars[0]) - $30;
 {$ELSE}
-						i:= Ord(AMessage.Params[2][Low(AnsiString)]);
+						i:= Ord(AMessage.Params[2][Low(AnsiString)]) - $30;
 {$ENDIF}
 						Client.Game.Slots[i].Name:= AMessage.Params[1];
 						end;
@@ -1046,9 +1046,9 @@ procedure TMessageLists.DoDataMessageList(AMessageList: TMessageList;
 {$ENDIF}
 
 {$IFDEF ANDROID}
-			s:= Byte(d.Chars[0]);
+			s:= Byte(d.Chars[0]) - $30;
 {$ELSE}
-			s:= Ord(d[Low(AnsiString)]);
+			s:= Ord(d[Low(AnsiString)]) - $30;
 {$ENDIF}
 			Client.Game.Lock.Acquire;
 				try

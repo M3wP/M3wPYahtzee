@@ -1,9 +1,14 @@
 ;	TODO:
 ;		- Cursor when editing text
-;		- Update user name button
+;
+;		- Update user name button functionality
 ;
 ;		- Optimise log panel presentation
 ;		- Optimise 1 height controls presentation?
+;
+;		- Log panel for Room
+;
+;		- Log panel for Game
 ;
 ;
 ;	LIMITATIONS:
@@ -13,10 +18,10 @@
 ;
 ;
 ;	BUGS:
-;		- In VICE, doing a reset while successfully connected results in a 
-;		  zombie client (the socket is not closed).  I believe the problem is
-;		  in VICE and will eventually have a work-around when I implement
-;		  idle time limitations in the server.
+;		- In VICE, doing a reset while successfully connected results 
+;		  in a zombie client (the socket is not closed).  I believe the
+;		  problem is in VICE and will eventually have a work-around when
+;		  I implement idle time limitations in the server.
 ;
 ;
 
@@ -29,8 +34,8 @@
 	.import eth_driver_io_base
 	.import cfg_ip
 
-;	.import abort_key
-;	.importzp abort_key_default
+;	.import abort_key			;Don't include these from ip65
+;	.importzp abort_key_default		;These will be handled here
 ;	.importzp abort_key_disable
 
 	.import drv_init
@@ -53,11 +58,17 @@
 	.import tcp_send_keep_alive
 	.import timer_read
 
-	.export	check_for_abort_key
+	.export	check_for_abort_key		;Required for ip65 callback
 
 
+;	Debugging - show raster time usage on border
 	.define	DEBUG_RASTERTIME	0
+	
+;	Debugging - check message limits and panic if borked
 	.define	DEBUG_MSGSPUSHSZ	1
+	
+;	Debugging - sleep when internet is idle
+	.define DEBUG_INETDOSLEEP	1
 
 
 cpuIRQ		=	$FFFE
@@ -121,6 +132,10 @@ spritePtr3	=	$07FB
 
 offsX		=	24
 offsY		=	50
+
+;	Locate our game data at a fixed address (before screen RAM, after stack)
+gameData	= 	$0200
+
 
 	.define MSG_CATG_SYST	$00
 	.define MSG_CATG_TEXT	$10
@@ -289,9 +304,38 @@ offsY		=	50
 	.define KEY_C64_INVALID	$FF
 
 
-	.define	CLR_BACK	$FD
-	.define	CLR_BORDER	$FE
-	.define	CLR_CURSOR	$FF
+;	Game definitions
+
+	.define	SLOT_ST_NONE	$00
+	.define SLOT_ST_IDLE	$01
+	.define SLOT_ST_READY	$02
+	.define SLOT_ST_PREP	$03
+	.define SLOT_ST_WAIT	$04
+	.define SLOT_ST_PLAY	$05
+	.define SLOT_ST_FINISH	$06
+	.define SLOT_ST_WIN	$07
+	
+	.define GAME_ST_WAIT	$00
+	.define GAME_ST_PREP	$01
+	.define GAME_ST_PLAY	$02
+	.define GAME_ST_PAUSE	$03
+	.define GAME_ST_FINISH	$04
+	
+	.define	DIE_0		$01
+	.define	DIE_1		$02
+	.define DIE_2		$04
+	.define DIE_3		$08
+	.define DIE_4		$10
+	.define DIE_5		$20
+	
+	.define DIE_ALL		$3F
+
+
+;	Controls definitions
+
+	.define	CLR_BACK	$FD		;System - always black
+	.define	CLR_EMPTY	$FE		;Border on C64
+	.define	CLR_CURSOR	$FF		
 	.define	CLR_TEXT	$00
 	.define	CLR_FOCUS	$01
 	.define	CLR_INSET	$02
@@ -300,8 +344,9 @@ offsY		=	50
 	.define CLR_PAPER	$05
 	.define CLR_MONEY	$06
 	.define CLR_DICE	$07
-	.define CLR_SPEC_TEXT	$10
-	.define CLR_SPEC_CTRL	$20
+	.define CLR_SPEC_TEXT	$10		;Specific system text colour
+	.define CLR_SPEC_CTRL	$20		;Specific system control colour 
+						;(reversed on C64)
 
 ;	.define TYPE_ELEMENT	$00
 ;	.define TYPE_PAGE	$10
@@ -310,9 +355,9 @@ offsY		=	50
 ;	.define TYPE_CONTROL	$30
 ;	.define TYPE_LABEL	TYPE_CONTROL | $01
 
-	.define STATE_CHANGED	$80
-	.define STATE_DIRTY	$40
-	.define STATE_PRESENTED	$20		;For optimisations
+	.define STATE_CHANGED	$80		;System - don't use directly
+	.define STATE_DIRTY	$40		;System - don't use directly
+	.define STATE_PREPARED	$20		;System - for optimisations
 	.define STATE_VISIBLE	$01
 	.define STATE_ENABLED	$02
 	.define STATE_PICK	$04
@@ -328,8 +373,79 @@ offsY		=	50
 	.define OPT_TEXTCONTMRK $80
 	
 
+;	Game structures
+
+	.struct	IDENT
+		_0	.byte
+		_1	.byte
+		_2	.byte
+		_3	.byte
+		_4	.byte
+		_5	.byte
+		_6	.byte
+		_7	.byte
+		_8	.byte
+	.endstruct				;9 bytes
+
+	.struct SCRSHEET			;I'm making these byte sized
+		aces	.byte			;even though I will get word
+		twos	.byte			;sized values because it saves
+		threes	.byte			;memory and I won't need larger
+		fours	.byte
+		fives	.byte
+		sixes	.byte
+		uprbnus	.byte
+		thkind	.byte
+		frkind	.byte
+		flhse	.byte
+		sstrt	.byte
+		lstrt	.byte
+		yahtz	.byte
+		chnce	.byte
+		ybnus1	.byte
+		ybnus2	.byte
+		ybnus3	.byte
+	.endstruct				;17 bytes
+	
+	.struct	DICE
+		_0	.byte
+		_1	.byte
+		_2	.byte
+		_3	.byte
+		_4	.byte
+	.endstruct				;5 bytes
+
+	.struct GAMESLOT
+		sheet	.tag	SCRSHEET
+		name	.tag	IDENT
+		state	.byte
+		score	.word
+		dice	.tag	DICE
+		fstrl	.byte
+		keepers	.byte
+		roll	.byte
+	.endstruct				;37 bytes
+	
+	.struct	GAME
+		slot0	.tag	GAMESLOT
+		slot1	.tag	GAMESLOT
+		slot2	.tag	GAMESLOT
+		slot3	.tag	GAMESLOT
+		slot4	.tag	GAMESLOT
+		slot5	.tag	GAMESLOT	;222 bytes
+		state	.byte
+		round	.word
+		ourslt	.byte
+		detslt	.byte			;227 bytes
+	.endstruct
+
+	.assert .sizeof(GAME) < $0100, error, "GameData would exceed bounds!"
+
+
+;	Controls structures
+
 	.struct	ELEMENT
-		prepare	.word
+;		prepare	.word
 		present	.word
 		changed .word
 		keypress .word
@@ -393,11 +509,13 @@ offsY		=	50
 	.endstruct
 
 
-	.exportzp inetproc
+
 
 ;===============================================================================
 	.segment  "ZEROPAGE": zeropage
 ;===============================================================================
+	.exportzp inetproc
+	
 pageptr0:
 			.res	2
 panlptr0:
@@ -414,6 +532,8 @@ tempptr1:
 			.res 	2
 tempptr2:		
 			.res 	2
+tempptr3:		
+			.res 	2
 tempdat0:
 			.res	1
 tempdat1:
@@ -421,6 +541,10 @@ tempdat1:
 tempdat2:
 			.res 	1
 tempdat3:
+			.res	1
+imsgdat1:
+			.res	1
+imsgdat2:
 			.res	1
 tempbit0:
 			.res	1
@@ -473,6 +597,8 @@ keyZPAbort:
 		JMP 	main
 		
 ;	* = $0810
+	.assert * = $0810, error, "Mouse pointer data location incorrect!"
+	
 		.byte	           %10000000, %00000000
 		.byte	%01010000, %01000000, %00000000
 		.byte	%01101000, %00100000, %00000000
@@ -1770,7 +1896,7 @@ MoveCheck:
 ; Exit:         y = value to use for old value
 ;               x/a = delta value for position
 ;-------------------------------------------------------------------------------
-;***FIXME:	Are you supposed to mask out certain bits (lowest?) in order to
+;!!FIXME:	Are you supposed to mask out certain bits (lowest?) in order to
 ;		correct for jitter?  A real mouse isn't synced to the C64 like 
 ;		it should be or tries to be...  I could allow sensativity setting
 ;		as per joystick but instead mask off lowest 0, 1 or 2 bits.
@@ -1903,10 +2029,10 @@ CMOVEY:
 ;USER INTERFACE DEFINITIONS
 ;===============================================================================
 
-
+	.export	page_splsh
 ;-------------------------------------------------------------------------------
 page_splsh:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -1934,7 +2060,7 @@ page_splsh_pnls:
 			.word	$0000
 			
 panel_splsh_hdr:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -1955,7 +2081,7 @@ panel_splsh_hdr_ctrls:
 			.word	$0000
 
 hlabel_splsh_title:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000
@@ -1975,7 +2101,7 @@ hlabel_splsh_title:
 			.word	$0000		;actvctrl .word
 
 panel_splsh_body:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -1996,7 +2122,7 @@ panel_splsh_body_ctrls:
 			.word	$0000
 
 button_splsh_cont:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientSplshContChng
 			.word	clientSplshContKeyPress
@@ -2015,7 +2141,7 @@ button_splsh_cont:
 			.byte	'c'		;accelchar .byte
 
 panel_splsh_bkgd:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2035,7 +2161,7 @@ panel_splsh_bkgd_ctrls:
 			.word	$0000
 
 panel_splsh_frgd:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2060,7 +2186,7 @@ panel_splsh_frgd_ctrls:
 			.word	$0000
 
 static_splsh_text0:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2079,7 +2205,7 @@ static_splsh_text0:
 			.byte	$00		;accelchar .byte
 
 static_splsh_text1:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2098,7 +2224,7 @@ static_splsh_text1:
 			.byte	$00		;accelchar .byte
 
 static_splsh_text2:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2117,7 +2243,7 @@ static_splsh_text2:
 			.byte	$00		;accelchar .byte
 
 static_splsh_text3:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2136,7 +2262,7 @@ static_splsh_text3:
 			.byte	$00		;accelchar .byte
 
 static_splsh_text4:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2155,7 +2281,7 @@ static_splsh_text4:
 			.byte	$00		;accelchar .byte
 
 panel_splsh_foot:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2176,7 +2302,7 @@ panel_splsh_foot_ctrls:
 			.word	$0000
 
 static_init_text0:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	clientInitLblPres	;present	.word
 			.word	$0000			;changed .word
 			.word	$0000		;keypress .word
@@ -2196,7 +2322,7 @@ static_init_text0:
 
 
 tab_main:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2224,7 +2350,7 @@ tab_main_ctrls:
 			.word	$0000
 
 tlabel_main_begin:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientMainBeginChng	;changed .word
 			.word	$0000		;keypress .word
@@ -2245,7 +2371,7 @@ tlabel_main_begin:
 			.word	$0000		;actvctrl .word
 			
 tlabel_main_chat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientMainChatChng ;changed .word
 			.word	$0000		;keypress .word
@@ -2266,7 +2392,7 @@ tlabel_main_chat:
 			.word	$0000		;actvctrl .word
 		
 tlabel_main_play:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientMainPlayChng	;changed .word
 			.word	$0000		;keypress .word
@@ -2287,7 +2413,7 @@ tlabel_main_play:
 			.word	$0000		;actvctrl .word
 		
 hlabel_main_page:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2308,7 +2434,7 @@ hlabel_main_page:
 			.word	$0000		;actvctrl .word
 
 button_main_back:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientMainBackChng
 			.word	$0000		;keypress .word
@@ -2327,7 +2453,7 @@ button_main_back:
 			.byte	KEY_C64_F8	;accelchar .byte
 			
 button_main_next:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientMainNextChng
 			.word	$0000		;keypress .word
@@ -2347,7 +2473,7 @@ button_main_next:
 
 
 page_connect:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2373,7 +2499,7 @@ page_connect_pnls:
 			.word	$0000
 			
 panel_cnct_data:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2403,7 +2529,7 @@ panel_cnct_data_ctrls:
 			.word	$0000
 
 label_cnct_host:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2424,7 +2550,7 @@ label_cnct_host:
 			.word	edit_cnct_host	;actvctrl .word
 			
 edit_cnct_host:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000		;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -2452,7 +2578,7 @@ edit_cnct_host_buf:
 	.endrep
 
 label_cnct_user:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2473,7 +2599,7 @@ label_cnct_user:
 			.word	edit_cnct_user	;actvctrl .word
 			
 edit_cnct_user:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000		;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -2500,7 +2626,7 @@ edit_cnct_user_buf:
 	.endrep
 			
 button_cnct_upd:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2520,7 +2646,7 @@ button_cnct_upd:
 			.byte	'p'		;accelchar .byte
 
 button_cnct_cnct:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientCnctCnctChng
 			.word	$0000		;keypress .word
@@ -2540,7 +2666,7 @@ button_cnct_cnct:
 			.byte	'c'		;accelchar .byte
 			
 button_cnct_dcnt:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientCnctDCntChng
 			.word	$0000		;keypress .word
@@ -2560,7 +2686,7 @@ button_cnct_dcnt:
 			.byte	'd'		;accelchar .byte
 
 label_cnct_info:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2581,7 +2707,7 @@ label_cnct_info:
 			.word	combo_cnct_info	;actvctrl .word
 			
 combo_cnct_info:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2601,7 +2727,7 @@ combo_cnct_info:
 			.byte	$00		;accelchar .byte
 
 lpanel_cnct_log:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsLPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2638,7 +2764,7 @@ lpanel_cnct_log_ctrls:
 			.word	$0000
 
 page_room:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2667,7 +2793,7 @@ page_room_pnls:
 			.word	$0000
 			
 panel_room_less:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -2689,7 +2815,7 @@ panel_room_less_ctrls:
 			.word	$0000
 			
 button_room_more:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	clientRoomMoreChng
 			.word	$0000			;keypress 
@@ -2708,7 +2834,7 @@ button_room_more:
 			.byte	'>'			;accelchar .byte			
 
 panel_room_more:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -2735,7 +2861,7 @@ panel_room_more_ctrls:
 			.word	$0000
 
 label_room_room:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present
 			.word	$0000			;changed 
 			.word	$0000			;keypress 
@@ -2755,7 +2881,7 @@ label_room_room:
 			.word	edit_room_room		;actvctrl .word
 
 edit_room_room:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -2781,7 +2907,7 @@ edit_room_room_buf:
 	.endrep
 
 button_room_list:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000
 			.word	$0000			;keypress 
@@ -2800,7 +2926,7 @@ button_room_list:
 			.byte	'l'			;accelchar .byte			
 
 label_room_pwd:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present
 			.word	$0000			;changed 
 			.word	$0000			;keypress 
@@ -2820,7 +2946,7 @@ label_room_pwd:
 			.word	edit_room_pwd		;actvctrl .word
 
 edit_room_pwd:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -2846,7 +2972,7 @@ edit_room_pwd_buf:
 	.endrep
 
 button_room_join:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000
 			.word	$0000			;keypress 
@@ -2865,7 +2991,7 @@ button_room_join:
 			.byte	'j'			;accelchar .byte			
 
 button_room_less:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	clientRoomLessChng
 			.word	$0000			;keypress 
@@ -2884,7 +3010,7 @@ button_room_less:
 			.byte	'<'			;accelchar .byte			
 
 panel_room_log:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -2907,7 +3033,7 @@ panel_room_log_ctrls:
 			.word	$0000
 
 panel_room_data:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -2929,7 +3055,7 @@ panel_room_data_ctrls:
 			.word	$0000
 
 edit_room_text:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2950,7 +3076,7 @@ edit_room_text:
 
 
 page_play:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -2978,7 +3104,7 @@ page_play_pnls:
 			.word	$0000
 			
 panel_play_less:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -2999,7 +3125,7 @@ panel_play_less_ctrls:
 			.word	$0000
 			
 button_play_more:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	clientPlayMoreChng
 			.word	$0000			;keypress 
@@ -3018,7 +3144,7 @@ button_play_more:
 			.byte	'>'			;accelchar .byte			
 
 panel_play_more:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -3032,7 +3158,7 @@ panel_play_more:
 			.byte	$00			;tag	.byte
 			.word	page_play
 			.word	panel_play_more_ctrls	;controls 
-			.byte	$07
+			.byte	$08
 			
 panel_play_more_ctrls:
 			.word	label_play_game
@@ -3041,11 +3167,12 @@ panel_play_more_ctrls:
 			.word	label_play_pwd
 			.word	edit_play_pwd
 			.word	button_play_join
+			.word	button_play_part
 			.word	button_play_less
 			.word	$0000
 
 label_play_game:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present
 			.word	$0000			;changed 
 			.word	$0000			;keypress 
@@ -3065,7 +3192,7 @@ label_play_game:
 			.word	edit_play_game		;actvctrl .word
 
 edit_play_game:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -3091,7 +3218,7 @@ edit_play_game_buf:
 	.endrep
 
 button_play_list:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000
 			.word	$0000			;keypress 
@@ -3110,7 +3237,7 @@ button_play_list:
 			.byte	'l'			;accelchar .byte			
 
 label_play_pwd:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present
 			.word	$0000			;changed 
 			.word	$0000			;keypress 
@@ -3130,7 +3257,7 @@ label_play_pwd:
 			.word	edit_room_pwd		;actvctrl .word
 
 edit_play_pwd:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
@@ -3156,9 +3283,9 @@ edit_play_pwd_buf:
 	.endrep
 
 button_play_join:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000
+			.word	clientPlayJoinChng
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00			;options	.byte
@@ -3174,8 +3301,27 @@ button_play_join:
 			.byte	$01			;textaccel .byte
 			.byte	'j'			;accelchar .byte			
 
+button_play_part:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientPlayPartChng
+			.word	$0000			;keypress 
+			.byte	$00
+			.byte	$00			;options	.byte
+			.byte	CLR_FACE		;colour	.byte
+			.byte	$1E			;posx	.byte
+			.byte	$06			;posy	.byte
+			.byte	$0A			;width	.byte
+			.byte	$01			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	panel_play_more		;panel	.word
+			.word	text_room_part		;textptr	.word
+			.byte	$00			;textoffx .byte
+			.byte	$01			;textaccel .byte
+			.byte	'p'			;accelchar .byte
+
 button_play_less:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	clientPlayLessChng
 			.word	$0000			;keypress 
@@ -3194,7 +3340,7 @@ button_play_less:
 			.byte	'<'			;accelchar .byte			
 
 panel_play_log:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -3216,7 +3362,7 @@ panel_play_log_ctrls:
 			.word	$0000
 
 panel_play_data:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	ctrlsPanelDefPresent	;present	.word
 			.word	ctrlsPanelDefChanged	;changed .word
 			.word	$0000		;keypress .word
@@ -3237,7 +3383,7 @@ panel_play_data_ctrls:
 			.word	$0000
 
 edit_play_text:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -3256,7 +3402,7 @@ edit_play_text:
 			.byte	$00		;accelchar .byte
 
 page_ovrvw:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
@@ -3281,7 +3427,7 @@ page_ovrvw_pnls:
 			.word	$0000
 
 panel_ovrvw_ovrvw:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
@@ -3329,7 +3475,7 @@ panel_ovrvw_ovrvw_ctrls:
 			.word	$0000
 
 label_ovrvw_cntrl:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3349,9 +3495,9 @@ label_ovrvw_cntrl:
 			.word	$0000		;actvctrl 
 
 button_ovrvw_cntrl:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwCntrlChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3368,7 +3514,7 @@ button_ovrvw_cntrl:
 			.byte	'r'			;accelchar
 
 button_ovrvw_1p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3387,7 +3533,7 @@ button_ovrvw_1p_det:
 			.byte	'1'			;accelchar
 
 label_ovrvw_1p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3400,14 +3546,14 @@ label_ovrvw_1p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_1p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3426,8 +3572,13 @@ label_ovrvw_1p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_1p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_1p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3440,14 +3591,19 @@ label_ovrvw_1p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_1p_score_buf	;textptr
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_1p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+
 button_ovrvw_2p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3466,7 +3622,7 @@ button_ovrvw_2p_det:
 			.byte	'2'			;accelchar
 
 label_ovrvw_2p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3479,14 +3635,14 @@ label_ovrvw_2p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + .sizeof(GAMESLOT) + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_2p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3505,8 +3661,13 @@ label_ovrvw_2p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_2p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_2p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3519,14 +3680,19 @@ label_ovrvw_2p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_2p_score_buf;textptr
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_2p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 button_ovrvw_3p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3545,7 +3711,7 @@ button_ovrvw_3p_det:
 			.byte	'3'			;accelchar
 
 label_ovrvw_3p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3558,14 +3724,14 @@ label_ovrvw_3p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + (.sizeof(GAMESLOT)*2) + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_3p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3584,8 +3750,13 @@ label_ovrvw_3p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_3p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_3p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3598,14 +3769,19 @@ label_ovrvw_3p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_3p_score_buf ;textptr
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_3p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 button_ovrvw_4p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3624,7 +3800,7 @@ button_ovrvw_4p_det:
 			.byte	'4'			;accelchar
 
 label_ovrvw_4p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3637,14 +3813,14 @@ label_ovrvw_4p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + (.sizeof(GAMESLOT)*3) + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_4p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3663,8 +3839,13 @@ label_ovrvw_4p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_4p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_4p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3677,14 +3858,19 @@ label_ovrvw_4p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_4p_score_buf ;textptr
 			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_4p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 button_ovrvw_5p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3703,7 +3889,7 @@ button_ovrvw_5p_det:
 			.byte	'5'			;accelchar
 
 label_ovrvw_5p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3716,14 +3902,14 @@ label_ovrvw_5p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + (.sizeof(GAMESLOT)*4) + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;testaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_5p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3742,8 +3928,13 @@ label_ovrvw_5p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_5p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_5p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3756,14 +3947,19 @@ label_ovrvw_5p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_5p_score_buf ;textptr
 			.byte	$00		;testoffx
 			.byte	$FF		;testaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_5p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 button_ovrvw_6p_det:
-			.word	$0000			;prepare
+;			.word	$0000			;prepare
 			.word	$0000			;present	
 			.word	$0000			;changed
 			.word	$0000			;keypress 
@@ -3782,7 +3978,7 @@ button_ovrvw_6p_det:
 			.byte	'6'			;accelchar
 
 label_ovrvw_6p_name:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3795,14 +3991,14 @@ label_ovrvw_6p_name:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	gameData + (.sizeof(GAMESLOT)*5) + GAMESLOT::name
 			.byte	$00		;testoffx
 			.byte	$FF		;testaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
 label_ovrvw_6p_stat:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3821,8 +4017,13 @@ label_ovrvw_6p_stat:
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_6p_stat_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_6p_score:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3835,14 +4036,19 @@ label_ovrvw_6p_score:
 			.byte	$01		;height	
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
-			.word	$0000		;textptr
+			.word	label_ovrvw_6p_score_buf ;textptr
 			.byte	$00		;testoffx
 			.byte	$FF		;testaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
+label_ovrvw_6p_score_buf:
+	.repeat 9
+			.byte	$00
+	.endrep
+	
 label_ovrvw_round:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3862,7 +4068,7 @@ label_ovrvw_round:
 			.word	$0000		;actvctrl 
 
 label_ovrwv_round_det:
-			.word	$0000		;prepare
+;			.word	$0000		;prepare
 			.word	$0000		;present
 			.word	$0000		;changed
 			.word	$0000		;keypress
@@ -3907,8 +4113,11 @@ main:
 		JSR	initCore
 
 ;	Reset the stack pointer
+
 		LDX	#$FF
 		TXS
+
+;	Initialise the screen
 
 		LDA	#$00
 		JSR	colourSchemeSelect
@@ -4114,6 +4323,11 @@ inetInitialise:
 ;-------------------------------------------------------------------------------
 inetIdle:
 ;-------------------------------------------------------------------------------
+;!!TODO:
+;	This is a whole lot of nothing to do - sleep
+;	Can probably be stubbed out once things are settled
+
+	.if	DEBUG_INETDOSLEEP
 		LDX	$7F
 @sleep0:
 		LDY	#$FF
@@ -4122,7 +4336,8 @@ inetIdle:
 		BNE	@sleep1
 		DEX
 		BPL	@sleep0
-		
+	.endif
+
 		RTS
 
 	
@@ -4155,7 +4370,7 @@ inetConnect:
 		JSR	clientOutputInetError
 		RTS
 
-; resolve host name
+; 	resolve host name
 : 
 		LDA 	dns_hostname_is_dotted_quad
 		BNE 	:+
@@ -4169,7 +4384,7 @@ inetConnect:
 		LDAX 	#7632
 		STAX 	inet_port
 
-; connect
+; 	connect
 		LDAX 	#inet_callback
 		STAX 	tcp_callback
 	
@@ -4187,7 +4402,7 @@ inetConnect:
 	
 		JMP	@haveerror
 
-; connected
+; 	connected
 : 
 		LDA 	#0
 		STA 	connection_close_requested
@@ -4389,7 +4604,7 @@ inetExecute:
 		BNE 	:+
   
 		JSR 	timer_read
-		CPX 	inet_timeout		;***TODO:  if no data and not timeout
+		CPX 	inet_timeout		;!!TODO:  if no data and not timeout
 		BNE 	:+			;	should sleep?
   
 		JSR 	tcp_send_keep_alive
@@ -4622,7 +4837,8 @@ inet_callback:
 		STA	readmsgbuflen + 1
 
 
-;***TODO:	Sanity check len and idx??
+;!!TODO:	
+;	Sanity check len and idx??
 
 @readmsg:
 		LDY	readbufidx
@@ -4825,6 +5041,222 @@ clientSendGetSysInfo:
 
 		JSR	strsAppendChar
 
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayJoin:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$01
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_play_game_buf
+		JSR	strsAppendString
+		
+		LDA	edit_play_pwd_buf
+		BEQ	@complete
+		
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+		
+		LDAX	#edit_play_pwd_buf
+		JSR	strsAppendString
+		
+@complete:
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientResetPlayGame:
+;-------------------------------------------------------------------------------
+		JSR	ctrlsLockAcquire
+
+		LDA	#<button_play_part
+		STA	elemptr0
+		LDA	#>button_play_part
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<button_play_join
+		STA	elemptr0
+		LDA	#>button_play_join
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<button_play_part
+		CMP	actvCtrl
+		BNE	@tstpick
+
+		LDA	#>button_play_part
+		CMP	actvCtrl + 1
+		BNE	@tstpick
+
+		JSR	ctrlsActivateCtrl
+
+@tstpick:
+		LDA	#<button_play_part
+		CMP	pickCtrl
+		BNE	@exit
+
+		LDA	#>button_play_part
+		CMP	pickCtrl + 1
+		BNE	@exit
+
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+
+@exit:
+		LDA	#<edit_play_game
+		STA	elemptr0
+		LDA	#>edit_play_game
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<edit_play_pwd
+		STA	elemptr0
+		LDA	#>edit_play_pwd
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		JSR	ctrlsLockRelease
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayPart:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$02
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_play_game_buf
+		JSR	strsAppendString
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		JMP	clientResetPlayGame
+;		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayListNames:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$03
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_play_game_buf
+		JSR	strsAppendString
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+		
+		RTS
+		
+
+;-------------------------------------------------------------------------------
+clientSendPlayStatPeerReady:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$07
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDA	#SLOT_ST_READY
+		JSR	strsAppendChar
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayStatPeerNtRdy:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$07
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDA	#SLOT_ST_IDLE
+		JSR	strsAppendChar
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayRollPeerFirst:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$08
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDA	#DIE_ALL
+		JSR	strsAppendChar
+		
 		DEC	tempdat0
 		LDA	tempdat0
 		LDY	#$00
@@ -5070,7 +5502,7 @@ clientProcTextMsgBegin:
 
 @play:
 @lobby:
-;***TODO:	Load log panel pointer for appropriate log panel
+;!!TODO:	Load log panel pointer for appropriate log panel
 		JMP	@exit
 
 @output:
@@ -5088,11 +5520,74 @@ clientProcTextMsgBegin:
 ;-------------------------------------------------------------------------------
 clientProcTextMsgMore:
 ;-------------------------------------------------------------------------------
-;***TODO:	Output more message in appropriate log
+		LDY	readparm1
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_0
+		BNE	@more
+
+		JSR	clientProcTextMsgFind
+		TAY
+		JSR	clientProcTextMsgClear
+
+		RTS
+
+@more:
+;!!TODO:	Output more message in appropriate log
 
 		RTS
 
 
+;-------------------------------------------------------------------------------
+clientProcTextMsgPlaySlts:
+;-------------------------------------------------------------------------------
+		LDY	readparm2
+		LDA	readmsg0, Y
+		SEC
+		SBC	#KEY_ASC_0
+		TAY
+		PHA
+		
+		LDA	game_slot_lo, Y
+		STA	tempptr2
+		LDA	#>gameData
+		STA	tempptr2 + 1
+		
+		LDY	#GAMESLOT::name
+		LDX	readparm1
+
+@loop:
+		LDA	readmsg0, X
+		STA	(tempptr2), Y
+		
+		INX
+		INY
+		
+		CMP	#KEY_ASC_SPACE
+		BNE	@loop
+		
+		LDA	#$00
+		STA	(tempptr2), Y
+		
+		PLA
+		ASL
+		TAX
+		
+		JSR	ctrlsLockAcquire
+
+		LDA	label_ovrvw_names, X
+		STA	elemptr0
+		INX
+		LDA	label_ovrvw_names, X
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		JSR	ctrlsLockRelease
+		
+		RTS
+		
+
+	.export	clientProcTextMsgData
 ;-------------------------------------------------------------------------------
 clientProcTextMsgData:
 ;-------------------------------------------------------------------------------
@@ -5102,10 +5597,10 @@ clientProcTextMsgData:
 		CMP	#$FF
 		BEQ	@exit
 	
-		CMP	#$10
+		CMP	#$14
 		BEQ	@play
 		
-		CMP	#$08
+		CMP	#$0A
 		BEQ	@lobby
 		
 @system:
@@ -5117,11 +5612,20 @@ clientProcTextMsgData:
 		JMP	@output
 
 @play:
-;***TODO:	Logic for output list data to play log
+		JSR	inetScanReadParams
+		
+		LDA	readparmcnt
+		CMP	#$02
+		BEQ	@playlst
+		
+		JMP	clientProcTextMsgPlaySlts
+
+@playlst:
+;!!TODO:	Logic for output list data to play log
 		JMP	@exit
 
 @lobby:
-;***TODO:	Logic for output list data to lobby log
+;!!TODO:	Logic for output list data to lobby log
 		JMP	@exit
 
 @output:
@@ -5147,7 +5651,7 @@ clientProcTextMsgData:
 ;-------------------------------------------------------------------------------
 clientProcTextMsg:
 ;-------------------------------------------------------------------------------
-		LDA	tempdat2
+		LDA	imsgdat2
 		CMP	#$04
 		BEQ	@whisper
 
@@ -5157,7 +5661,7 @@ clientProcTextMsg:
 		CMP	#$02
 		BCC	@unknown
 		
-		LDA	tempdat2
+		LDA	imsgdat2
 		CMP	#$01
 		BEQ	@begin
 		
@@ -5180,8 +5684,8 @@ clientProcTextMsg:
 		JMP	clientProcTextMsgData
 
 @whisper:
-
-;***TODO:	Add message to chat log with whisper notification
+;!!TODO:	
+;	Add message to chat log with whisper notification
 
 		RTS
 
@@ -5195,7 +5699,7 @@ clientProcLobbyMsg:
 ;-------------------------------------------------------------------------------
 clientProcConctMsg:
 ;-------------------------------------------------------------------------------
-		LDA	tempdat2
+		LDA	imsgdat2
 		BNE	@tstnxt0
 
 		LDA	#<lpanel_cnct_log
@@ -5225,7 +5729,8 @@ clientProcConctMsg:
 ;		RTS
 
 @ident:
-;***TODO:	if there is one parameter, copy to user name string
+;!!TODO:	
+;	If there is one parameter, copy to user name string
 
 		RTS
 
@@ -5240,7 +5745,7 @@ clientProcClientMsg:
 ;-------------------------------------------------------------------------------
 clientProcServerMsg:
 ;-------------------------------------------------------------------------------
-		LDA	tempdat2
+		LDA	imsgdat2
 		BNE	@tstnxt0
 
 		LDA	#<lpanel_cnct_log
@@ -5270,7 +5775,8 @@ clientProcServerMsg:
 ;		RTS
 
 @ident:
-;***TODO:	Fetch three strings from message and store as host info
+;!!TODO:	
+;	Fetch three strings from message and store as host info
 		
 		JSR	clientSendIdent
 		JSR	clientSendUser
@@ -5279,10 +5785,749 @@ clientProcServerMsg:
 		RTS
 
 
+	.export	clientProcPlayJoinMsg
+;-------------------------------------------------------------------------------
+clientProcPlayJoinMsg:
+;-------------------------------------------------------------------------------
+		JSR	inetScanReadParams
+		
+		LDA	readparmcnt
+		CMP	#$03
+		BEQ	@join
+		
+		JMP	@unknown
+
+@join:
+;	Get the slot number the message refers to
+		LDY	readparm2
+		LDA	readmsg0, Y
+		SEC
+		SBC	#KEY_ASC_0	
+		PHA
+
+;	Start updating user interface
+		JSR	ctrlsLockAcquire
+		
+;	Check if we have our slot number already (have done this before)
+		LDA	gameData + GAME::ourslt
+		BMI	@wejoined
+		
+		JMP	@complete
+			
+@wejoined:
+;	NB:  I really should compare the player name given with our name to 
+;	check if the message is for us but if we haven't already gotten this 
+;	message, then it will be anyway.
+
+;!!FIXME
+;	Test player name with our player name to be sure?
+
+;!!TODO
+;	Set game name from message
+		
+;	Init game state to waiting - only need overview string
+		LDA	#<label_ovrwv_round_det
+		STA	elemptr0
+		LDA	#>label_ovrwv_round_det
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_wait
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_wait
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate		
+		
+;	Remember our slot
+		PLA
+		STA	gameData + GAME::ourslt
+		PHA
+
+;	Enable Ready button 
+		LDA	#<button_ovrvw_cntrl
+		STA	elemptr0
+		LDA	#>button_ovrvw_cntrl
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+;	Set detail slot to none - no need is initialised this way
+;		LDA	#$FF
+;		STA	gameData + GAME::detslt
+
+;	Change Game Join button to Part 
+		LDA	#<button_play_join
+		STA	elemptr0
+		LDA	#>button_play_join
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<button_play_part
+		STA	elemptr0
+		LDA	#>button_play_part
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<button_play_join
+		CMP	actvCtrl
+		BNE	@tstpick
+
+		LDA	#>button_play_join
+		CMP	actvCtrl + 1
+		BNE	@tstpick
+
+		JSR	ctrlsActivateCtrl
+
+@tstpick:
+		LDA	#<button_play_join
+		CMP	pickCtrl
+		BNE	@cont
+
+		LDA	#>button_play_join
+		CMP	pickCtrl + 1
+		BNE	@cont
+
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+
+
+;	Disable Game Name and Password edits
+@cont:
+		LDA	#<edit_play_game
+		STA	elemptr0
+		LDA	#>edit_play_game
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<edit_play_pwd
+		STA	elemptr0
+		LDA	#>edit_play_pwd
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+				
+;	Respond with Play 3 to get other player names
+		JSR 	clientSendPlayListNames
+		
+@complete:
+;	Set slot name to <player name>
+		PLA
+		TAX
+		PHA
+		
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+		
+		LDY	#GAMESLOT::name
+		LDX	readparm1
+		
+@loop:
+		LDA	readmsg0, X
+		STA	(tempptr0), Y
+		INY
+		INX
+
+		CMP	#KEY_ASC_SPACE
+		BNE	@loop
+
+		LDA	#$00
+		STA	(tempptr0), Y
+		
+		PLA
+		ASL
+		TAX
+		LDA	label_ovrvw_names, X
+		STA	elemptr0
+		INX
+		LDA	label_ovrvw_names, X
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		JSR	ctrlsLockRelease
+
+;!!TODO
+;	Produce joined log message
+
+		RTS
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+	.export	clientProcPlayPartMsg
+;-------------------------------------------------------------------------------
+clientProcPlayPartMsg:
+;-------------------------------------------------------------------------------
+		JSR	inetScanReadParams
+		
+		LDA	readparmcnt
+		CMP	#$03
+		BEQ	@part
+		
+		JMP	@unknown
+		
+@part:
+;!!TODO
+;	Check the game name against our game to be sure??
+		
+;	Get the slot number the message refers to
+		LDY	readparm2
+		LDA	readmsg0, Y
+		SEC
+		SBC	#KEY_ASC_0
+		PHA
+
+;	Start updating user interface
+		JSR	ctrlsLockAcquire
+
+;	Check if we have our slot number still
+		PLA
+		PHA
+		CMP	gameData + GAME::ourslt
+		BEQ	@weparted
+		
+		JMP	@complete
+		
+@weparted:
+;	We were ejected from the game somehow?
+
+		JSR	initGameData
+		JSR	clientInitGameOvrvw
+		
+		JSR	clientResetPlayGame
+		
+;!!TODO
+;	If on one of the play overview or detail pages, switch back to game page
+		
+		PLA
+		JMP	@exit
+		
+@complete:
+		PLA
+		ASL
+		TAX
+		LDA	clientInitGameOvrvws, X
+		STA	@update + 1
+		LDA	clientInitGameOvrvws + 1, X
+		STA	@update + 2
+		
+@update:
+		JSR	clientInitGameOvrvw1P
+
+@exit:
+		JSR	ctrlsLockRelease
+		RTS
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+	.export	clientProcPlayStatGameMsg
+;-------------------------------------------------------------------------------
+clientProcPlayStatGameMsg:
+;-------------------------------------------------------------------------------
+		LDA	readmsg0
+		CMP	#$04
+		BEQ	@statgame
+
+		JMP	@unknown
+		
+@statgame:
+		LDA	readmsg0 + 2
+		STA	gameData + GAME::state
+		
+;	Get game round from network byte order (hi, lo)
+		LDA	readmsg0 + 3
+		STA	gameData + GAME::round + 1
+		LDA	readmsg0 + 4
+		STA	gameData + GAME::round
+		
+		LDA	readmsg0 + 2
+		CMP	#GAME_ST_PREP
+		BCC	@cont0
+
+		JSR	ctrlsLockAcquire
+		
+		LDX	#$00
+		STX	tempvar_s
+		STX	tempvar_q
+@loop:
+		LDY	tempvar_q
+		
+		LDA	game_slot_lo, Y
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+		
+		LDX	tempvar_s
+		
+		LDY	#GAMESLOT::state
+		LDA	(tempptr0), Y
+		BNE	@btn
+
+		LDA	label_ovrvw_stats, X
+		STA	elemptr0
+		INX
+		LDA	label_ovrvw_stats, X
+		STA	elemptr0 + 1
+		INX
+		
+		STX	tempvar_s
+		
+		LDY	#CONTROL::textptr
+		LDA	#$00
+		STA	(elemptr0), Y
+		INY
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		JMP	@next
+		
+@btn:
+		LDA	button_ovrvw_dets, X
+		STA	elemptr0
+		INX
+		LDA	button_ovrvw_dets, X
+		STA	elemptr0 + 1
+		INX
+		
+		STX	tempvar_s
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDY	tempvar_q
+		LDA	game_slot_lo, Y
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
+		
+		JSR	ctrlsLockAcquire
+		JSR	clientUpdateSlotState
+
+@next:
+		INC	tempvar_q
+
+		LDX	tempvar_s
+		CPX	#$0C
+		BNE	@loop
+		
+		JSR	ctrlsLockRelease
+		
+@cont0:
+
+;!!TODO
+;	Update label_ovrvw_round_det for state/round
+
+;!!TODO
+;	Update detail page disable buttons when game over
+
+		RTS
+		
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+	.export	clientProcPlayStatPeerMsg
+;-------------------------------------------------------------------------------
+clientProcPlayStatPeerMsg:
+;-------------------------------------------------------------------------------
+		LDA	readmsg0
+		CMP	#$05
+		BEQ	@statpeer
+		
+		JMP	clientProcPlayStatPeerMsgUnk
+		
+@statpeer:
+;	Get the slot
+		LDA	readmsg0 + 2
+		STA	tempvar_q		;Slot number
+		
+		TAX
+		LDA	game_slot_lo, X
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
+		
+;	Store state and score in slot game data
+		
+		LDY	#GAMESLOT::state
+		LDA	readmsg0 + 3
+		STA	(tempptr3), Y
+		INY
+		LDA	readmsg0 + 5
+		STA	(tempptr3), Y
+		INY
+		LDA	readmsg0 + 4
+		STA	(tempptr3), Y
+		
+;	Start updating user interface
+
+		JSR	ctrlsLockAcquire
+		
+		LDA	tempvar_q
+		
+		CMP	gameData + GAME::ourslt
+		BEQ	@ourslt
+		
+		JMP	@cont1
+		
+@ourslt:
+		LDA	#<button_ovrvw_cntrl
+		STA	elemptr0
+		LDA	#>button_ovrvw_cntrl
+		STA	elemptr0 + 1
+	
+		LDA	readmsg0 + 3
+		CMP	#SLOT_ST_READY
+		BCS 	@tstrdy
+
+		LDY	#ELEMENT::tag
+		LDA	#$00
+		STA	(elemptr0), Y
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_ready
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_ready
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::accelchar
+		LDA	#'r'
+		STA	(elemptr0), Y
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		JMP	@cont0
+		
+@tstrdy:
+		BNE	@tstprep
+		
+		LDY	#ELEMENT::tag
+		LDA	#$01
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_ntrdy
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_ntrdy
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::accelchar
+		LDA	#'n'
+		STA	(elemptr0), Y
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		JMP	@cont0
+
+@tstprep:
+		CMP	#SLOT_ST_PREP
+		BNE	@ouringame
+		
+		LDY	#ELEMENT::tag
+		LDA	#$02
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_rl4frst
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_rl4frst
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::accelchar
+		LDA	#'r'
+		STA	(elemptr0), Y
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		JMP	@cont0
+
+@ouringame:
+		LDY	#ELEMENT::tag
+		LDA	#$03
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_play
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_play
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::accelchar
+		LDA	#$FF
+		STA	(elemptr0), Y
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+@cont0:
+;	If the button was already enabled, it won't have invalidated
+		JSR	ctrlsControlInvalidate
+
+@cont1:
+	
+clientUpdateSlotState:
+		LDA	tempvar_q
+		ASL
+		STA	tempvar_r		;Slot no * 2
+		TAX
+		
+		LDA	label_ovrvw_stats, X
+		STA	elemptr0
+		LDA	label_ovrvw_stats + 1, X
+		STA	elemptr0 + 1
+		
+		LDY	#GAMESLOT::state
+		LDA	(tempptr3), Y
+		CMP	#SLOT_ST_WAIT
+		BNE	@updconst
+		
+		LDX	gameData + GAME::state
+		CPX	#GAME_ST_PLAY
+		BCS	@updconst0
+		
+		LDA	tempvar_r
+		TAX
+		
+		LDY	#CONTROL::textptr
+		LDA	label_ovrvw_statbufs, X
+		STA	(elemptr0), Y
+		STA	tempptr0
+		INY
+		LDA	label_ovrvw_statbufs + 1, X
+		STA	(elemptr0), Y
+		STA	tempptr0 + 1
+		
+		LDA	#$00
+		STA	tempdat0
+		
+		LDAX	#text_slotst_waitf
+		JSR	strsAppendString
+
+		LDY	#GAMESLOT::fstrl
+		LDA	(tempptr3), Y
+		
+		LDX	#$00
+		
+		JSR	strsAppendInteger
+		
+		LDA	#$00
+		JSR	strsAppendChar		
+		
+		JMP	@done
+	
+@updconst0:
+		CMP	#SLOT_ST_WAIT
+@updconst:
+		BNE	@updother		;Has slot state in .A
+
+		LDX	gameData + GAME::state
+		CPX	#GAME_ST_PREP
+		BCS	@updother
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_token_null
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_token_null
+		STA	(elemptr0), Y
+		
+		JMP	@done
+
+@updother:
+		ASL				;Has slot state in .A
+		TAX
+		
+		LDY	#CONTROL::textptr
+		LDA	text_slotsts, X
+		STA	(elemptr0), Y
+		INY
+		LDA	text_slotsts + 1, X
+		STA	(elemptr0), Y
+
+@done:
+		JSR	ctrlsControlInvalidate
+		
+;	Display slot score 
+		LDY	#GAMESLOT::state
+		LDA	(tempptr3), Y
+		CMP	#SLOT_ST_WAIT
+		BCC	@finish
+
+		LDA	tempvar_r
+;		ASL
+		TAX
+		LDA	label_ovrvw_scorebufs, X
+		STA	tempptr0
+		LDA	label_ovrvw_scorebufs + 1, X
+		STA	tempptr0 + 1
+		
+		LDA	label_ovrvw_scores, X
+		STA	elemptr0
+		LDA	label_ovrvw_scores + 1, X
+		STA	elemptr0 + 1
+ 		
+		LDA	#$00
+		STA	tempdat0
+		
+		LDY	#GAMESLOT::score + 1
+		LDA	(tempptr3), Y
+		TAX
+		DEY
+		LDA	(tempptr3), Y
+		
+		JSR	strsAppendInteger
+		
+		LDA	#$00
+		JSR	strsAppendChar		
+		
+		JSR	ctrlsControlInvalidate
+		
+@finish:
+		JSR	ctrlsLockRelease
+
+		RTS
+
+clientProcPlayStatPeerMsgUnk:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+;-------------------------------------------------------------------------------
+clientProcPlayRollMsg:
+;-------------------------------------------------------------------------------
+		LDA	readmsg0
+		CMP	#$07
+		BEQ	@roll
+		
+		JMP	@unknown
+		
+@roll:
+;	Get the message slot 
+		LDX	readmsg0 + 2
+		
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+
+;	Get the dice rolled
+		LDY	#GAMESLOT::dice
+		LDX	#$00
+@loop0:
+		LDA	readmsg0 + 3, X
+		STA	(tempptr0), Y
+		INY
+		INX
+
+		CPX 	#$05
+		BNE	@loop0
+
+;	If we're rolling for first, calculate
+		LDY	#GAMESLOT::state
+		LDA	(tempptr0), Y
+		CMP	#SLOT_ST_PREP
+		BNE	@cont0
+		
+		LDX	#$00
+		LDA	#$00
+		CLC
+@loop1:
+		ADC	readmsg0 + 3, X
+		INX
+		
+		CPX	#$05
+		BNE	@loop1
+
+		LDY	#GAMESLOT::fstrl
+		STA	(tempptr0), Y
+
+@cont0:
+;!!TODO
+;	Update detail view if showing the current slot and the game state is
+;	PREP or higher
+
+		RTS
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+	.export	clientProcPlayMsg
 ;-------------------------------------------------------------------------------
 clientProcPlayMsg:
 ;-------------------------------------------------------------------------------
-		RTS
+		LDA	imsgdat2
+		CMP	#$01
+		BNE	@tstnxt0
+		
+		JMP	clientProcPlayJoinMsg
+;		RTS
+		
+@tstnxt0:
+		CMP	#$02
+		BNE	@tstnxt1
+		
+		JMP	clientProcPlayPartMsg
+;		RTS
+
+@tstnxt1:
+		CMP	#$06
+		BNE	@tstnxt2
+
+		JMP	clientProcPlayStatGameMsg
+;		RTS
+
+@tstnxt2:
+		CMP	#$07
+		BNE	@tstnxt3
+
+		JMP	clientProcPlayStatPeerMsg
+;		RTS
+
+@tstnxt3:
+		CMP	#$08
+		BNE	@tstnxt4
+
+		JMP	clientProcPlayRollMsg
+;		RTS
+
+@tstnxt4:
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
 
 
 	.export	clientHandleReadMsg
@@ -5295,7 +6540,7 @@ clientHandleReadMsg:
 		LDA	readmsg0, Y
 
 		AND	#$0F
-		STA	tempdat2
+		STA	imsgdat2
 
 		LDA	readmsg0, Y
 		AND	#$F0
@@ -5311,7 +6556,7 @@ clientHandleReadMsg:
 		STA	@branch + 2
 
 		LDY	#$02
-		STY	tempdat1	
+		STY	imsgdat1	
 		
 @branch:
 		JSR	clientHandleReadMsg
@@ -5527,7 +6772,413 @@ clientSplshContKeyPress:
 		JSR	ctrlsDownCtrl
 
 		RTS
+	
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvws:
+			.word	clientInitGameOvrvw1P
+			.word	clientInitGameOvrvw2P
+			.word	clientInitGameOvrvw3P
+			.word	clientInitGameOvrvw4P
+			.word	clientInitGameOvrvw5P
+			.word	clientInitGameOvrvw6P
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw1P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_1p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_1p_det
+		STA	elemptr0 + 1
 		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#$00
+		STA	gameData + GAMESLOT::name
+
+		LDA	#<label_ovrvw_1p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_1p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_1p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_1p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_1p_score_buf
+
+		LDA	#<label_ovrvw_1p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_1p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw2P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_2p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_2p_det
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#$00
+		STA	gameData + .sizeof(GAMESLOT) + GAMESLOT::name
+
+		LDA	#<label_ovrvw_2p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_2p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_2p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_2p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_2p_score_buf
+
+		LDA	#<label_ovrvw_2p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_2p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw3P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_3p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_3p_det
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#$00
+		STA	gameData + (.sizeof(GAMESLOT)*2) + GAMESLOT::name
+
+		LDA	#<label_ovrvw_3p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_3p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_3p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_3p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_3p_score_buf
+
+		LDA	#<label_ovrvw_3p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_3p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw4P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_4p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_4p_det
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#$00
+		STA	gameData + (.sizeof(GAMESLOT)*3) + GAMESLOT::name
+
+		LDA	#<label_ovrvw_4p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_4p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_4p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_4p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_4p_score_buf
+
+		LDA	#<label_ovrvw_4p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_4p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw5P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_5p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_5p_det
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#$00
+		STA	gameData + (.sizeof(GAMESLOT)*4) + GAMESLOT::name
+
+		LDA	#<label_ovrvw_5p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_5p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_5p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_5p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_5p_score_buf
+
+		LDA	#<label_ovrvw_5p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_5p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw6P:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_6p_det
+		STA	elemptr0
+		LDA	#>button_ovrvw_6p_det
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#$00
+		STA	gameData + (.sizeof(GAMESLOT)*5) + GAMESLOT::name
+
+		LDA	#<label_ovrvw_6p_name
+		STA	elemptr0
+		LDA	#>label_ovrvw_6p_name
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#<label_ovrvw_6p_stat
+		STA	elemptr0
+		LDA	#>label_ovrvw_6p_stat
+		STA	elemptr0 + 1
+
+		LDY	#CONTROL::textptr
+		LDA	#<text_slotst_none
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_slotst_none
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+		LDA	#$00
+		STA	label_ovrvw_6p_score_buf
+
+		LDA	#<label_ovrvw_6p_score
+		STA	elemptr0
+		LDA	#>label_ovrvw_6p_score
+		STA	elemptr0 + 1
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientInitGameOvrvw:
+;-------------------------------------------------------------------------------
+		LDA	#<button_ovrvw_cntrl
+		STA	elemptr0
+		LDA	#>button_ovrvw_cntrl
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_ready
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_ready
+		STA	(elemptr0), Y
+		
+		LDY	#ELEMENT::tag
+		LDA	#$00
+		STA	(elemptr0), Y
+		
+		LDY	#CONTROL::textaccel
+		LDA	#$01
+		STA	(elemptr0), Y
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<label_ovrwv_round_det
+		STA	elemptr0
+		LDA	#>label_ovrwv_round_det
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	#$00
+		STA	(elemptr0), Y
+		INY
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
+		
+		JSR	clientInitGameOvrvw1P
+		JSR	clientInitGameOvrvw2P
+		JSR	clientInitGameOvrvw3P
+		JSR	clientInitGameOvrvw4P
+		JSR	clientInitGameOvrvw5P
+		JSR	clientInitGameOvrvw6P
+
+		RTS
+	
+
+	.export	clientPlayJoinChng
+;-------------------------------------------------------------------------------
+clientPlayJoinChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	inetstat
+		CMP	#INET_STATE_ERR
+		BEQ	@exit
+
+		LDA	edit_play_game_buf
+		BEQ	@exit
+
+		JSR	clientSendPlayJoin
+
+		JSR	initGameData
+		JSR	clientInitGameOvrvw
+		
+@exit:
+		RTS
+
+
+	.export	clientPlayPartChng
+;-------------------------------------------------------------------------------
+clientPlayPartChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	inetstat
+		CMP	#INET_STATE_ERR
+		BEQ	@exit
+
+		LDA	edit_play_game_buf
+		BEQ	@exit
+
+		JSR	clientSendPlayPart
+
+		JSR	initGameData
+		JSR	clientInitGameOvrvw
+		
+@exit:
+		RTS
+
 
 	.export	clientCnctCnctChng
 ;-------------------------------------------------------------------------------
@@ -5588,6 +7239,16 @@ clientCnctDCntChng:
 
 		LDA	#INET_PROC_DISC
 		STA	inetproc
+		
+;	Clear the game data if we have a slot
+
+		LDA	gameData + GAME::ourslt
+		BMI	@exit
+		
+		JSR	initGameData
+		JSR	clientInitGameOvrvw
+		
+		JSR	clientResetPlayGame
 
 @exit:
 		RTS
@@ -6149,6 +7810,88 @@ clientPlayLessChng:
 		RTS
 
 
+;-------------------------------------------------------------------------------
+clientOvrvwCntrlChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BEQ	@doready
+		
+		CMP	#$01
+		BEQ	@dontrdy
+		
+		JMP	clientSendPlayRollPeerFirst
+;		RTS
+		
+@doready:
+		JMP	clientSendPlayStatPeerReady
+;		RTS
+
+@dontrdy:
+		JMP	clientSendPlayStatPeerNtRdy
+;		RTS
+		
+@exit:
+		RTS
+		
+
+;-------------------------------------------------------------------------------
+initGameData:
+;-------------------------------------------------------------------------------
+		LDA	#$FF
+		LDX	#GAME::ourslt
+		STA	gameData, X
+		INX
+		STA	gameData, X
+
+		LDX	#$05
+@loop0:
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+		
+		LDA	#$FF
+		LDY	#.sizeof(SCRSHEET) - 1
+@loop1:
+		STA	(tempptr0), Y
+		DEY
+		BPL	@loop1
+		
+		LDA	#$00
+		LDY	#.sizeof(SCRSHEET)
+@loop2:
+		STA	(tempptr0), Y
+		INY
+		CPY	#.sizeof(GAMESLOT)
+		BNE	@loop2
+
+		DEX
+		BPL	@loop0
+
+		LDA	#$00
+		LDX	#GAME::state
+		STA	gameData, X
+		INX
+		STA	gameData, X
+		INX
+		STA	gameData, X
+
+		RTS
+
+
+;!!TODO
+;	Shouldn't the following init routines be in the init/once segment?
 
 	.export	initCore
 ;-------------------------------------------------------------------------------
@@ -6156,6 +7899,8 @@ initCore:
 ;-------------------------------------------------------------------------------
 		JSR	initMem
 		JSR	initSprites
+		
+		JSR	initGameData
 		
 		JSR	initUser
 
@@ -6187,6 +7932,8 @@ initMem:
 		LDA	#$1D
 		STA	$01		
 		
+;	Init mouse pointer RAM from ONCE segment 
+		
 		LDA	#<sprPointer0
 		STA	tempptr0
 		LDA	#>sprPointer0
@@ -6198,12 +7945,14 @@ initMem:
 		STA	tempptr1 + 1
 		
 		LDY	#$0F
-@loop5:						;Copy mouse pointer data
+@loop5:						
 		LDA	(tempptr0), Y
 		STA	(tempptr1), Y
 		
 		DEY
 		BPL	@loop5
+
+;	Initialise state
 
 		LDA	#$00
 
@@ -6231,6 +7980,8 @@ initMem:
 		STA	keyZPDecodePtr
 		STA	keyZPDecodePtr + 1
 
+;	Initialise logs
+
 		LDA	#<lpanel_cnct_log
 		STA	tempptr2
 		LDA	#>lpanel_cnct_log
@@ -6238,18 +7989,23 @@ initMem:
 
 		JSR	ctrlsLogPanelInit
 
+;	Intialise keyboard handler
+
 		LDA	#$00
 		STA	keyRepeatFlag
 ;		LDA	#$80
 ;		STA	keyModifierLock
 		LDA	#$14
 		STA	keyBufferSize
+
 		RTS
 
 
 ;-------------------------------------------------------------------------------
 initSprites:
 ;-------------------------------------------------------------------------------
+;	Init sprite RAM locations
+
 		LDA	#$20
 		STA	spritePtr0
 		LDA	#$21
@@ -6259,10 +8015,14 @@ initSprites:
 		LDA	#$23
 		STA	spritePtr3
 
+;	Turn off MCM and expansion
+
 		LDA	#$00			;MCM none
 		STA	vicSprCMod
 		STA	vicSprExpX		
 		STA	vicSprExpY
+
+;	Enable all of the sprites required
 
 		LDA	#$0F			;sprites
 		STA	vicSprEnab
@@ -6272,47 +8032,16 @@ initSprites:
 ;-------------------------------------------------------------------------------
 initUser:
 ;-------------------------------------------------------------------------------
+;	Update the mouse pointer position
+
 		JSR	CMOVEX
 		JSR	CMOVEY
-		
+
+;	Install the UI IRQ handler
+
 		JSR	userIRQInstall
 
 		RTS
-		
-
-screenRowsLo:
-			.byte	<$0400, <$0428, <$0450, <$0478, <$04A0
-			.byte	<$04C8, <$04F0, <$0518, <$0540, <$0568
-			.byte 	<$0590, <$05B8, <$05E0, <$0608, <$0630
-			.byte	<$0658, <$0680, <$06A8, <$06D0, <$06F8
-			.byte	<$0720, <$0748, <$0770, <$0798, <$07C0
-
-screenRowsHi:
-			.byte	>$0400, >$0428, >$0450, >$0478, >$04A0
-			.byte	>$04C8, >$04F0, >$0518, >$0540, >$0568
-			.byte 	>$0590, >$05B8, >$05E0, >$0608, >$0630
-			.byte	>$0658, >$0680, >$06A8, >$06D0, >$06F8
-			.byte	>$0720, >$0748, >$0770, >$0798, >$07C0
-
-;colourRowsLo:
-;			.byte	<$D800, <$D828, <$D850, <$D878, <$D8A0
-;			.byte	<$D8C8, <$D8F0, <$D918, <$D940, <$D968
-;			.byte 	<$D990, <$D9B8, <$D9E0, <$DA08, <$DA30
-;			.byte	<$DA58, <$DA80, <$DAA8, <$DAD0, <$DAF8
-;			.byte	<$DB20, <$DB48, <$DB70, <$DB98, <$DBC0
-
-colourRowsHi:
-			.byte	>$D800, >$D828, >$D850, >$D878, >$D8A0
-			.byte	>$D8C8, >$D8F0, >$D918, >$D940, >$D968
-			.byte 	>$D990, >$D9B8, >$D9E0, >$DA08, >$DA30
-			.byte	>$DA58, >$DA80, >$DAA8, >$DAD0, >$DAF8
-			.byte	>$DB20, >$DB48, >$DB70, >$DB98, >$DBC0
-
-screenASCIIXLAT:
-	.byte	KEY_ASC_BSLASH, KEY_ASC_CARET, KEY_ASC_USCORE, KEY_ASC_BQUOTE
-	.byte	KEY_ASC_OCRLYB, KEY_ASC_PIPE, KEY_ASC_CCRLYB, KEY_ASC_TILDE, $00
-screenASCIIXLATSub:
-	.byte	$4D, $71, $64, $4A ,$55, $5D, $49, $45, $00
 
 
 	.export	screenIsRevColour
@@ -6357,7 +8086,7 @@ screenCtrlToLogClr:
 		RTS
 		
 @ctrl:
-		CMP	#$FD
+		CMP	#CLR_BACK
 		BNE	@other
 		
 		LDA	#$00
@@ -6684,8 +8413,7 @@ msgsPushChanging:
 		RTS
 
 
-
-	.export	msgsPushChanging
+	.export	msgsPushInvalid
 ;-------------------------------------------------------------------------------
 msgsPushInvalid:
 ;-------------------------------------------------------------------------------
@@ -6946,10 +8674,18 @@ ctrlsActivateCtrl:
 ;-------------------------------------------------------------------------------
 ctrlsControlInvalidate:
 ;-------------------------------------------------------------------------------
+;	Only invalidate elements NOT already STATE_DIRTY
+
 		LDY	#ELEMENT::state
 		LDA	(elemptr0), Y
 		AND	#STATE_DIRTY
 		BNE	@exit
+
+;	Only invalidate elements with STATE_PREPARED
+
+		LDA	(elemptr0), Y
+		AND	#STATE_PREPARED
+		BEQ	@exit
 
 		LDA	(elemptr0), Y
 		ORA	#STATE_DIRTY
@@ -7314,8 +9050,80 @@ ctrlsPageSelect:
 
 		LDY	#ELEMENT::state
 		LDA	(pageptr0), Y
-		AND	#($FF ^ STATE_VISIBLE)
+		AND	#($FF ^ (STATE_VISIBLE | STATE_PREPARED))
 		STA	(pageptr0), Y
+
+;	Remove STATE_PREPARED from all page elements
+
+;	Find last panel on page
+		LDY	#PAGE::panels
+		LDA	(pageptr0), Y
+		STA	tempptr0
+		INY
+		LDA	(pageptr0), Y
+		STA	tempptr0 + 1
+
+		LDY	#PAGE::panlcnt
+		LDA	(pageptr0), Y
+		ASL
+		STA	tempvar_a
+		DEC	tempvar_a
+
+@panel0:
+;	for each panel on page rev
+		LDY	tempvar_a
+
+		LDA	(tempptr0), Y
+		STA	tempptr1 + 1
+		DEY
+		LDA	(tempptr0), Y
+		STA	tempptr1
+		DEY
+		
+		STY	tempvar_a
+
+		LDY	#ELEMENT::state
+		LDA	(tempptr1), Y
+		AND	#$FF ^ STATE_PREPARED
+		STA	(tempptr1), Y
+		
+;	for each elem in panel 
+
+		LDY	#PANEL::controls
+		LDA	(tempptr1), Y
+		STA	tempptr2
+		INY
+		LDA	(tempptr1), Y
+		STA	tempptr2 + 1
+
+		LDY	#$00
+		
+@elem0:
+		LDA	(tempptr2), Y
+		STA	tempptr3
+		INY
+		LDA	(tempptr2), Y
+		BEQ	@panelnext
+		
+		STA	tempptr3 + 1
+		INY
+		
+		STY	tempvar_b
+
+		LDY	#ELEMENT::state
+		LDA	(tempptr3), Y
+		AND	#$FF ^ STATE_PREPARED
+		STA	(tempptr3), Y
+
+@elemnext:
+		LDY	tempvar_b
+		JMP	@elem0
+
+@panelnext:
+		LDY	tempvar_a
+		BMI	@cont0
+		
+		JMP	@panel0
 
 @cont0:
 ;	Set the current page
@@ -7327,7 +9135,7 @@ ctrlsPageSelect:
 
 		LDY	#ELEMENT::state
 		LDA	(pageptr0), Y
-		ORA	#STATE_VISIBLE
+		ORA	#STATE_VISIBLE | STATE_PREPARED
 		STA	(pageptr0), Y
 
 ;	Clear picked, down and active controls
@@ -7633,7 +9441,7 @@ ctrlsLogPanelUpdate:
 		JMP	@update
 
 @hidden:
-;***TODO:	Signal on tab that there is a message
+;!!TODO:	Signal on tab that there is a message
 
 		RTS
 
@@ -7645,7 +9453,6 @@ ctrlsLogPanelUpdate:
 		LDA	tempptr2 + 1
 		STA	elemptr0 + 1
 
-;		JSR	ctrlsLPanelDefPresent
 		JSR	ctrlsControlInvalidate
 
 		JSR	ctrlsLockRelease
@@ -8317,19 +10124,28 @@ ctrlsPagePrepare:
 		
 		STY	ctrlvar_a
 		
-		LDY	#ELEMENT::prepare
+;	Include STATE_PREPARED on panel
+
+		LDY	#ELEMENT::state
 		LDA	(panlptr0), Y
-		STA	ctrlptr_a
-		INY
-		LDA	(panlptr0), Y
-		STA	ctrlptr_a + 1
-		
-		BEQ	@def
-		
-		JSR	ctrlsProxyA
-		JMP	@next
-		
-@def:
+		ORA	#STATE_PREPARED
+		STA	(panlptr0), Y
+
+;	Stub out prepare override functionality
+
+;		LDY	#ELEMENT::prepare
+;		LDA	(panlptr0), Y
+;		STA	ctrlptr_a
+;		INY
+;		LDA	(panlptr0), Y
+;		STA	ctrlptr_a + 1
+;		
+;		BEQ	@def
+;		
+;		JSR	ctrlsProxyA
+;		JMP	@next
+;		
+;@def:
 		JSR	ctrlsPanelDefPrepare
 	
 @next:	
@@ -8385,19 +10201,28 @@ ctrlsPanelDefPrepare:
 		
 		STY	ctrlvar_b
 		
-		LDY	#ELEMENT::prepare
+;	Include STATE_PREPARED on element
+
+		LDY	#ELEMENT::state
 		LDA	(elemptr0), Y
-		STA	ctrlptr_a
-		INY
-		LDA	(elemptr0), Y
-		STA	ctrlptr_a + 1
-		
-		BEQ	@def
-		
-		JSR	ctrlsProxyA
-		JMP	@next
-		
-@def:
+		ORA	#STATE_PREPARED
+		STA	(elemptr0), Y
+
+;	Stub out prepare override functionality
+
+;		LDY	#ELEMENT::prepare
+;		LDA	(elemptr0), Y
+;		STA	ctrlptr_a
+;		INY
+;		LDA	(elemptr0), Y
+;		STA	ctrlptr_a + 1
+;		
+;		BEQ	@def
+;		
+;		JSR	ctrlsProxyA
+;		JMP	@next
+;		
+;@def:
 		JSR	ctrlsControlDefPrepare
 	
 @next:	
@@ -8780,6 +10605,10 @@ sprPointer0:
 
 
 	.export	connection_closed
+	.export	readmsg0
+	.export tempdat2
+	.export	ctrlsLock
+	
 ;===============================================================================
 	.segment	"BSS"
 ;===============================================================================
@@ -8795,6 +10624,13 @@ tempvar_e:
 			.res	1
 tempvar_f:
 			.res	1
+			
+tempvar_q:
+			.res	1
+tempvar_r:
+			.res	1
+tempvar_s:
+			.res 	1
 
 tempvar_x:
 			.res	1
@@ -8942,6 +10778,97 @@ msgs_dirty:
 ;===============================================================================
 	.segment	"RODATA"
 ;===============================================================================
+game_slot_lo:
+			.byte	<(gameData)
+			.byte	<(gameData + .sizeof(GAMESLOT))
+			.byte	<(gameData + (.sizeof(GAMESLOT) * 2))
+			.byte	<(gameData + (.sizeof(GAMESLOT) * 3))
+			.byte	<(gameData + (.sizeof(GAMESLOT) * 4))
+			.byte	<(gameData + (.sizeof(GAMESLOT) * 5))
+
+button_ovrvw_dets:
+			.word	button_ovrvw_1p_det
+			.word	button_ovrvw_2p_det
+			.word	button_ovrvw_3p_det
+			.word	button_ovrvw_4p_det
+			.word	button_ovrvw_5p_det
+			.word	button_ovrvw_6p_det
+
+label_ovrvw_names:
+			.word	label_ovrvw_1p_name
+			.word	label_ovrvw_2p_name
+			.word	label_ovrvw_3p_name
+			.word	label_ovrvw_4p_name
+			.word	label_ovrvw_5p_name
+			.word	label_ovrvw_6p_name
+			
+label_ovrvw_stats:
+			.word	label_ovrvw_1p_stat
+			.word	label_ovrvw_2p_stat
+			.word	label_ovrvw_3p_stat
+			.word	label_ovrvw_4p_stat
+			.word	label_ovrvw_5p_stat
+			.word	label_ovrvw_6p_stat
+
+label_ovrvw_statbufs:
+			.word	label_ovrvw_1p_stat_buf
+			.word	label_ovrvw_2p_stat_buf
+			.word	label_ovrvw_3p_stat_buf
+			.word	label_ovrvw_4p_stat_buf
+			.word	label_ovrvw_5p_stat_buf
+			.word	label_ovrvw_6p_stat_buf
+
+label_ovrvw_scores:
+			.word	label_ovrvw_1p_score
+			.word	label_ovrvw_2p_score
+			.word	label_ovrvw_3p_score
+			.word	label_ovrvw_4p_score
+			.word	label_ovrvw_5p_score
+			.word	label_ovrvw_6p_score
+			
+label_ovrvw_scorebufs:
+			.word	label_ovrvw_1p_score_buf
+			.word	label_ovrvw_2p_score_buf
+			.word	label_ovrvw_3p_score_buf
+			.word	label_ovrvw_4p_score_buf
+			.word	label_ovrvw_5p_score_buf
+			.word	label_ovrvw_6p_score_buf
+
+screenRowsLo:
+			.byte	<$0400, <$0428, <$0450, <$0478, <$04A0
+			.byte	<$04C8, <$04F0, <$0518, <$0540, <$0568
+			.byte 	<$0590, <$05B8, <$05E0, <$0608, <$0630
+			.byte	<$0658, <$0680, <$06A8, <$06D0, <$06F8
+			.byte	<$0720, <$0748, <$0770, <$0798, <$07C0
+
+screenRowsHi:
+			.byte	>$0400, >$0428, >$0450, >$0478, >$04A0
+			.byte	>$04C8, >$04F0, >$0518, >$0540, >$0568
+			.byte 	>$0590, >$05B8, >$05E0, >$0608, >$0630
+			.byte	>$0658, >$0680, >$06A8, >$06D0, >$06F8
+			.byte	>$0720, >$0748, >$0770, >$0798, >$07C0
+
+;colourRowsLo:
+;			.byte	<$D800, <$D828, <$D850, <$D878, <$D8A0
+;			.byte	<$D8C8, <$D8F0, <$D918, <$D940, <$D968
+;			.byte 	<$D990, <$D9B8, <$D9E0, <$DA08, <$DA30
+;			.byte	<$DA58, <$DA80, <$DAA8, <$DAD0, <$DAF8
+;			.byte	<$DB20, <$DB48, <$DB70, <$DB98, <$DBC0
+
+colourRowsHi:
+			.byte	>$D800, >$D828, >$D850, >$D878, >$D8A0
+			.byte	>$D8C8, >$D8F0, >$D918, >$D940, >$D968
+			.byte 	>$D990, >$D9B8, >$D9E0, >$DA08, >$DA30
+			.byte	>$DA58, >$DA80, >$DAA8, >$DAD0, >$DAF8
+			.byte	>$DB20, >$DB48, >$DB70, >$DB98, >$DBC0
+
+screenASCIIXLAT:
+	.byte	KEY_ASC_BSLASH, KEY_ASC_CARET, KEY_ASC_USCORE, KEY_ASC_BQUOTE
+	.byte	KEY_ASC_OCRLYB, KEY_ASC_PIPE, KEY_ASC_CCRLYB, KEY_ASC_TILDE, $00
+screenASCIIXLATSub:
+	.byte	$4D, $71, $64, $4A ,$55, $5D, $49, $45, $00
+
+
 text_token_null:
 			.asciiz	""
 
@@ -9030,6 +10957,13 @@ text_ovrvw_cntrl:
 			.asciiz	"GAME CONTROL:"
 text_ovrvw_ready:
 			.asciiz	"[READY   ]"
+text_ovrvw_ntrdy:
+			.asciiz	"[NOT RDY ]"
+text_ovrvw_rl4frst:
+			.asciiz	"[RL4FIRST]"
+text_ovrvw_play:
+			.asciiz	"[IN GAME ]"
+			
 text_ovrvw_1p:
 			.asciiz	"[1P]"
 text_ovrvw_2p:
@@ -9044,6 +10978,40 @@ text_ovrvw_6p:
 			.asciiz	"[6P]"
 text_ovrvw_round:
 			.asciiz	"GAME ROUND  :"
+			
+text_ovrvw_wait:
+			.asciiz	"WAITING..."
+			
+
+text_slotsts:
+			.word	text_slotst_none
+			.word	text_slotst_idle
+			.word	text_slotst_ready
+			.word	text_slotst_prep
+			.word	text_slotst_wait
+			.word	text_slotst_play
+			.word	text_slotst_fin
+			.word	text_slotst_win
+			
+text_slotst_none:
+			.asciiz	"AVAIL..."
+text_slotst_idle:
+			.asciiz	"NOT RDY"
+text_slotst_ready:
+			.asciiz	"WAIT RDY"
+text_slotst_prep:
+			.asciiz	"WAIT4FST"
+text_slotst_wait:
+			.asciiz	"WAITING"
+text_slotst_play:
+			.asciiz	"PLAYING"
+text_slotst_fin:
+			.asciiz	"DONE"
+text_slotst_win:
+			.asciiz	"WINNER!"
+			
+text_slotst_waitf:
+			.asciiz	"FSTRL "
 
 
 text_driver_pref:
