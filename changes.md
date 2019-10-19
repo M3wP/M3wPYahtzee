@@ -4,10 +4,10 @@
 
 ### Version 0.00.78A
 
-*17OCT2019
+* 17OCT2019
 	* Handle when the currently playing player leaves the game
 
-*16OCT2019
+* 16OCT2019
 	* Change Play|Join message to be all text, not mixed text and binary
 	* Fix exception when closing if a player is in a game/room
 	* Change list message response to Play|List to be all text, not mixed text and binary
@@ -17,7 +17,7 @@
 
 ### Version 0.00.78A
 
-*16OCT2019
+* 16OCT2019
 	* Change Play|Join message to be all text, not mixed text and binary
 	* Change list message handling of Play|List response to expect all text, not mixed text and binary
 
@@ -26,32 +26,32 @@
 
 ### Version 0.00.23A
 
-*20OCT2019
+* 20OCT2019
 	* Implement OPT_AUTOCHECK functionality for checkbox controls
 	* Implement mouse navigation on score sheet control
 	* Implement mouse capture functionality
 	* Implement score sheet control key press handling to navigate scores
 
-*19OCT2019
+* 19OCT2019
 	* Change unused OPT_NOPRESENT to OPT_NOAUTOINVL and don't auto invalidate control when used
 	* Dirty implementation of changing the keeper state on the dice
 	* Implement (most of) the score sheet control display (still need selection logic)
 	* Implement die control
 	* Temporarily connect Play|Detail page to Play|Overview page as next page
 
-*18OCT2019
+* 18OCT2019
 	* Load the page's tag into a variable when PageSelect
 	* Layout for Play|Details page
 	* Further Play|StateGame handling
 	* Fix UI and inet collision with zp tempdat2
 
-*17OCT2019
+* 17OCT2019
 	* Begin Play|Roll message handling
 	* Play|Overview|ButtonCntrl interface logic
 	* More Play|StateGame message handling
 	* Handle Play|StatePeer message
 
-*16OCT2019
+* 16OCT2019
 	* Play|Part message handling
 	* Begin handling of Play|StateGame message
 	* Text|Data message handling for Play|List response
@@ -59,10 +59,10 @@
 	* Fix Text|Data message type identification bug
 	* Play|Overview interface init
 
-*14OCT2019
+* 14OCT2019
 	* Play|Join message handling
 
-*13OCT2019
+* 13OCT2019
 	* Add definitions for game state
 	* Only set STATE_DIRTY and generate invalid messages (to present) for elements that are STATE_PREPARED
 	* Set/unset STATE_PREPARED on elements when page shown/hidden
