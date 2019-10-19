@@ -26,7 +26,22 @@
 
 ### Version 0.00.23A
 
-*18OCT2019	
+*20OCT2019
+	* Implement OPT_AUTOCHECK functionality for checkbox controls
+	* Implement mouse navigation on score sheet control
+	* Implement mouse capture functionality
+	* Implement score sheet control key press handling to navigate scores
+
+*19OCT2019
+	* Change unused OPT_NOPRESENT to OPT_NOAUTOINVL and don't auto invalidate control when used
+	* Dirty implementation of changing the keeper state on the dice
+	* Implement (most of) the score sheet control display (still need selection logic)
+	* Implement die control
+	* Temporarily connect Play|Detail page to Play|Overview page as next page
+
+*18OCT2019
+	* Load the page's tag into a variable when PageSelect
+	* Layout for Play|Details page
 	* Further Play|StateGame handling
 	* Fix UI and inet collision with zp tempdat2
 

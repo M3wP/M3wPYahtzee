@@ -343,7 +343,7 @@ gameData	= 	$0200
 	.define CLR_SHADOW	$04
 	.define CLR_PAPER	$05
 	.define CLR_MONEY	$06
-	.define CLR_DICE	$07
+	.define CLR_DIE		$07
 	.define CLR_SPEC_TEXT	$10		;Specific system text colour
 	.define CLR_SPEC_CTRL	$20		;Specific system control colour 
 						;(reversed on C64)
@@ -364,7 +364,7 @@ gameData	= 	$0200
 	.define STATE_ACTIVE	$08
 	.define STATE_DOWN	$10
 
-	.define	OPT_NOPRESENT	$01
+	.define	OPT_NOAUTOINVL	$01
 	.define	OPT_NONAVIGATE	$02
 	.define OPT_NODOWNACTV	$04
 	.define OPT_DOWNCAPTURE $10
@@ -507,7 +507,11 @@ gameData	= 	$0200
 		textsiz  .byte
 		textmaxsz .byte
 	.endstruct
-
+	
+	.struct	DIECTRL
+		_control .tag	CONTROL
+		value	.byte
+	.endstruct
 
 
 
@@ -741,6 +745,16 @@ mouseYRow:
 	.byte		$00
 ;mouseLastY:
 ;	.word           $0000
+
+mouseCapture:
+			.byte	0
+mouseCapCtrl:
+			.word	$0000
+mouseCapMove:
+			.word	$0000
+mouseCapClick:
+			.word	$0000
+
 
 mousePanl:
 		.byte	$00
@@ -1372,6 +1386,12 @@ userHandleMouse:
 		LDA	ButtonLClick
 		BNE	@proc
 
+		LDA	mouseCapture
+		BEQ	@tstpick
+
+		RTS
+
+@tstpick:
 		LDA	pickCtrl + 1
 		BNE	@tstblink
 
@@ -1435,8 +1455,13 @@ userHandleMouse:
 		LDA	mouseTemp0
 		STA	mouseYRow
 
-;	Find last panel on page
+		LDA	mouseCapture
+		BEQ	@findctrl
 		
+		JMP	(mouseCapMove)
+
+;	Find last panel on page
+@findctrl:		
 		LDY	#PAGE::panels
 		LDA	(pageptr0), Y
 		STA	ctrlptr0
@@ -1573,6 +1598,12 @@ userHandleMouseClick:
 		LDA	#$00			
 		STA	ButtonLClick
 
+		LDA	mouseCapture
+		BEQ	@norm
+		
+		JMP	(mouseCapClick)
+
+@norm:
 		LDA	pickCtrl + 1
 		BNE	@down
 
@@ -1743,6 +1774,40 @@ userMouseInCtrl:
 		BPL	@nomatch
 
 		SEC
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userCaptureMouse:
+;-------------------------------------------------------------------------------
+		SEI
+		
+		LDA	mouseCapture
+		BNE	@exit
+		
+		LDA	#$01
+		STA	mouseCapture
+		
+@exit:
+		CLI
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userReleaseMouse:
+;-------------------------------------------------------------------------------
+		SEI
+		
+		LDA	mouseCapture
+		BEQ	@exit
+		
+		LDA	#$00
+		STA	mouseCapture
+		
+@exit:
+		CLI
 		
 		RTS
 
@@ -2328,7 +2393,7 @@ tab_main:
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_TAB
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_NOPRESENT 	;options	.byte
+			.byte	$00 		;options	.byte
 			.byte	CLR_FACE	;colour	.byte
 			.byte	$00		;posx	.byte
 			.byte	$00		;posy	.byte
@@ -3413,8 +3478,8 @@ page_ovrvw:
 			.byte	$03		;posy	.byte
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
-			.byte	$00		;tag	.byte
-			.word	$0000		;nxtpage
+			.byte	$01		;tag	.byte
+			.word	page_detail	;nxtpage
 			.word	page_play	;bakpage
 			.word	text_page_ovrvw	;textptr	.word
 			.byte	$10		;testoffx .byte
@@ -4087,6 +4152,487 @@ label_ovrwv_round_det:
 			.byte	$FF		;accelchar
 			.word	$0000		;actvctrl 
 
+page_detail:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	$0000		;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00 		;options	.byte
+			.byte	CLR_TEXT	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$02		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	page_ovrvw	;bakpage
+			.word	text_page_detail ;textptr	.word
+			.byte	$10		;textoffx .byte
+			.word	page_detail_pnls ;panels	.word
+			.byte	$04
+
+page_detail_pnls:
+			.word	tab_main
+			.word	panel_detail_top
+			.word	panel_detail_bleft
+			.word	spanel_detail_sheet
+			.word	$0000
+
+panel_detail_top:
+;			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00
+			.byte	CLR_INSET		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$03			;posy	.byte
+			.byte	$28			;width	.byte
+			.byte	$0B			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	page_detail
+			.word	panel_detail_top_ctrls	;controls 
+			.byte	$11
+			
+panel_detail_top_ctrls:
+			.word	static_det_ident
+			.word	checkbx_det_flwactv
+			.word	button_det_roll
+			.word	button_det_keep1
+			.word	button_det_keep2
+			.word	button_det_keep3
+			.word	button_det_keep4
+			.word	button_det_keep5
+			.word	die_det_0
+			.word	die_det_1
+			.word	die_det_2
+			.word	die_det_3
+			.word	die_det_4
+			.word	static_det_yourlbl
+			.word	static_det_yourscr
+			.word	static_det_theirlbl
+			.word	static_det_theirscr
+			.word	$0000
+
+static_det_ident:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT		;colour	
+			.byte	$00			;posx	
+			.byte	$04			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			
+checkbx_det_flwactv:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE |STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$06			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_flwactv	;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'f'			;accelchar
+
+button_det_roll:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE 
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$08			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_roll0		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'r'			;accelchar
+			
+button_det_keep1:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetKeepChng	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$0E			;posx	
+			.byte	$04			;posy	
+			.byte	$03			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_keep1		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'1'			;accelchar
+
+button_det_keep2:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetKeepChng	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$13			;posx	
+			.byte	$04			;posy	
+			.byte	$03			;width	
+			.byte	$01			;height	
+			.byte	$01			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_keep2		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'2'			;accelchar
+
+button_det_keep3:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetKeepChng 	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$18			;posx	
+			.byte	$04			;posy	
+			.byte	$03			;width	
+			.byte	$01			;height	
+			.byte	$02			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_keep3		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'3'			;accelchar
+
+button_det_keep4:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetKeepChng	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1D			;posx	
+			.byte	$04			;posy	
+			.byte	$03			;width	
+			.byte	$01			;height	
+			.byte	$03			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_keep4		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'4'			;accelchar
+
+button_det_keep5:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetKeepChng	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$22			;posx	
+			.byte	$04			;posy	
+			.byte	$03			;width	
+			.byte	$01			;height	
+			.byte	$04			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_keep5		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'5'			;accelchar
+
+die_det_0:
+;			.word	$0000			;prepare
+			.word	ctrlsDieDefPresent	;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_DIE			;colour	
+			.byte	$0E			;posx	
+			.byte	$06			;posy	
+			.byte	$03			;width	
+			.byte	$05			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$01			;value
+
+die_det_1:
+;			.word	$0000			;prepare
+			.word	ctrlsDieDefPresent	;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_DIE			;colour	
+			.byte	$13			;posx	
+			.byte	$06			;posy	
+			.byte	$03			;width	
+			.byte	$05			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$02			;value
+
+die_det_2:
+;			.word	$0000			;prepare
+			.word	ctrlsDieDefPresent	;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_DIE			;colour	
+			.byte	$18			;posx	
+			.byte	$06			;posy	
+			.byte	$03			;width	
+			.byte	$05			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$03			;value
+
+die_det_3:
+;			.word	$0000			;prepare
+			.word	ctrlsDieDefPresent	;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_DIE			;colour	
+			.byte	$1D			;posx	
+			.byte	$06			;posy	
+			.byte	$03			;width	
+			.byte	$05			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$04			;value
+
+die_det_4:
+;			.word	$0000			;prepare
+			.word	ctrlsDieDefPresent	;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_DIE			;colour	
+			.byte	$22			;posx	
+			.byte	$06			;posy	
+			.byte	$03			;width	
+			.byte	$05			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	$0000			;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$05			;value
+
+static_det_yourlbl:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$0C			;posy	
+			.byte	$0C			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_your		;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			
+static_det_yourscr:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER		;colour	
+			.byte	$0C			;posx	
+			.byte	$0C			;posy	
+			.byte	$05			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_yourscr_buf	;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			
+text_det_yourscr_buf:
+	.repeat	6
+			.byte	$00
+	.endrep
+			
+static_det_theirlbl:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_FACE		;colour	
+			.byte	$13			;posx	
+			.byte	$0C			;posy	
+			.byte	$0D			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_their		;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			
+static_det_theirscr:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed 
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER		;colour	
+			.byte	$20			;posx	
+			.byte	$0C			;posy	
+			.byte	$05			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_top	;panel	
+			.word	text_det_theirscr_buf	;textptr	
+			.byte	$00			;textoffx
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			
+text_det_theirscr_buf:
+	.repeat	6
+			.byte	$00
+	.endrep
+			
+panel_detail_bleft:
+;			.word	$0000			;prepare
+			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00
+			.byte	CLR_INSET		;colour	.byte
+			.byte	$00			;posx	.byte
+			.byte	$0E			;posy	.byte
+			.byte	$28			;width	.byte
+			.byte	$0B			;height	.byte
+			.byte	$00			;tag	.byte
+			.word	page_detail
+			.word	panel_detail_bleft_ctrls	;controls 
+			.byte	$02
+
+panel_detail_bleft_ctrls:
+			.word	button_det_select
+			.word	button_det_confirm
+			.word	$0000
+			
+button_det_select:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientDetSelectChng	;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$0E			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_bleft	;panel	
+			.word	text_det_select		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	's'			;accelchar
+
+button_det_confirm:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	$0000			;changed
+			.word	$0000			;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$10			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_detail_bleft	;panel	
+			.word	text_det_confirm	;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'c'			;accelchar
+
+spanel_detail_sheet:
+;			.word	$0000			;prepare
+			.word	ctrlsSPanelDefPresent	;present
+			.word	ctrlsSPanelDefChanged	;changed 
+			.word	ctrlsSPanelDefKeyPress	;keypress 
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NOAUTOINVL | OPT_NONAVIGATE | OPT_DOWNCAPTURE
+			.byte	CLR_TEXT		;colour	
+			.byte	$0C			;posx	
+			.byte	$0E			;posy	
+			.byte	$1C			;width	
+			.byte	$0B			;height	
+			.byte	$FF			;tag	
+			.word	page_detail		;page
+			.word	spanel_detail_sheet_ctrls ;controls 
+			.byte	$00
+
+spanel_detail_sheet_ctrls:
+			.word	$0000
 
 
 ;===============================================================================
@@ -4128,9 +4674,10 @@ main:
 		STA	elemptr0 + 1
 		JSR	ctrlsPageSelect
 
-		CLI
 	
-@loop:						;This is where we do our timer
+@loop:						
+		CLI
+						;This is where we do our timer
 	.if	DEBUG_RASTERTIME		;	check for TCP keep alives
 		LDA	#$06			;	and any message data sends
 		STA	vicBrdrClr
@@ -4194,6 +4741,11 @@ main:
 
 
 @lock:						;We need to lock here for reads...
+		SEI
+		LDA	ctrlsLock		;If already locked (eeii!) then skip
+		BNE	@loop
+		
+		CLI
 		JSR	ctrlsLockAcquire
 
 
@@ -4623,6 +5175,7 @@ inetExecute:
 		
 		LDA	#INET_PROC_DISC
 		STA	inetproc
+
 
 		LDA	#INET_STATE_NORM
 		STA	inetstat
@@ -7846,6 +8399,80 @@ clientOvrvwCntrlChng:
 		
 
 ;-------------------------------------------------------------------------------
+clientDetKeepChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+;!!TODO
+;	Send the keeper change message instead of all this and move this code
+;	into read keeper change message
+
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		
+		STA	tempvar_a
+		TAX
+		
+		LDA	die_flags, X
+
+;!!TODO
+;	Update the visible slot's keepers instead 
+		
+		LDA	tempvar_a
+		ASL
+		TAX
+		LDA	die_det_dice, X
+		STA	elemptr0
+		LDA	die_det_dice + 1, X
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::tag
+		
+;!!TODO
+;	Use the visible slot's keepers instead and then update the tag value
+
+		LDA	(elemptr0), Y
+		EOR 	#$01
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetSelectChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsDownCtrl
+
+@exit:
+		RTS
+
+;-------------------------------------------------------------------------------
 initGameData:
 ;-------------------------------------------------------------------------------
 		LDA	#$FF
@@ -8041,6 +8668,58 @@ initUser:
 
 		JSR	userIRQInstall
 
+		RTS
+
+
+;-------------------------------------------------------------------------------
+screenRectSetColour:
+;	IN	.A		Colour ident
+;	IN	tempvar_a	x pos
+;	IN	tempvar_b	y pos
+;	IN	tempvar_c	width
+;	IN	tempvar_d	height
+;	USED	.A
+;	USED	.X
+;	USED	.Y
+;	USED	tempvar_e
+;	USED	tempptr1
+;-------------------------------------------------------------------------------
+		JSR	screenCtrlToLogClr	
+		STA	tempvar_e		;logical colour
+
+@looph:
+		LDX	tempvar_b
+		LDA	screenRowsLo, X
+		
+;		STA	tempptr0
+		
+		STA	tempptr1		;colour ptr
+		LDA	colourRowsHi, X
+		STA	tempptr1 + 1
+	
+;		LDA	screenRowsHi, X
+;		STA	tempptr0 + 1
+	
+		LDY	tempvar_a
+		LDX	tempvar_c
+		DEX
+		
+@loopw:
+;		LDA	#$A0
+;		STA	(tempptr0), Y
+
+		LDA	tempvar_e		;colour to colour ram
+		STA	(tempptr1), Y
+		
+		INY
+		DEX
+		BPL	@loopw
+		
+		INC	tempvar_b
+		DEC	tempvar_d
+		LDA	tempvar_d
+		BNE	@looph
+		
 		RTS
 
 
@@ -9138,6 +9817,10 @@ ctrlsPageSelect:
 		ORA	#STATE_VISIBLE | STATE_PREPARED
 		STA	(pageptr0), Y
 
+		LDY	#ELEMENT::tag
+		LDA	(pageptr0), Y
+		STA	currpgtag
+
 ;	Clear picked, down and active controls
 
 		LDA	#$00
@@ -9514,6 +10197,175 @@ ctrlsPageChanged:
 		RTS
 
 
+;-------------------------------------------------------------------------------
+ctrlsSPanelMouseMove:
+;-------------------------------------------------------------------------------
+		JSR	ctrlsLockAcquire
+		
+		LDA	mouseCapCtrl
+		STA	elemptr0
+		LDA	mouseCapCtrl + 1
+		STA	elemptr0 + 1
+		
+		JSR	userMouseInCtrl
+		BCC	@exit
+		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_a
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_b
+		
+		LDA	mouseYRow
+		SEC
+		SBC	tempvar_b
+		STA	tempvar_b
+		
+		LDA	mouseXCol
+		SEC
+		SBC	tempvar_a
+		STA	tempvar_a
+		
+		CMP	#$0E
+		BCS	@lower
+		
+		LDA	tempvar_b
+		BEQ	@exit
+		
+		CMP	#$07
+		BCS	@exit
+		
+		TAX
+		DEX
+		STX	tempdat0
+		
+		JMP	@updind
+	
+@lower:
+		LDA	tempvar_b
+		BEQ	@exit
+		
+		CMP	#$08
+		BCS	@exit
+		
+		TAX
+		DEX
+		TXA
+		
+		CLC
+		ADC	#$06
+		STA	tempdat0
+		
+@updind:
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		LDX	#$00
+		JSR	ctrlsSPanelPresSelect
+
+		LDA	tempdat0
+		LDY	#ELEMENT::tag
+		STA	(elemptr0), Y
+		LDX	#$01
+		JSR	ctrlsSPanelPresSelect		
+		
+@exit:
+		JSR	ctrlsLockRelease
+		
+		RTS
+		
+
+;-------------------------------------------------------------------------------
+ctrlsSPanelMouseClick:
+;-------------------------------------------------------------------------------
+		JSR	ctrlsLockAcquire
+
+		LDA	mouseCapCtrl
+		STA	elemptr0
+		LDA	mouseCapCtrl + 1
+		STA	elemptr0 + 1
+
+		JSR	userMouseInCtrl
+		BCC	@exit
+		
+		JSR	ctrlsUnDownCtrl
+		
+		LDA	#<button_det_confirm
+		STA	elemptr0
+		LDA	#>button_det_confirm
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsActivateCtrl
+		
+@exit:
+		JSR	ctrlsLockRelease
+		
+		RTS
+		
+
+;-------------------------------------------------------------------------------
+ctrlsSPanelDefChanged:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsPanelDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@release
+
+		LDA	mouseCapture		;Sanity check mouse capture
+		BNE	@cont0			;Should check control...
+
+		LDA	elemptr0
+		STA	mouseCapCtrl
+		LDA	elemptr0 + 1
+		STA	mouseCapCtrl + 1
+
+		LDA	#<ctrlsSPanelMouseMove
+		STA	mouseCapMove
+		LDA	#>ctrlsSPanelMouseMove
+		STA	mouseCapMove + 1
+
+		LDA	#<ctrlsSPanelMouseClick
+		STA	mouseCapClick
+		LDA	#>ctrlsSPanelMouseClick
+		STA	mouseCapClick + 1
+		
+		JSR	userCaptureMouse
+		
+@cont0:
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BPL	@exit
+
+		LDA	#$00
+		STA	(elemptr0), Y
+		
+		JMP	@exit
+
+@release:
+
+;!!TODO
+;	Send score test message to server 
+
+		LDA	mouseCapture		;Sanity check mouse capture
+		BEQ	@exit			;Should check control...
+
+		JSR	userReleaseMouse
+
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+@exit:
+		LDX	#$01
+		JSR	ctrlsSPanelPresSelect
+
+		RTS
+
+
 	.export	ctrlsPanelDefChanged
 ;-------------------------------------------------------------------------------
 ctrlsPanelDefChanged:
@@ -9531,8 +10383,14 @@ ctrlsPanelDefChanged:
 		AND	#STATE_VISIBLE
 		BEQ	@exit
 
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#OPT_NOAUTOINVL
+		BNE	@cont0
+
 		JSR	ctrlsControlInvalidate
 
+@cont0:
 		LDY	#PANEL::ctrlcnt
 		LDA	(elemptr0), Y
 		BEQ	@exit
@@ -9565,7 +10423,12 @@ ctrlsPanelDefChanged:
 		LDA	(elemptr0), Y
 		AND	#STATE_VISIBLE
 		BEQ	@next
-		
+
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#OPT_NOAUTOINVL
+		BNE	@next
+
 		JSR	ctrlsControlInvalidate
 
 @next:
@@ -9586,11 +10449,17 @@ ctrlsControlDefChanged:
 		LDA	(elemptr0), Y
 		AND	#STATE_CHANGED
 		BEQ	@exit
-		
+
+		LDA	#$00
+		STA	tempvar_a
+
 		LDA	(elemptr0), Y
 		AND	#STATE_DOWN
 		BEQ	@dirty
 
+		LDA	#$01
+		STA	tempvar_a
+		
 		LDY	#ELEMENT::options
 		LDA	(elemptr0), Y
 		AND	#OPT_DOWNCAPTURE
@@ -9606,6 +10475,34 @@ ctrlsControlDefChanged:
 		STA	downCtrl + 1
 
 @dirty:
+		LDY	#ELEMENT::options
+		
+		LDA	tempvar_a
+		BEQ	@cont1
+
+		LDA	(elemptr0), Y
+		AND	#OPT_AUTOCHECK
+		BEQ	@cont1
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BEQ	@check
+		
+		LDA	#$00
+		JMP	@cont0
+
+@check:
+		LDA	#$01
+		
+@cont0:
+		STA	(elemptr0), Y
+		
+		LDY	#ELEMENT::options
+@cont1:
+		LDA	(elemptr0), Y
+		AND	#OPT_NOAUTOINVL
+		BNE	@exit
+
 		JSR	ctrlsControlInvalidate
 		
 @exit:
@@ -10094,6 +10991,79 @@ ctrlsEditDefKeyPress:
 
 
 ;-------------------------------------------------------------------------------
+ctrlsSPanelDefKeyPress:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#STATE_DOWN
+		BNE	@downkeys
+
+		RTS
+
+@downkeys:
+		LDA	msgsdat0
+		CMP	#KEY_ASC_CR
+		BNE	@input
+
+		JSR	ctrlsUnDownCtrl
+		
+		LDA	#<button_det_confirm
+		STA	elemptr0
+		LDA	#>button_det_confirm
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsActivateCtrl
+		
+		RTS
+
+@input:		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		LDA	msgsdat0
+		CMP	#KEY_C64_CUP
+		BNE	@tstdown
+
+		LDY	tempdat0
+		DEY
+		TYA
+		BPL	@updind
+		
+		LDA	#$0C
+		JMP	@updind
+		
+@tstdown:
+		CMP	#KEY_C64_CDOWN
+		BNE	@exit
+
+		LDY	tempdat0
+		INY
+		TYA
+		CMP	#$0D
+		BNE	@updind
+		
+		LDA	#$00
+		
+@updind:
+		STA	tempdat0
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		LDX	#$00
+		JSR	ctrlsSPanelPresSelect
+
+		LDA	tempdat0
+		LDY	#ELEMENT::tag
+		STA	(elemptr0), Y
+		LDX	#$01
+		JSR	ctrlsSPanelPresSelect
+
+@exit:
+		RTS
+		
+
+;-------------------------------------------------------------------------------
 ctrlsControlDefKeyPress:
 ;-------------------------------------------------------------------------------
 		RTS
@@ -10421,6 +11391,541 @@ ctrlsLPanelDefPresent:
 		RTS
 
 
+;-------------------------------------------------------------------------------
+ctrlsSPanelPresSelect:
+;	IN	.A	Score to select
+;	IN	.X	Select or deselect
+;-------------------------------------------------------------------------------
+		STA	tempvar_a
+		STX	tempvar_b
+
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_c
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_d
+
+		LDA	tempvar_a
+		CMP	#$06
+		BCS	@lower
+		
+		INC	tempvar_a
+		INC	tempvar_c
+		
+		LDA	tempvar_d
+		CLC
+		ADC	tempvar_a
+		STA	tempvar_d
+		
+		JMP	@cont0
+		
+@lower:
+		SEC
+		SBC	#$05
+		STA	tempvar_a
+
+		LDA	tempvar_c
+		CLC
+		ADC	#$0F
+		STA	tempvar_c
+		
+		LDA	tempvar_d
+		CLC
+		ADC	tempvar_a
+		STA	tempvar_d
+
+@cont0:
+		TAX
+		LDA	screenRowsLo, X
+		STA	tempptr0
+		LDA	colourRowsHi, X
+		STA	tempptr0 + 1
+		
+		LDA	tempvar_b
+		BNE	@clrsel
+		
+		LDA	#CLR_FACE
+		JMP	@cont1
+		
+@clrsel:
+		LDA	#CLR_TEXT
+		
+@cont1:
+		JSR	screenCtrlToLogClr
+		
+		LDY	tempvar_c
+		STA	(tempptr0), Y
+		
+		LDX	tempvar_d
+		LDA	screenRowsHi, X
+		STA	tempptr0 + 1
+		
+		LDA	tempvar_b
+		BNE	@chrsel
+		
+		LDA	#$A0
+		JMP	@cont2
+		
+@chrsel:
+		LDA	#$51
+		
+@cont2:
+		LDY	tempvar_c
+		STA	(tempptr0), Y
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+ctrlsSPanelDefPresent:
+;-------------------------------------------------------------------------------
+		LDA	#CLR_TEXT
+		JSR	ctrlsEraseBkg
+		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_r		;x
+		INC	tempvar_r
+		
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+
+;	Do the "upper labels"
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		LDA	#$07
+		STA	tempvar_c
+		LDA	#$09
+		STA	tempvar_d
+		
+		LDA	#CLR_FACE
+		JSR	screenRectSetColour
+
+		LDA	#$00
+		STA	tempvar_h		;text index
+				
+		LDA	#CLR_FACE
+		STA	tempdat0
+		
+@looplu:
+		LDA	#$00
+		STA	tempdat1
+		STA	tempdat3
+		STA	tempvar_d
+
+		LDA	#$09
+		STA	tempdat2
+
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		INC	tempvar_s
+		
+		LDX	tempvar_h
+		LDA	text_scrsht_upper, X
+		STA	tempptr1
+		INX
+		LDA	text_scrsht_upper, X
+		STA	tempptr1 + 1
+		INX
+		STX	tempvar_h
+		
+		JSR	ctrlsDrawTextDirect
+		
+		LDA	tempvar_h
+		CMP	#$12
+		BNE	@looplu
+		
+;	Do the "upper" scores		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		CLC
+		ADC	#$08
+		STA	tempvar_r
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+
+		LDA	#$00
+		STA	tempvar_h
+		
+@loopcu:
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		LDA	#$05
+		STA	tempvar_c
+		LDA	#$01
+		STA	tempvar_d
+	
+		LDA	tempvar_h
+		AND	#$01
+		BEQ	@cupaper
+
+		LDA	#CLR_MONEY
+		JMP	@contcu
+		
+@cupaper:
+		LDA	#CLR_PAPER
+		
+@contcu:
+		JSR	screenRectSetColour
+
+		INC	tempvar_h
+		INC	tempvar_s
+
+		LDA	tempvar_h
+		CMP	#$09
+		BNE	@loopcu
+
+		LDY	#ELEMENT::posy
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+		
+		LDA	#$00
+		STA	tempvar_h
+	
+@loopsu:
+		LDA	#$00
+		STA	tempdat1
+		STA	tempdat3
+		STA	tempvar_d
+
+		LDA	#$05
+		STA	tempdat2
+
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		INC	tempvar_s
+
+		LDA	tempvar_h
+		AND	#$01
+		BNE	@sumoney
+		
+		LDA	#CLR_PAPER
+		JMP	@contsu
+		
+@sumoney:
+		LDA	#CLR_MONEY
+
+@contsu:
+		STA	tempdat0
+
+		INC	tempvar_h
+
+;!!TODO
+;	Get the score value and convert to string instead
+
+		LDA	#<text_scrsht_blank
+		STA	tempptr1
+		LDA	#>text_scrsht_blank
+		STA	tempptr1 + 1
+		
+		JSR	ctrlsDrawTextDirect
+		
+		LDA	tempvar_h
+		CMP	#$09
+		BNE	@loopsu		
+
+
+;	Do the "lower labels"
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		CLC
+		ADC	#$0F
+		STA	tempvar_r
+		STA	tempvar_a
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		LDA	#$07
+		STA	tempvar_c
+		LDA	#$09
+		STA	tempvar_d
+		
+		LDA	#CLR_FACE
+		JSR	screenRectSetColour
+
+		LDA	#$00
+		STA	tempvar_h		;text index
+				
+		LDA	#CLR_FACE
+		STA	tempdat0
+		
+@loopll:
+		LDA	#$00
+		STA	tempdat1
+		STA	tempdat3
+		STA	tempvar_d
+
+		LDA	#$09
+		STA	tempdat2
+		
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		INC	tempvar_s
+		
+		LDX	tempvar_h
+		LDA	text_scrsht_lower, X
+		STA	tempptr1
+		INX
+		LDA	text_scrsht_lower, X
+		STA	tempptr1 + 1
+		INX
+		STX	tempvar_h
+		
+		JSR	ctrlsDrawTextDirect
+		
+		LDA	tempvar_h
+		CMP	#$12
+		BNE	@loopll
+
+;	Do the "lower" scores		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		CLC
+		ADC	#$16
+		STA	tempvar_r
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+	
+		LDA	#$00
+		STA	tempvar_h
+		
+@loopcl:
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		LDA	#$05
+		STA	tempvar_c
+		LDA	#$01
+		STA	tempvar_d
+	
+		LDA	tempvar_h
+		AND	#$01
+		BEQ	@clpaper
+
+		LDA	#CLR_MONEY
+		JMP	@contcl
+		
+@clpaper:
+		LDA	#CLR_PAPER
+		
+@contcl:
+		JSR	screenRectSetColour
+
+		INC	tempvar_h
+		INC	tempvar_s
+
+		LDA	tempvar_h
+		CMP	#$09
+		BNE	@loopcl
+
+		LDY	#ELEMENT::posy
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		INC	tempvar_s
+
+		LDA	#$00
+		STA	tempvar_h
+	
+@loopsl:
+		LDA	#$00
+		STA	tempdat1
+		STA	tempdat3
+		STA	tempvar_d
+
+		LDA	#$05
+		STA	tempdat2
+
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		INC	tempvar_s
+
+		LDA	tempvar_h
+		AND	#$01
+		BNE	@slmoney
+		
+		LDA	#CLR_PAPER
+		JMP	@contsl
+		
+@slmoney:
+		LDA	#CLR_MONEY
+
+@contsl:
+		STA	tempdat0
+
+		INC	tempvar_h
+
+;!!TODO
+;	Get the score value and convert to string instead
+
+		LDA	#<text_scrsht_blank
+		STA	tempptr1
+		LDA	#>text_scrsht_blank
+		STA	tempptr1 + 1
+		
+		JSR	ctrlsDrawTextDirect
+		
+		LDA	tempvar_h
+		CMP	#$09
+		BNE	@loopsl		
+		
+;	Score select indicator
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BMI	@exit
+	
+		LDX	#$01
+		JSR	ctrlsSPanelPresSelect
+		
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+ctrlsDieDefPresent:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_a		;x
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_b		;y
+;		INY
+;		LDA	(elemptr0), Y
+		LDA	#$03
+		STA	tempvar_c		;w
+;		INY
+;		LDA	(elemptr0), Y
+		LDA	#$05
+		STA	tempvar_d		;h
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		
+		STA	tempvar_e		;tag
+		
+		LDA	#$00
+		STA	tempvar_h		;output char cnt
+		
+@cont:
+;	Set-up die face ptr
+		LDY	#DIECTRL::value
+		LDA	(elemptr0), Y
+		ASL
+		TAY
+		LDA	dice, Y
+		STA	tempptr2
+		LDA	dice + 1, Y
+		STA	tempptr2 + 1
+
+;	We're going to assume these are always "control" colours (ie: reversed)
+
+		LDA	#CLR_DIE
+		JSR	screenCtrlToLogClr	
+		STA	tempvar_f		;logical die colour
+		
+		LDA	#CLR_INSET
+		JSR	screenCtrlToLogClr	
+		STA	tempvar_g		;logical bkg colour
+		
+@looph:
+		LDX	tempvar_b		;y pos
+		LDA	screenRowsLo, X
+		STA	tempptr0		;screen ptr
+		STA	tempptr1		;colour ptr
+		LDA	screenRowsHi, X
+		STA	tempptr0 + 1
+		LDA	colourRowsHi, X
+		STA	tempptr1 + 1
+	
+		LDX	tempvar_c		;width
+		LDY	tempvar_a		;x pos
+		STY	tempvar_i
+		DEX
+		
+@loopw:
+		LDA	tempvar_e
+		BEQ	@dodie
+		
+		LDY	tempvar_i
+		LDA	#$A0			;blank char to screen ram
+		STA	(tempptr0), Y		
+		LDA	tempvar_g		;blank colour to colour ram
+		STA	(tempptr1), Y
+	
+		INC	tempvar_h
+		LDA	tempvar_h
+		CMP	#$06
+		BNE	@next
+		
+		LDA	#$00
+		STA	tempvar_e
+		STA	tempvar_h
+		JMP	@next
+
+@dodie:
+		LDY	tempvar_h		;die char to screen ram
+		LDA	(tempptr2), Y		
+		LDY	tempvar_i
+		STA	(tempptr0), Y		
+		LDA	tempvar_f		;die colour to colour ram
+		STA	(tempptr1), Y
+	
+		INC	tempvar_h
+		LDA	tempvar_h
+		CMP	#$09
+		BNE	@next
+		
+		LDA	#$01
+		STA	tempvar_e
+		LDA	#$00
+		STA	tempvar_h
+		
+@next:
+		INC	tempvar_i	
+		DEX
+		BPL	@loopw
+		
+		INC	tempvar_b
+		DEC	tempvar_d
+		LDA	tempvar_d
+		BNE	@looph
+		
+		RTS
+
+
 	.export	ctrlsPanelDefPresent
 ;-------------------------------------------------------------------------------
 ctrlsPanelDefPresent:
@@ -10509,12 +12014,20 @@ ctrlsControlDefPresent:
 		LDA	(elemptr0), Y
 
 		AND	#STATE_VISIBLE
-		BEQ	@exit
+		BNE	@present
+		
+;		JMP	@exit
+		RTS
 
+@present:
 		LDA	(elemptr0), Y
 		AND	#STATE_DIRTY
-		BEQ	@exit
+		BNE	@tstenable
 
+;		JMP	@exit
+		RTS
+
+@tstenable:
 		LDA	(elemptr0), Y
 		AND	#STATE_ENABLED
 		BNE	@checkpick
@@ -10578,6 +12091,52 @@ ctrlsControlDefPresent:
 		JSR	ctrlsDrawText
 
 		JSR	ctrlsDrawAccel
+		
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#OPT_AUTOCHECK
+		BEQ	@exit
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BEQ	@exit
+		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_a
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_b
+		INY
+		LDA	(elemptr0), Y
+		TAX
+		DEX
+		DEX
+		TXA
+		STA	tempvar_c
+		
+		LDA	tempvar_a
+		CLC
+		ADC	tempvar_c
+		STA	tempvar_c
+		
+		LDY	tempvar_b
+		LDA	screenRowsLo, Y
+		STA	tempptr0
+		STA	tempptr1
+		LDA	screenRowsHi, Y
+		STA	tempptr0 + 1
+		LDA	colourRowsHi, Y
+		STA	tempptr1 + 1
+		
+		LDA	#CLR_TEXT
+		JSR	screenCtrlToLogClr
+		
+		LDY	tempvar_c
+		STA	(tempptr1), Y
+		
+		LDA	#$51
+		STA	(tempptr0), Y
 
 @exit:
 		RTS
@@ -10624,6 +12183,12 @@ tempvar_e:
 			.res	1
 tempvar_f:
 			.res	1
+tempvar_g:
+			.res 	1
+tempvar_h:
+			.res 	1
+tempvar_i:
+			.res 	1
 			
 tempvar_q:
 			.res	1
@@ -10657,6 +12222,9 @@ ctrlsPrep:
 ctrlsLChg:
 			.res	1
 
+currpgtag:
+			.res	1
+
 actvctrlp:
 			.res	1
 actvctrlc:
@@ -10666,6 +12234,9 @@ pageNext:
 			.res	2
 pageBack:
 			.res 	2
+			
+temp_num:
+			.res 	6
 
 temp_bin: 
 			.res 	2
@@ -10833,6 +12404,13 @@ label_ovrvw_scorebufs:
 			.word	label_ovrvw_4p_score_buf
 			.word	label_ovrvw_5p_score_buf
 			.word	label_ovrvw_6p_score_buf
+			
+die_det_dice:
+			.word	die_det_0
+			.word	die_det_1
+			.word	die_det_2
+			.word	die_det_3
+			.word	die_det_4
 
 screenRowsLo:
 			.byte	<$0400, <$0428, <$0450, <$0478, <$04A0
@@ -10867,6 +12445,15 @@ screenASCIIXLAT:
 	.byte	KEY_ASC_OCRLYB, KEY_ASC_PIPE, KEY_ASC_CCRLYB, KEY_ASC_TILDE, $00
 screenASCIIXLATSub:
 	.byte	$4D, $71, $64, $4A ,$55, $5D, $49, $45, $00
+
+
+die_flags:
+			.byte	DIE_0
+			.byte	DIE_1
+			.byte	DIE_2
+			.byte	DIE_3
+			.byte	DIE_4
+			.byte	DIE_5
 
 
 text_token_null:
@@ -11012,6 +12599,148 @@ text_slotst_win:
 			
 text_slotst_waitf:
 			.asciiz	"FSTRL "
+
+
+text_page_detail:
+			.asciiz	"DETAILS"
+			
+text_det_flwactv:
+			.asciiz	"[FL ACTV ]"
+			
+text_det_roll0:
+			.asciiz	"[ROLL 1/3]"
+text_det_roll1:
+			.asciiz	"[ROLL 2/3]"
+text_det_roll2:
+			.asciiz	"[ROLL 3/3]"
+			
+text_det_rolls:
+			.word	text_det_roll0
+			.word	text_det_roll1
+			.word	text_det_roll2
+
+text_det_keep1:
+			.asciiz	"[1]"
+
+text_det_keep2:
+			.asciiz	"[2]"
+
+text_det_keep3:
+			.asciiz	"[3]"
+
+text_det_keep4:
+			.asciiz	"[4]"
+
+text_det_keep5:
+			.asciiz	"[5]"
+
+text_det_your:
+			.asciiz	"YOUR SCORE:"
+
+text_det_their:
+			.asciiz	"THEIR SCORE:"
+			
+text_det_select:
+			.asciiz	"[SELECT  ]"
+			
+text_det_confirm:
+			.asciiz	"[CONFIRM ]"
+
+die_0:
+			.byte	$A0, $A0, $A0
+			.byte	$A0, $BF, $A0
+			.byte	$A0, $A0, $A0
+die_1:
+			.byte	$A0, $A0, $A0
+			.byte	$A0, $D1, $A0
+			.byte	$A0, $A0, $A0
+die_2:
+			.byte	$D1, $A0, $A0
+			.byte	$A0, $A0, $A0
+			.byte	$A0, $A0, $D1
+die_3:
+			.byte	$D1, $A0, $A0
+			.byte	$A0, $D1, $A0
+			.byte	$A0, $A0, $D1
+die_4:
+			.byte	$D1, $A0, $D1
+			.byte	$A0, $A0, $A0
+			.byte	$D1, $A0, $D1
+die_5:
+			.byte	$D1, $A0, $D1
+			.byte	$A0, $D1, $A0
+			.byte	$D1, $A0, $D1
+die_6:
+			.byte	$D1, $A0, $D1
+			.byte	$D1, $A0, $D1
+			.byte	$D1, $A0, $D1
+
+dice:
+			.word	die_0
+			.word	die_1
+			.word	die_2
+			.word	die_3
+			.word	die_4
+			.word	die_5
+			.word	die_6
+
+text_scrsht_1s:
+			.asciiz	" 1's   "
+text_scrsht_2s:
+			.asciiz	" 2's   "
+text_scrsht_3s:
+			.asciiz	" 3's   "
+text_scrsht_4s:
+			.asciiz	" 4's   "
+text_scrsht_5s:
+			.asciiz	" 5's   "
+text_scrsht_6s:
+			.asciiz	" 6's   "
+text_scrsht_blank:
+			.asciiz "       "
+text_scrsht_ubnus:
+			.asciiz	" U BNUS"
+			
+text_scrsht_upper:
+			.word	text_scrsht_1s
+			.word	text_scrsht_2s
+			.word	text_scrsht_3s
+			.word	text_scrsht_4s
+			.word	text_scrsht_5s
+			.word	text_scrsht_6s
+			.word	text_scrsht_blank
+			.word	text_scrsht_blank
+			.word	text_scrsht_ubnus
+			
+text_scrsht_3kind:
+			.asciiz	" 3 KIND"
+text_scrsht_4kind:
+			.asciiz	" 4 KIND"
+text_scrsht_flhse:
+			.asciiz	" FL HSE"
+text_scrsht_smstr:
+			.asciiz	" SM STR"
+text_scrsht_lgstr:
+			.asciiz	" LG STR"
+text_scrsht_yhtze:
+			.asciiz	" YHTZEE"
+text_scrsht_chnce:
+			.asciiz	" CHANCE"
+text_scrsht_ybnus:
+			.asciiz	" Y BNUS"
+text_scrsht_lbnus:
+			.asciiz	" L BNUS"
+			
+text_scrsht_lower:
+			.word	text_scrsht_3kind
+			.word	text_scrsht_4kind
+			.word	text_scrsht_flhse
+			.word	text_scrsht_smstr
+			.word	text_scrsht_lgstr
+			.word	text_scrsht_yhtze
+			.word	text_scrsht_chnce
+			.word	text_scrsht_ybnus
+			.word	text_scrsht_lbnus
 
 
 text_driver_pref:
