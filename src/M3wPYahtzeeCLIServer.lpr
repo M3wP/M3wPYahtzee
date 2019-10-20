@@ -33,25 +33,43 @@ procedure TYahtzeeServer.DoRun;
 	z: TZone;
 	i: Integer;
 	s: string;
+	silent: Boolean;
 
 	begin
 	// quick check parameters
-	ErrorMsg:=CheckOptions('h', 'help');
-	if ErrorMsg<>'' then begin
+	ErrorMsg:= CheckOptions('hm:s', 'help');
+	if  ErrorMsg <> '' then
+		begin
 		ShowException(Exception.Create(ErrorMsg));
 		Terminate;
 		Exit;
-	end;
+		end;
 
 	// parse parameters
-	if HasOption('h', 'help') then begin
+	if  HasOption('h', 'help') then
+		begin
 		WriteHelp;
 		Terminate;
 		Exit;
-	end;
+		end;
 
     CLIServerMainDMod:= TCLIServerMainDMod.Create(nil);
     CLIServerMainDMod.IdTCPServer1.Active:= True;
+
+    if  HasOption('m', '') then
+		begin
+		s:= GetOptionValue('m', '');
+		if  TryStrToInt(s, i) then
+			CLIServerMainDMod.IdTCPServer1.MaxConnections:= i
+		else
+			begin
+    		ShowException(Exception.Create('Invalid max connections value!'));
+    		Terminate;
+    		Exit;
+			end;
+		end;
+
+	silent:= HasOption('s', '');
 
 	while not Terminated do
     	begin
@@ -71,8 +89,11 @@ procedure TYahtzeeServer.DoRun;
 				begin
 				s:= Items[0];
 				Delete(0);
-				Writeln(s);
-				Flush(Output);
+				if  not silent then
+					begin
+					Writeln(s);
+					Flush(Output);
+					end;
 				end;
 			finally
 			DebugMsgs.UnlockList;
@@ -136,24 +157,24 @@ procedure TYahtzeeServer.DoRun;
 	end;
 
 constructor TYahtzeeServer.Create(TheOwner: TComponent);
-begin
+	begin
 	inherited Create(TheOwner);
 	StopOnException:=True;
-end;
+	end;
 
 destructor TYahtzeeServer.Destroy;
-begin
+	begin
 	inherited Destroy;
-end;
+	end;
 
 procedure TYahtzeeServer.WriteHelp;
-begin
-	{ add your help code here }
-	writeln('Usage: ', ExeName, ' -h');
-end;
+	begin
+	writeln('Usage: ', ExeName, ' [-h|--help]|[[-s] [-m <connections>]]');
+	end;
 
 var
 	Application: TYahtzeeServer;
+
 begin
 	Application:=TYahtzeeServer.Create(nil);
 	Application.Title:='M3wP Yahtzee! Server';
