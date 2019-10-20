@@ -24,6 +24,18 @@
 
 ## C64 Client
 
+### Version 0.00.33A
+
+* 20OCT2019
+	* Bug fixes for displaying scores on the Play|Detail page
+	* Handle send Play|ScorePeer message
+	* Handle receive Play|ScorePeer message
+	* Display scores from selected detail slot on score sheet control (need yahtzee bonus handling)
+	* Further work on Play|Detail page updating
+	* Implement Play|KeepersPeer message send and receive
+	* Implement Play|Roll message send and receive
+	* Update the Play|Detail page when switched to and when receive the Play|StatPeer messages
+
 ### Version 0.00.23A
 
 * 20OCT2019

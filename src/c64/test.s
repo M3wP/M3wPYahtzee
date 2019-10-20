@@ -38,8 +38,9 @@
 ;	.importzp abort_key_default		;These will be handled here
 ;	.importzp abort_key_disable
 
-	.import drv_init
 	.importzp drv_init_default
+	
+	.import drv_init
 	.import dns_hostname_is_dotted_quad
 	.import dns_ip
 	.import dns_resolve
@@ -330,6 +331,12 @@ gameData	= 	$0200
 	
 	.define DIE_ALL		$3F
 
+	.define	SCRSHT_LABELS	$01
+	.define	SCRSHT_SCORES	$02
+	.define SCRSHT_INDCTR	$04
+	
+	.define	SCRSHT_ALL	$07
+
 
 ;	Controls definitions
 
@@ -436,7 +443,8 @@ gameData	= 	$0200
 		state	.byte
 		round	.word
 		ourslt	.byte
-		detslt	.byte			;227 bytes
+		detslt	.byte			
+		plyslt	.byte			;228 bytes
 	.endstruct
 
 	.assert .sizeof(GAME) < $0100, error, "GameData would exceed bounds!"
@@ -476,7 +484,7 @@ gameData	= 	$0200
 		controls .word
 		ctrlcnt	.byte
 	.endstruct
-
+	
 	.struct	TABPANEL
 		_panel	.tag PANEL
 		page	.word
@@ -487,7 +495,12 @@ gameData	= 	$0200
 		lines	.word
 		currln	.byte
 	.endstruct
-	
+
+	.struct	SCRSHTPANEL
+		_panel	.tag	PANEL
+		lastind	.byte
+	.endstruct
+
 	.struct	CONTROL
 		_element .tag ELEMENT
 		panel	.word
@@ -3479,7 +3492,7 @@ page_ovrvw:
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
 			.byte	$01		;tag	.byte
-			.word	page_detail	;nxtpage
+			.word	$0000		;nxtpage
 			.word	page_play	;bakpage
 			.word	text_page_ovrvw	;textptr	.word
 			.byte	$10		;testoffx .byte
@@ -3581,7 +3594,7 @@ button_ovrvw_cntrl:
 button_ovrvw_1p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3670,7 +3683,7 @@ label_ovrvw_1p_score_buf:
 button_ovrvw_2p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3679,7 +3692,7 @@ button_ovrvw_2p_det:
 			.byte	$07			;posy	
 			.byte	$04			;width	
 			.byte	$01			;height	
-			.byte	$00			;tag	
+			.byte	$01			;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_2p		;textptr
 			.byte	$00			;textoffx
@@ -3759,7 +3772,7 @@ label_ovrvw_2p_score_buf:
 button_ovrvw_3p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3768,7 +3781,7 @@ button_ovrvw_3p_det:
 			.byte	$07			;posy	
 			.byte	$04			;width	
 			.byte	$01			;height	
-			.byte	$00			;tag	
+			.byte	$02			;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_3p		;textptr
 			.byte	$00			;textoffx
@@ -3848,7 +3861,7 @@ label_ovrvw_3p_score_buf:
 button_ovrvw_4p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3857,7 +3870,7 @@ button_ovrvw_4p_det:
 			.byte	$0B			;posy	
 			.byte	$04			;width	
 			.byte	$01			;height	
-			.byte	$00			;tag	
+			.byte	$03			;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_4p		;textptr
 			.byte	$00			;textoffx
@@ -3937,7 +3950,7 @@ label_ovrvw_4p_score_buf:
 button_ovrvw_5p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -3946,7 +3959,7 @@ button_ovrvw_5p_det:
 			.byte	$0B			;posy	
 			.byte	$04			;width	
 			.byte	$01			;height	
-			.byte	$00			;tag	
+			.byte	$04			;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_5p		;textptr
 			.byte	$00			;textoffx
@@ -4026,7 +4039,7 @@ label_ovrvw_5p_score_buf:
 button_ovrvw_6p_det:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientOvrvwDetChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE 
 			.byte	$00			;options
@@ -4035,7 +4048,7 @@ button_ovrvw_6p_det:
 			.byte	$0B			;posy	
 			.byte	$04			;width	
 			.byte	$01			;height	
-			.byte	$00			;tag	
+			.byte	$05			;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_6p		;textptr
 			.byte	$00			;textoffx
@@ -4257,9 +4270,9 @@ checkbx_det_flwactv:
 button_det_roll:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientDetRollChng	;changed
 			.word	$0000			;keypress 
-			.byte	STATE_VISIBLE 
+			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00			;options
 			.byte	CLR_FACE		;colour	
 			.byte	$00			;posx	
@@ -4598,7 +4611,7 @@ button_det_select:
 button_det_confirm:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000			;changed
+			.word	clientDetConfirmChng	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00			;options
@@ -4630,6 +4643,7 @@ spanel_detail_sheet:
 			.word	page_detail		;page
 			.word	spanel_detail_sheet_ctrls ;controls 
 			.byte	$00
+			.byte	$FF			;lastind
 
 spanel_detail_sheet_ctrls:
 			.word	$0000
@@ -5521,6 +5535,13 @@ clientProcUnknownMsg:
 
 		LDAX	#text_trace_unkmsg
 		JSR	strsAppendString
+		
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+		
+		LDA	readmsg0 + 1
+		LDX	#$00
+		JSR	strsAppendHex
 
 		LDA	#$00
 		JSR	strsAppendChar
@@ -5816,6 +5837,113 @@ clientSendPlayRollPeerFirst:
 		STA	(tempptr0), Y
 
 		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayRoll:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$08
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDX	gameData + GAME::ourslt
+		LDA	game_slot_lo, X
+		STA	tempptr2
+		LDA	#>gameData
+		STA	tempptr2 + 1
+		
+		LDY	#GAMESLOT::keepers
+		LDA	#DIE_ALL
+		EOR	(tempptr2), Y
+		
+		JSR	strsAppendChar
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendPlayKeepersPeer:
+;	IN	tempvar_a	Die to update
+;	IN	tempvar_b	Flag
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$09
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDY	tempvar_a
+		INY
+		TYA
+		JSR	strsAppendChar
+		
+		LDA	tempvar_b
+		JSR	strsAppendChar
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+	.export	clientSendPlayScorePeer
+;-------------------------------------------------------------------------------
+clientSendPlayScorePeer:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$0B
+		
+		JSR	strsAppendChar
+		
+		LDA	gameData + GAME::ourslt
+		JSR	strsAppendChar
+		
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		
+;	We need to skip over the upper bonus score which can't be selected
+
+		CMP	#$06
+		BCC	@append
+		
+		TAY
+		INY
+		TYA
+		
+@append:
+		JSR	strsAppendChar
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
 
 
 ;-------------------------------------------------------------------------------
@@ -6729,6 +6857,14 @@ clientProcPlayStatPeerMsg:
 		LDY	#GAMESLOT::state
 		LDA	readmsg0 + 3
 		STA	(tempptr3), Y
+		
+		CMP	#SLOT_ST_PLAY
+		BNE	@notplay
+		
+		LDA	readmsg0 + 2
+		STA	gameData + GAME::plyslt
+		
+@notplay:
 		INY
 		LDA	readmsg0 + 5
 		STA	(tempptr3), Y
@@ -6740,6 +6876,45 @@ clientProcPlayStatPeerMsg:
 
 		JSR	ctrlsLockAcquire
 		
+		LDA	currpgtag
+		CMP	#$02
+		BNE	@notdetail
+		
+		LDA	#<checkbx_det_flwactv
+		STA	elemptr0
+		LDA	#>checkbx_det_flwactv
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BEQ	@nochgdet
+	
+		LDA	gameData + GAME::plyslt
+		BMI	@nochgdet
+		
+		LDA	tempvar_q
+		
+		CMP	gameData + GAME::detslt
+		BEQ	@notdetail
+		
+		STA	gameData + GAME::detslt
+		
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::tag
+		LDA	#$FF
+		STA	(elemptr0), Y
+
+		LDX	#$00
+		JSR	clientDetailUpdateAll
+		
+@nochgdet:
+		JSR	clientDetailUpdateFollow
+		
+@notdetail:
 		LDA	tempvar_q
 		
 		CMP	gameData + GAME::ourslt
@@ -6966,6 +7141,19 @@ clientUpdateSlotState:
 		
 		JSR	ctrlsControlInvalidate
 		
+		LDA	tempvar_q
+		CMP	gameData + GAME::detslt
+		BNE	@tstour
+		
+		JSR	clientDetailUpdateScores
+		JMP	@finish
+
+@tstour:
+		CMP	gameData + GAME::ourslt
+		BNE	@finish
+		
+		JSR	clientDetailUpdateScores
+		
 @finish:
 		JSR	ctrlsLockRelease
 
@@ -7010,8 +7198,15 @@ clientProcPlayRollMsg:
 		LDY	#GAMESLOT::state
 		LDA	(tempptr0), Y
 		CMP	#SLOT_ST_PREP
-		BNE	@cont0
+		BEQ	@firstrl
 		
+;!!TODO
+;	Increment roll count
+		
+		JMP	@cont0
+		
+		
+@firstrl:
 		LDX	#$00
 		LDA	#$00
 		CLC
@@ -7026,16 +7221,155 @@ clientProcPlayRollMsg:
 		STA	(tempptr0), Y
 
 @cont0:
-;!!TODO
 ;	Update detail view if showing the current slot and the game state is
 ;	PREP or higher
+		LDA	gameData + GAME::state
+		CMP	#GAME_ST_PREP
+		BCC	@exit
+		
+		LDA	currpgtag
+		CMP	#$02
+		BNE	@exit
+		
+		LDA	gameData + GAME::detslt
+		CMP	readmsg0 + 2
+		BNE	@exit
+		
+		JSR	ctrlsLockAcquire
+		
+		JSR	clientDetailUpdateDice
 
+;!!TODO
+;	Update roll button with roll count
+
+		JSR	ctrlsLockRelease
+
+@exit:
 		RTS
 
 @unknown:
 		JMP	clientProcUnknownMsg
 ;		RTS
 
+
+	.export	clientProcPlayKeepPeerMsg
+;-------------------------------------------------------------------------------
+clientProcPlayKeepPeerMsg:
+;-------------------------------------------------------------------------------
+		LDA	readmsg0
+		CMP	#$04
+		BEQ	@keeper
+		
+		JMP	@unknown
+
+@keeper:
+;	Get the message slot 
+		LDX	readmsg0 + 2
+		
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+
+;	Get the die number and flag
+		LDX	readmsg0 + 3
+		DEX
+		
+		LDA	die_flags, X
+		LDY	#GAMESLOT::keepers
+		
+		LDX	readmsg0 + 4
+		BEQ	@clear
+		
+		ORA	(tempptr0), Y
+		STA	(tempptr0), Y
+		
+		JMP	@update
+		
+@clear:
+		EOR	#$FF
+		AND	(tempptr0), Y
+		STA	(tempptr0), Y
+
+@update:
+		JSR	ctrlsLockAcquire
+		
+		JSR	clientDetailUpdateDice
+		
+		JSR	ctrlsLockRelease
+		RTS
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+;-------------------------------------------------------------------------------
+clientProcPlayScoreQueryMsg:
+;-------------------------------------------------------------------------------
+;!!TODO
+;	ScoreQuery message handling
+
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+;-------------------------------------------------------------------------------
+clientProcPlayScorePeerMsg:
+;-------------------------------------------------------------------------------
+		LDA	readmsg0
+		CMP	#$05
+		BEQ	@keeper
+		
+		JMP	@unknown
+
+@keeper:
+;	Get the message slot 
+		LDX	readmsg0 + 2
+		
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+
+;	Score location
+		LDY	readmsg0 + 3
+		
+;	Only low byte because the high byte will always be zero
+		LDA	readmsg0 + 5
+		
+		STA	(tempptr0), Y
+		
+;	Update the visible details?
+		LDA	currpgtag
+		CMP	#$02
+		BNE	@exit
+		
+		CPX	gameData + GAME::detslt
+		BNE	@exit
+		
+		JSR	ctrlsLockAcquire
+		
+		LDA	#SCRSHT_SCORES
+		STA	tempvar_t
+		
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsSPanelDefPresDirect
+		
+		JSR	ctrlsLockRelease
+
+@exit:
+		RTS
+		
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+		
 
 	.export	clientProcPlayMsg
 ;-------------------------------------------------------------------------------
@@ -7077,6 +7411,25 @@ clientProcPlayMsg:
 ;		RTS
 
 @tstnxt4:
+		CMP	#$09
+		BNE	@tstnxt5
+	
+		JMP	clientProcPlayKeepPeerMsg
+;		RTS
+
+@tstnxt5:
+		CMP	#$0A
+		BNE	@tstnxt6
+		
+		JMP	clientProcPlayScoreQueryMsg
+;		RTS
+
+@tstnxt6:
+		CMP	#$0B
+		BNE	@unknown
+		
+		JMP	clientProcPlayScorePeerMsg
+		RTS
 
 @unknown:
 		JMP	clientProcUnknownMsg
@@ -8396,8 +8749,460 @@ clientOvrvwCntrlChng:
 		
 @exit:
 		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetailUpdateDice:
+;-------------------------------------------------------------------------------
+		LDY	#GAMESLOT::dice
+		STY	tempvar_b
+		LDX	#$00
+@loop0:
+		LDA	die_det_dice, X
+		STA	elemptr0
+		INX
+		LDA	die_det_dice, X
+		STA	elemptr0 + 1
+		INX
+				
+		LDY	tempvar_b
+		LDA	(tempptr0), Y
+		INC	tempvar_b
+		
+		LDY	#DIECTRL::value
+		STA	(elemptr0), Y
+		
+		CPX	#$0A
+		BNE	@loop0
+		
+		LDY	#GAMESLOT::keepers
+		LDA	(tempptr0), Y
+		STA	tempvar_b
+		LDX	#$00
+@loop1:
+		TXA
+		ASL
+		TAY
+
+		LDA	die_det_dice, Y
+		STA	elemptr0
+		LDA	die_det_dice + 1, Y
+		STA	elemptr0 + 1
+
+		LDA	die_flags, X
+		AND	tempvar_b
+		BEQ	@notkeep
+		
+		LDA	#$01
+		JMP	@updkeep
+		
+@notkeep:
+		LDA	#$00
+		
+@updkeep:
+		LDY	#ELEMENT::tag
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
+
+		INX
+		CPX	#$05
+		BNE	@loop1
+
+		RTS
 		
 
+;-------------------------------------------------------------------------------
+clientDetailUpdateEnable:
+;-------------------------------------------------------------------------------
+		LDA	gameData + GAME::ourslt
+		CMP	gameData + GAME::detslt
+		BEQ	@enable
+		
+		JMP	@disable
+		
+@enable:
+		LDA	#<button_det_roll
+		STA	elemptr0
+		LDA	#>button_det_roll
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_keep1
+		STA	elemptr0
+		LDA	#>button_det_keep1
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_keep2
+		STA	elemptr0
+		LDA	#>button_det_keep2
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_keep3
+		STA	elemptr0
+		LDA	#>button_det_keep3
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_keep4
+		STA	elemptr0
+		LDA	#>button_det_keep4
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_keep5
+		STA	elemptr0
+		LDA	#>button_det_keep5
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<die_det_0
+		STA	elemptr0
+		LDA	#>die_det_0
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<die_det_1
+		STA	elemptr0
+		LDA	#>die_det_1
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<die_det_2
+		STA	elemptr0
+		LDA	#>die_det_2
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<die_det_3
+		STA	elemptr0
+		LDA	#>die_det_3
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<die_det_4
+		STA	elemptr0
+		LDA	#>die_det_4
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_select
+		STA	elemptr0
+		LDA	#>button_det_select
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		LDA	#<button_det_confirm
+		STA	elemptr0
+		LDA	#>button_det_confirm
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		
+		RTS
+		
+@disable:
+		LDA	#<button_det_roll
+		STA	elemptr0
+		LDA	#>button_det_roll
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_keep1
+		STA	elemptr0
+		LDA	#>button_det_keep1
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_keep2
+		STA	elemptr0
+		LDA	#>button_det_keep2
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_keep3
+		STA	elemptr0
+		LDA	#>button_det_keep3
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_keep4
+		STA	elemptr0
+		LDA	#>button_det_keep4
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_keep5
+		STA	elemptr0
+		LDA	#>button_det_keep5
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<die_det_0
+		STA	elemptr0
+		LDA	#>die_det_0
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<die_det_1
+		STA	elemptr0
+		LDA	#>die_det_1
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<die_det_2
+		STA	elemptr0
+		LDA	#>die_det_2
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<die_det_3
+		STA	elemptr0
+		LDA	#>die_det_3
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<die_det_4
+		STA	elemptr0
+		LDA	#>die_det_4
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_select
+		STA	elemptr0
+		LDA	#>button_det_select
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		LDA	#<button_det_confirm
+		STA	elemptr0
+		LDA	#>button_det_confirm
+		STA	elemptr0 + 1
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetailUpdateScores:
+;-------------------------------------------------------------------------------
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetailUpdateFollow:
+;-------------------------------------------------------------------------------
+		LDA	#<checkbx_det_flwactv
+		STA	elemptr0
+		LDA	#>checkbx_det_flwactv
+		STA	elemptr0 + 1
+		
+		LDA	currpgtag
+		CMP	#$02
+		BNE	@clear
+		
+		LDA	gameData + GAME::plyslt
+		CMP	gameData + GAME::detslt
+		BNE	@clear
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+		RTS
+		
+@clear:
+		LDY	#ELEMENT::tag
+		LDA	#$00
+		STA	(elemptr0), Y
+		
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+		
+		JSR	ctrlsControlInvalidate
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetailUpdateAll:
+;-------------------------------------------------------------------------------
+		TXA
+		PHA
+		
+		LDA	gameData + GAME::detslt
+		ASL
+		STA	tempvar_a
+
+;	Copy the slot's ident
+		TAX
+		LDA	label_ovrvw_names, X
+		STA	elemptr0
+		LDA	label_ovrvw_names + 1, X
+		STA	elemptr0 + 1
+		
+		LDA	#<static_det_ident
+		STA	tempptr0
+		LDA	#>static_det_ident
+		STA	tempptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	(elemptr0), Y
+		STA	(tempptr0), Y
+		INY
+		LDA	(elemptr0), Y
+		STA	(tempptr0), Y
+
+		LDX	gameData + GAME::detslt
+		LDA	game_slot_lo, X
+		STA	tempptr0
+		LDA	#>gameData
+		STA	tempptr0 + 1
+
+		JSR	clientDetailUpdateDice
+		
+		JSR	clientDetailUpdateEnable
+		
+		JSR	clientDetailUpdateFollow
+		
+		JSR	clientDetailUpdateScores
+		
+		PLA
+		BMI	@exit
+		
+		LDA	#SCRSHT_SCORES
+		STA	tempvar_t
+		
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsSPanelDefPresDirect
+		
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientOvrvwDetChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+	
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		
+		STA	gameData + GAME::detslt
+		
+		LDA	#<page_detail
+		STA	elemptr0
+		LDA	#>page_detail
+		STA	elemptr0 + 1
+		
+		JSR	ctrlsPageSelect
+
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::tag
+		LDA	#$FF
+		STA	(elemptr0), Y
+		
+		LDY	#SCRSHTPANEL::lastind
+		STA	(elemptr0), Y
+
+		LDX	#$FF
+		JSR	clientDetailUpdateAll
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientDetRollChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+		
+		LDA	gameData + GAME::ourslt
+		CMP	gameData + GAME::detslt
+		BNE	@exit
+		
+		JSR	clientSendPlayRoll 
+
+@exit:
+		RTS
+		
+
+	.export	clientDetKeepChng
 ;-------------------------------------------------------------------------------
 clientDetKeepChng:
 ;-------------------------------------------------------------------------------
@@ -8411,22 +9216,12 @@ clientDetKeepChng:
 		AND	#STATE_DOWN
 		BEQ	@exit
 
-;!!TODO
-;	Send the keeper change message instead of all this and move this code
-;	into read keeper change message
+;	Send the keeper peer message
 
 		LDY	#ELEMENT::tag
 		LDA	(elemptr0), Y
 		
 		STA	tempvar_a
-		TAX
-		
-		LDA	die_flags, X
-
-;!!TODO
-;	Update the visible slot's keepers instead 
-		
-		LDA	tempvar_a
 		ASL
 		TAX
 		LDA	die_det_dice, X
@@ -8435,15 +9230,11 @@ clientDetKeepChng:
 		STA	elemptr0 + 1
 		
 		LDY	#ELEMENT::tag
-		
-;!!TODO
-;	Use the visible slot's keepers instead and then update the tag value
-
 		LDA	(elemptr0), Y
 		EOR 	#$01
-		STA	(elemptr0), Y
-		
-		JSR	ctrlsControlInvalidate
+		STA	tempvar_b
+
+		JSR	clientSendPlayKeepersPeer
 
 @exit:
 		RTS
@@ -8472,6 +9263,26 @@ clientDetSelectChng:
 @exit:
 		RTS
 
+
+;-------------------------------------------------------------------------------
+clientDetConfirmChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+		
+		JSR	clientSendPlayScorePeer
+		
+@exit:
+		RTS
+		
+
 ;-------------------------------------------------------------------------------
 initGameData:
 ;-------------------------------------------------------------------------------
@@ -8479,7 +9290,9 @@ initGameData:
 		LDX	#GAME::ourslt
 		STA	gameData, X
 		INX
-		STA	gameData, X
+		STA	gameData, X		;detslt
+		INX
+		STA	gameData, X		;plyslt
 
 		LDX	#$05
 @loop0:
@@ -10267,6 +11080,10 @@ ctrlsSPanelMouseMove:
 		LDA	tempdat0
 		LDY	#ELEMENT::tag
 		STA	(elemptr0), Y
+		
+		LDY	#SCRSHTPANEL::lastind
+		STA	(elemptr0), Y
+		
 		LDX	#$01
 		JSR	ctrlsSPanelPresSelect		
 		
@@ -11056,6 +11873,10 @@ ctrlsSPanelDefKeyPress:
 		LDA	tempdat0
 		LDY	#ELEMENT::tag
 		STA	(elemptr0), Y
+
+		LDY	#SCRSHTPANEL::lastind
+		STA	(elemptr0), Y
+
 		LDX	#$01
 		JSR	ctrlsSPanelPresSelect
 
@@ -11483,6 +12304,10 @@ ctrlsSPanelDefPresent:
 		LDA	#CLR_TEXT
 		JSR	ctrlsEraseBkg
 		
+		LDA	#SCRSHT_ALL
+		STA	tempvar_t
+		
+ctrlsSPanelDefPresDirect:
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		STA	tempvar_r		;x
@@ -11493,6 +12318,19 @@ ctrlsSPanelDefPresent:
 		STA	tempvar_s		;y
 		INC	tempvar_s
 
+		LDY	gameData + GAME::detslt
+		LDA	game_slot_lo, Y
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
+
+		LDA	tempvar_t
+		AND	#SCRSHT_LABELS
+		BNE	@ulbls
+		
+		JMP	@utstscrs
+
+@ulbls:
 ;	Do the "upper labels"
 		LDA	tempvar_r
 		STA	tempvar_a
@@ -11544,7 +12382,15 @@ ctrlsSPanelDefPresent:
 		CMP	#$12
 		BNE	@looplu
 		
-;	Do the "upper" scores		
+;	Do the "upper" scores	
+@utstscrs:
+		LDA	tempvar_t
+		AND	#SCRSHT_SCORES
+		BNE	@uscrs
+		
+		JMP	@ltstlbls
+
+@uscrs:
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		CLC
@@ -11600,7 +12446,7 @@ ctrlsSPanelDefPresent:
 @loopsu:
 		LDA	#$00
 		STA	tempdat1
-		STA	tempdat3
+;		STA	tempdat3
 		STA	tempvar_d
 
 		LDA	#$05
@@ -11624,26 +12470,74 @@ ctrlsSPanelDefPresent:
 		LDA	#CLR_MONEY
 
 @contsu:
+		STA	tempvar_i
+
+;	Get the score value and convert to string
+
+		LDA	#<temp_num
+		STA	tempptr0
+		LDA	#>temp_num
+		STA	tempptr0 + 1
+		
+		LDA	#$00
 		STA	tempdat0
 
-		INC	tempvar_h
+		LDAX	#text_scrsht_bscr
+		
+		JSR	strsAppendString
+		
+		LDA	#$00
+		LDY	tempdat0
+		STA	(tempptr0), Y
+		STA	tempdat0
 
-;!!TODO
-;	Get the score value and convert to string instead
+		LDA	tempvar_h
+		CMP	#$06
+		BCC	@convsu
 
-		LDA	#<text_scrsht_blank
+		CMP	#$08
+		BNE	@drawsu
+		
+		LDA	#$06
+		
+@convsu:
+		TAY
+		LDA	(tempptr3), Y
+		BMI	@drawsu
+		
+		LDX	#$00
+		
+		JSR	strsAppendInteger
+		
+@drawsu:
+		LDA	#<temp_num
 		STA	tempptr1
-		LDA	#>text_scrsht_blank
+		LDA	#>temp_num
 		STA	tempptr1 + 1
 		
+		LDA	tempvar_i
+		STA	tempdat0
+		
+		LDA	#$00
+		STA	tempdat3
+
 		JSR	ctrlsDrawTextDirect
+		
+		INC	tempvar_h
 		
 		LDA	tempvar_h
 		CMP	#$09
 		BNE	@loopsu		
 
-
 ;	Do the "lower labels"
+@ltstlbls:
+		LDA	tempvar_t
+		AND	#SCRSHT_LABELS
+		BNE	@llbls
+		
+		JMP	@ltstscrs
+
+@llbls:
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		CLC
@@ -11704,6 +12598,14 @@ ctrlsSPanelDefPresent:
 		BNE	@loopll
 
 ;	Do the "lower" scores		
+@ltstscrs:
+		LDA	tempvar_t
+		AND	#SCRSHT_SCORES
+		BNE	@lscrs
+		
+		JMP	@tstind
+
+@lscrs:
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		CLC
@@ -11759,7 +12661,6 @@ ctrlsSPanelDefPresent:
 @loopsl:
 		LDA	#$00
 		STA	tempdat1
-		STA	tempdat3
 		STA	tempvar_d
 
 		LDA	#$05
@@ -11783,25 +12684,87 @@ ctrlsSPanelDefPresent:
 		LDA	#CLR_MONEY
 
 @contsl:
+		STA	tempvar_i
+
+;	Get the score value and convert to string
+
+		LDA	#<temp_num
+		STA	tempptr0
+		LDA	#>temp_num
+		STA	tempptr0 + 1
+		
+		LDA	#$00
 		STA	tempdat0
 
-		INC	tempvar_h
+		LDAX	#text_scrsht_bscr
+		
+		JSR	strsAppendString
+		
+		LDA	#$00
+		LDY	tempdat0
+		STA	(tempptr0), Y
+		STA	tempdat0
+
+		LDA	tempvar_h
+		CMP	#$07
+		BCC	@convsl
 
 ;!!TODO
-;	Get the score value and convert to string instead
-
-		LDA	#<text_scrsht_blank
+;	Convert yahtzee bonus for score sheet
+		JMP	@drawsl
+		
+@convsl:
+		CLC
+		ADC	#$07	
+		TAY
+		LDA	(tempptr3), Y
+		BMI	@drawsl
+		
+		LDX	#$00
+		
+		JSR	strsAppendInteger
+		
+@drawsl:
+		LDA	#<temp_num
 		STA	tempptr1
-		LDA	#>text_scrsht_blank
+		LDA	#>temp_num
 		STA	tempptr1 + 1
 		
+		LDA	tempvar_i
+		STA	tempdat0
+
+		LDA	#$00
+		STA	tempdat3
+		
 		JSR	ctrlsDrawTextDirect
+		
+		INC	tempvar_h
 		
 		LDA	tempvar_h
 		CMP	#$09
 		BNE	@loopsl		
 		
 ;	Score select indicator
+@tstind:
+		LDY	#SCRSHTPANEL::lastind
+		LDA	(elemptr0), Y
+		BMI	@tstind0
+		
+		LDY	#ELEMENT::tag
+		CMP	(elemptr0), Y
+		BEQ	@tstind0
+		
+		LDX	#$00
+		JSR	ctrlsSPanelPresSelect
+		
+@tstind0:
+		LDA	tempvar_t
+		AND	#SCRSHT_INDCTR
+		BNE	@ind
+		
+		JMP	@exit
+
+@ind:
 		LDY	#ELEMENT::tag
 		LDA	(elemptr0), Y
 		BMI	@exit
@@ -12196,6 +13159,8 @@ tempvar_r:
 			.res	1
 tempvar_s:
 			.res 	1
+tempvar_t:
+			.res	1
 
 tempvar_x:
 			.res	1
@@ -12464,7 +13429,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"c64"
 text_ident_verlbl:
-			.asciiz	"0.00.23A"
+			.asciiz	"0.00.33A"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -12476,7 +13441,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.23A"
+			.asciiz	"VERSION:  0.00.33A"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
@@ -12741,6 +13706,9 @@ text_scrsht_lower:
 			.word	text_scrsht_chnce
 			.word	text_scrsht_ybnus
 			.word	text_scrsht_lbnus
+
+text_scrsht_bscr:
+			.asciiz	"     "
 
 
 text_driver_pref:
