@@ -1,8 +1,15 @@
 unit YahtzeeServer;
 
+{$IFDEF FPC}
+	{$MODE DELPHI}
+{$ENDIF}
+
 interface
 
 uses
+	{$IFDEF UNIX}{$IFDEF UseCThreads}
+	cthreads,
+	{$ENDIF}{$ENDIF}
 	SyncObjs, Generics.Collections, Classes, IdGlobal, IdTCPConnection,
 	YahtzeeClasses;
 
@@ -13,7 +20,11 @@ type
 		Msg: TMessage;
 	end;
 
+{$IFNDEF FPC}
 	TConnectMessages = TThreadedQueue<TConnectMessage>;
+{$ELSE}
+	TConnectMessages = TThreadList<TConnectMessage>;
+{$ENDIF}
 
 	TServerDispatcher = class(TThread)
 	protected
@@ -217,7 +228,11 @@ type
 
 	TZones = TThreadList<TZone>;
 
+{$IFNDEF FPC}
 	TExpireZones = TThreadedQueue<TZone>;
+{$ELSE}
+	TExpireZones = TThreadList<TZone>;
+{$ENDIF}
 
 	TPlayer = class(TObject)
 	public
@@ -328,11 +343,23 @@ procedure DoDestroyListMessages;
 { TZone }
 
 procedure TZone.Add(APlayer: TPlayer);
+{$IFDEF FPC}
+	var
+    s: string;
+{$ENDIF}
+
 	begin
 	FPlayers.Add(APlayer);
 	APlayer.Zones.Add(Self);
 
+{$IFNDEF FPC}
 	DebugMsgs.PushItem('Client added to zone ' + Name + ' (' + Desc + ').');
+{$ELSE}
+	s:= 'Client added to zone ' + Name + ' (' + Desc + ').';
+	UniqueString(s);
+	DebugMsgs.Add(s);
+{$ENDIF}
+
 	end;
 
 constructor TZone.Create;
@@ -344,10 +371,19 @@ constructor TZone.Create;
 
 destructor TZone.Destroy;
 	var
+{$IFDEF FPC}
+    s: string;
+{$ENDIF}
 	i: Integer;
 
 	begin
+{$IFNDEF FPC}
 	DebugMsgs.PushItem('Destroying zone ' + Name + ' (' + Desc + ')');
+{$ELSE}
+	s:= 'Destroying zone ' + Name + ' (' + Desc + ')';
+	UniqueString(s);
+	DebugMsgs.Add(s);
+{$ENDIF}
 
 	with FPlayers.LockList do
 		try
@@ -408,11 +444,22 @@ function TZone.PlayerByConnection(AConnection: TIdTCPConnection): TPlayer;
 	end;
 
 procedure TZone.Remove(APlayer: TPlayer);
+{$IFDEF FPC}
+	var
+	s: string;
+{$ENDIF}
+
 	begin
 	FPlayers.Remove(APlayer);
 	APlayer.Zones.Remove(Self);
 
+{$IFNDEF FPC}
 	DebugMsgs.PushItem('Client removed from zone ' + Name + '(' + Desc + ').');
+{$ELSE}
+	s:= 'Client removed from zone ' + Name + '(' + Desc + ').';
+	UniqueString(s);
+	DebugMsgs.Add(s);
+{$ENDIF}
 	end;
 
 { TSystemZone }
@@ -481,7 +528,11 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 		m.Params.Add(AnsiString(ARR_LIT_NAM_CATEGORY[mcSystem]));
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		APlayer.Messages.PushItem(m);
+{$ELSE}
+		APlayer.Messages.Add(m);
+{$ENDIF}
 
 		ListMessages.Add(ml);
 
@@ -540,7 +591,11 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 				m.Params[0]:= APlayer.Name;
 				m.DataFromParams;
 
+{$IFNDEF FPC}
 				a.Messages.PushItem(m);
+{$ELSE}
+				a.Messages.Add(m);
+{$ENDIF}
 				end;
 			end
 		else
@@ -564,7 +619,11 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 				m.Params.Add(APlayer.Name);
 				m.DataFromParams;
 
+{$IFNDEF FPC}
 				APlayer.Messages.PushItem(m);
+{$ELSE}
+				APlayer.Messages.Add(m);
+{$ENDIF}
 
 				APlayer.Name:= n;
 				end
@@ -603,6 +662,9 @@ procedure TLimboZone.BumpCounter;
 	var
 	i: Integer;
 	p: TPlayer;
+{$IFDEF FPC}
+	s: string;
+{$ENDIF}
 
 	begin
 	with FPlayers.LockList do
@@ -611,7 +673,13 @@ procedure TLimboZone.BumpCounter;
 			begin
 			p:= Items[i];
 
+{$IFNDEF FPC}
 			DebugMsgs.PushItem('Bumping client auth wait count.');
+{$ELSE}
+			s:= 'Bumping client auth wait count.';
+			UniqueString(s);
+			DebugMsgs.Add(s);
+{$ENDIF}
 
 			p.Counter:= p.Counter + 1;
 			end;
@@ -625,6 +693,9 @@ procedure TLimboZone.ExpirePlayers;
 	var
 	i: Integer;
 	p: TPlayer;
+{$IFDEF FPC}
+	s: string;
+{$ENDIF}
 
 	begin
 	with FPlayers.LockList do
@@ -636,8 +707,13 @@ procedure TLimboZone.ExpirePlayers;
 			if  Assigned(p.Client)
 			and (Length(p.Name) > 0) then
 				begin
+{$IFNDEF FPC}
 				DebugMsgs.PushItem('Client auth move to lobby/play.');
-
+{$ELSE}
+				s:= 'Client auth move to lobby/play.';
+				UniqueString(s);
+                DebugMsgs.Add(s);
+{$ENDIF}
 				LimboZone.Remove(p);
 
 				LobbyZone.Add(p);
@@ -645,7 +721,13 @@ procedure TLimboZone.ExpirePlayers;
 				end
 			else if p.Counter >= 600 then
 				begin
+{$IFNDEF FPC}
 				DebugMsgs.PushItem('Client auth failure.');
+{$ELSE}
+                s:= 'Client auth failure.';
+                UniqueString(s);
+                DebugMsgs.Add(s);
+{$ENDIF}
 				p.Connection.Disconnect;
 				end;
 			end;
@@ -720,7 +802,11 @@ procedure TLobbyRoom.Add(APlayer: TPlayer);
 
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+        APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -768,7 +854,11 @@ procedure TLobbyRoom.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 		m.Category:= mcLobby;
 		m.Method:= $04;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+        APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -815,7 +905,11 @@ procedure TLobbyRoom.Remove(APlayer: TPlayer);
 
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+        APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -831,7 +925,11 @@ procedure TLobbyRoom.Remove(APlayer: TPlayer);
 	inherited;
 
 	if  PlayerCount = 0 then
+{$IFNDEF FPC}
 		ExpireZones.PushItem(Self);
+{$ELSE}
+		ExpireZones.Add(Self);
+{$ENDIF}
 	end;
 
 { TPlayer }
@@ -871,7 +969,11 @@ constructor TPlayer.Create(AConnection: TIdTCPConnection);
 	Name:= '';
 	Client:= nil;
 
+{$IFNDEF FPC}
 	Messages:= TMessages.Create(128);
+{$ELSE}
+	Messages:= TMessages.Create;
+{$ENDIF}
 	end;
 
 destructor TPlayer.Destroy;
@@ -879,11 +981,26 @@ destructor TPlayer.Destroy;
 	m: TMessage;
 
 	begin
+{$IFNDEF FPC}
 	while Messages.QueueSize > 0 do
 		begin
 		m:= Messages.PopItem;
 		m.Free;
 		end;
+{$ELSE}
+	with Messages.LockList do
+		try
+		while Count > 0 do
+			begin
+			m:= Items[0];
+			Delete(0);
+			m.Free;
+			end;
+
+		finally
+        Messages.UnlockList;
+		end;
+{$ENDIF}
 
 	Messages.Free;
 
@@ -961,7 +1078,11 @@ procedure TPlayer.SendServerError(AMessage: AnsiString);
 	m.Params.Add(AMessage);
 	m.DataFromParams;
 
+{$IFNDEF FPC}
 	Messages.PushItem(m);
+{$ELSE}
+	Messages.Add(m);
+{$ENDIF}
 	end;
 
 { TLobbyZone }
@@ -1066,7 +1187,11 @@ procedure TLobbyZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 					m.Category:= mcLobby;
 					m.Method:= $00;
 
+{$IFNDEF FPC}
 					APlayer.Messages.PushItem(m);
+{$ELSE}
+					APlayer.Messages.Add(m);
+{$ENDIF}
 					end;
 				end
 			else
@@ -1140,7 +1265,11 @@ procedure TLobbyZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 
 			m.DataFromParams;
 
+{$IFNDEF FPC}
 			APlayer.Messages.PushItem(m);
+{$ELSE}
+			APlayer.Messages.Add(m);
+{$ENDIF}
 
 			ListMessages.Add(ml);
 			end
@@ -1192,13 +1321,34 @@ procedure TServerDispatcher.Execute;
 	handled: Boolean;
 	z: TZone;
 	i: Integer;
+{$IFDEF FPC}
+	s: string;
+{$ENDIF}
 
 	begin
 	while not Terminated do
+{$IFNDEF FPC}
 		if  ServerMsgs.QueueSize > 0 then
 			begin
 			cm:= ServerMsgs.PopItem;
-				try
+{$ELSE}
+        begin
+		cm:= nil;
+		with ServerMsgs.LockList do
+			try
+            if  Count > 0 then
+				begin
+				cm:= Items[0];
+				Delete(0);
+				end;
+			finally
+            ServerMsgs.UnlockList;
+			end;
+
+		if  Assigned(cm) then
+			begin
+{$ENDIF}
+			try
 				p:= SystemZone.PlayerByConnection(cm.Connection);
 
 				handled:= False;
@@ -1220,11 +1370,26 @@ procedure TServerDispatcher.Execute;
 					end;
 
 				if  handled then
+{$IFNDEF FPC}
 					DebugMsgs.PushItem('Handled in ' + z.Name + ' zone.')
+{$ELSE}
+					begin
+                    s:= 'Handled in ' + z.Name + ' zone.';
+					UniqueString(s);
+					DebugMsgs.Add(s);
+					end
+{$ENDIF}
 				else
 					begin
 					p.SendServerError(LIT_ERR_SERVERUN);
+
+{$IFNDEF FPC}
 					DebugMsgs.PushItem('Unhandled message.');
+{$ELSE}
+                    s:= 'Unhandled message.';
+					UniqueString(s);
+					DebugMsgs.Add(s);
+{$ENDIF}
 					end;
 
 				finally
@@ -1232,6 +1397,9 @@ procedure TServerDispatcher.Execute;
 				cm.Free;
 				end;
 			end;
+{$IFDEF FPC}
+		end;
+{$ENDIF}
 	end;
 
 { TMessageList }
@@ -1331,7 +1499,11 @@ procedure TMessageList.ProcessList;
 
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		Player.Messages.PushItem(m);
+{$ELSE}
+        Player.Messages.Add(m);
+{$ENDIF}
 
 		Inc(c);
 		end;
@@ -1346,7 +1518,11 @@ procedure TMessageList.ProcessList;
 
 	m.DataFromParams;
 
+{$IFNDEF FPC}
 	Player.Messages.PushItem(m);
+{$ELSE}
+	Player.Messages.Add(m);
+{$ENDIF}
 
 	Process:= False;
 	Complete:= Data.Count = 0;
@@ -1378,7 +1554,11 @@ procedure TPlayGame.Add(APlayer: TPlayer);
 
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+		APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -1477,7 +1657,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 		m.Category:= mcPlay;
 		m.Method:= $04;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+		APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -1633,7 +1817,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 
 //							m.DataFromParams;
 
+{$IFNDEF FPC}
 							Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+							Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 							end;
 
 					if  Slots[s].State = psPreparing then
@@ -1689,7 +1877,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 								for j:= 0 to 4 do
 									m.Data[1 + j]:= Slots[s].Dice[j];
 
+{$IFNDEF FPC}
 								Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+								Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 								end;
 						end;
 
@@ -1724,7 +1916,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 								m:= TMessage.Create;
 								m.Assign(AMessage);
 
+{$IFNDEF FPC}
 								Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+								Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 								end;
 						end;
 
@@ -1772,7 +1968,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 					m.Data[2]:= Hi(r);
 					m.Data[3]:= Lo(r);
 
+{$IFNDEF FPC}
 					APlayer.Messages.PushItem(m);
+{$ELSE}
+					APlayer.Messages.Add(m);
+{$ENDIF}
 
 					if  o > slAces then
 						begin
@@ -1784,7 +1984,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 						m.Data[2]:= Hi(100);
 						m.Data[3]:= Lo(100);
 
+{$IFNDEF FPC}
 						APlayer.Messages.PushItem(m);
+{$ELSE}
+                        APlayer.Messages.Add(m);
+{$ENDIF}
 						end;
 
 					finally
@@ -1839,7 +2043,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 								m.Data[2]:= Hi(r);
 								m.Data[3]:= Lo(r);
 
+{$IFNDEF FPC}
 								Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+								Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 								end;
 
 						if  (n in [slAces..slSixes])
@@ -1878,7 +2086,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 										m.Data[2]:= Hi(r);
 										m.Data[3]:= Lo(r);
 
+{$IFNDEF FPC}
 										Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+										Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 										end;
 								end;
 							end;
@@ -1899,7 +2111,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 									m.Data[2]:= Hi(100);
 									m.Data[3]:= Lo(100);
 
+{$IFNDEF FPC}
 									Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+                                    Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 									end;
 							end;
 
@@ -1988,7 +2204,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 										for j:= 0 to 4 do
 											m.Data[1 + j]:= Slots[Turn].Dice[j];
 
+{$IFNDEF FPC}
 										Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+										Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 
 										for j:= 1 to 5 do
 											begin
@@ -2002,7 +2222,11 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 											m.Data[1]:= j;
 											m.Data[2]:= 0;
 
+{$IFNDEF FPC}
 											Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+											Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 											end;
 										end;
 								end;
@@ -2047,7 +2271,11 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 
 		m.DataFromParams;
 
+{$IFNDEF FPC}
 		APeer.Messages.PushItem(m);
+{$ELSE}
+		APeer.Messages.Add(m);
+{$ENDIF}
 		end;
 
 	begin
@@ -2174,7 +2402,11 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 							for j:= 0 to 4 do
 								m.Data[1 + j]:= Slots[Turn].Dice[j];
 
+{$IFNDEF FPC}
 							Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+							Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 
 							for j:= 1 to 5 do
 								begin
@@ -2188,7 +2420,11 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 								m.Data[1]:= j;
 								m.Data[2]:= 0;
 
+{$IFNDEF FPC}
 								Slots[i].Player.Messages.PushItem(m);
+{$ELSE}
+								Slots[i].Player.Messages.Add(m);
+{$ENDIF}
 								end;
 							end;
 					end;
@@ -2245,7 +2481,11 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 	inherited;
 
 	if  PlayerCount = 0 then
+{$IFNDEF FPC}
 		ExpireZones.PushItem(Self);
+{$ELSE}
+		ExpireZones.Add(Self);
+{$ENDIF}
 	end;
 
 procedure TPlayGame.SendGameStatus(APlayer: TPlayer);
@@ -2265,7 +2505,11 @@ procedure TPlayGame.SendGameStatus(APlayer: TPlayer);
 
 //	m.DataFromParams;
 
+{$IFNDEF FPC}
 	APlayer.Messages.PushItem(m);
+{$ELSE}
+    APlayer.Messages.Add(m);
+{$ENDIF}
 	end;
 
 procedure TPlayGame.SendSlotStatus(APlayer: TPlayer; ASlot: Integer);
@@ -2289,7 +2533,11 @@ procedure TPlayGame.SendSlotStatus(APlayer: TPlayer; ASlot: Integer);
 	m.Data[2]:= Hi(Slots[ASlot].Score);
 	m.Data[3]:= Lo(Slots[ASlot].Score);
 
-	APlayer.Messages.PushItem(m);
+{$IFNDEF FPC}
+   	APlayer.Messages.PushItem(m);
+{$ELSE}
+    APlayer.Messages.Add(m);
+{$ENDIF}
 	end;
 
 { TPlayZone }
@@ -2435,7 +2683,11 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 
 //FIXME:    				Error message
 
+{$IFNDEF FPC}
 							APlayer.Messages.PushItem(m);
+{$ELSE}
+                            APlayer.Messages.Add(m);
+{$ENDIF}
 							end;
 						finally
 						g.Lock.Release;
@@ -2449,7 +2701,11 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 
 //FIXME:    		Error message
 
+{$IFNDEF FPC}
 					APlayer.Messages.PushItem(m);
+{$ELSE}
+                    APlayer.Messages.Add(m);
+{$ENDIF}
 					end;
 				end
 			else
@@ -2535,7 +2791,11 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 
 			m.DataFromParams;
 
+{$IFNDEF FPC}
 			APlayer.Messages.PushItem(m);
+{$ELSE}
+            APlayer.Messages.Add(m);
+{$ENDIF}
 
 			ListMessages.Add(ml);
 			end
@@ -2560,11 +2820,20 @@ procedure TPlayZone.RemoveGame(ADesc: AnsiString);
 initialization
     Randomize;
 
+{$IFNDEF FPC}
 	ExpireZones:= TExpireZones.Create(100);
+{$ElSE}
+	ExpireZones:= TExpireZones.Create;
+{$ENDIF}
 
 	ListMessages:= TMessageLists.Create;
 
+{$IFNDEF FPC}
 	ServerMsgs:= TConnectMessages.Create(512);
+{$ELSE}
+	ServerMsgs:= TConnectMessages.Create;
+{$ENDIF}
+
 	ServerDisp:= TServerDispatcher.Create(False);
 
 	SystemZone:= TSystemZone.Create;
@@ -2573,15 +2842,42 @@ initialization
 	PlayZone:= TPlayZone.Create;
 
 finalization
+{$IFNDEF FPC}
 	while ExpireZones.QueueSize > 0 do
 		ExpireZones.PopItem.Free;
+{$ELSE}
+	with ExpireZones.LockList do
+		try
+		while Count > 0 do
+			begin
+			Items[0].Free;
+			Delete(0);
+			end;
+		finally
+		ExpireZones.UnlockList;
+		end;
+{$ENDIF}
 
+{$IFNDEF FPC}
 	while ServerMsgs.QueueSize > 0 do
 		with ServerMsgs.PopItem do
 			begin
 			Msg.Free;
 			Free;
 			end;
+{$ELSE}
+	with ServerMsgs.LockList do
+		try
+		while Count > 0 do
+			begin
+			Items[0].Msg.Free;
+			Items[0].Free;
+			Delete(0);
+			end;
+		finally
+		ServerMsgs.UnlockList;
+		end;
+{$ENDIF}
 
 	ServerDisp.Terminate;
 	ServerDisp.WaitFor;

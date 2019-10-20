@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="10"/>
+    <BuildModes Active="Default"/>
+    <Units Count="22">
+      <Unit0>
+        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
+        <IsPartOfProject Value="True"/>
+        <IsVisibleTab Value="True"/>
+        <TopLine Value="43"/>
+        <CursorPos X="37" Y="53"/>
+        <UsageCount Value="34"/>
+        <Loaded Value="True"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="DModCLIServerMain.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="CLIServerMainDMod"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="DataModule"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="2"/>
+        <CursorPos X="24" Y="17"/>
+        <UsageCount Value="34"/>
+        <Loaded Value="True"/>
+        <LoadedDesigner Value="True"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="YahtzeeClasses.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="2"/>
+        <CursorPos X="25" Y="10"/>
+        <UsageCount Value="34"/>
+        <Loaded Value="True"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="YahtzeeServer.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="1"/>
+        <CursorPos X="25" Y="12"/>
+        <UsageCount Value="34"/>
+        <Loaded Value="True"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="FPC\inc\generics.dictionaries.inc"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="FPC\inc\generics.dictionariesh.inc"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="FPC\generics.collections.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="Generics.Collections"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1930"/>
+        <CursorPos Y="1957"/>
+        <UsageCount Value="34"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="FPC\generics.defaults.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="FPC\generics.hashes.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit8>
+      <Unit9>
+        <Filename Value="FPC\generics.helpers.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit9>
+      <Unit10>
+        <Filename Value="FPC\generics.memoryexpanders.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit10>
+      <Unit11>
+        <Filename Value="FPC\generics.strings.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="34"/>
+      </Unit11>
+      <Unit12>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\packages\fcl-base\src\custapp.pp"/>
+        <UnitName Value="CustApp"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos X="3" Y="30"/>
+        <UsageCount Value="17"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="D:\lazarus1.8\components\lazutils\utf8process.pp"/>
+        <UnitName Value="UTF8Process"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="344"/>
+        <CursorPos X="69" Y="362"/>
+        <UsageCount Value="9"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\classes\classesh.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="286"/>
+        <CursorPos X="3" Y="298"/>
+        <UsageCount Value="12"/>
+      </Unit14>
+      <Unit15>
+        <Filename Value="D:\lazarus1.8\onlinepackagemanager\packages\Indy10\indylaz.pas"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+      </Unit15>
+      <Unit16>
+        <Filename Value="D:\lazarus1.8\onlinepackagemanager\packages\Indy10\Core\IdIOHandler.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="2204"/>
+        <CursorPos Y="2221"/>
+        <UsageCount Value="10"/>
+      </Unit16>
+      <Unit17>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\win\sysosh.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="15"/>
+        <CursorPos X="3" Y="33"/>
+        <UsageCount Value="9"/>
+      </Unit17>
+      <Unit18>
+        <Filename Value="D:\lazarus1.8\onlinepackagemanager\packages\Indy10\Core\IdCustomTCPServer.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="368"/>
+        <CursorPos X="14" Y="384"/>
+        <UsageCount Value="9"/>
+      </Unit18>
+      <Unit19>
+        <Filename Value="D:\lazarus1.8\onlinepackagemanager\packages\Indy10\Core\IdContext.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="74"/>
+        <CursorPos X="3" Y="91"/>
+        <UsageCount Value="9"/>
+      </Unit19>
+      <Unit20>
+        <Filename Value="D:\lazarus1.8\onlinepackagemanager\packages\Indy10\Core\IdThreadSafe.pas"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="202"/>
+        <CursorPos X="3" Y="218"/>
+        <UsageCount Value="9"/>
+      </Unit20>
+      <Unit21>
+        <Filename Value="DModCLIServerMain.lfm"/>
+        <EditorIndex Value="-1"/>
+        <CursorPos Y="7"/>
+        <UsageCount Value="10"/>
+        <DefaultSyntaxHighlighter Value="LFM"/>
+      </Unit21>
+    </Units>
+    <JumpHistory Count="15" HistoryIndex="14">
+      <Position1>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="1333" Column="11" TopLine="1323"/>
+      </Position1>
+      <Position2>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="1347" Column="33" TopLine="1323"/>
+      </Position2>
+      <Position3>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="253" Column="29" TopLine="237"/>
+      </Position3>
+      <Position4>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="250" Column="3" TopLine="233"/>
+      </Position4>
+      <Position5>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="253" Column="24" TopLine="233"/>
+      </Position5>
+      <Position6>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="28" Column="9"/>
+      </Position6>
+      <Position7>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="1406" Column="29" TopLine="1380"/>
+      </Position7>
+      <Position8>
+        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
+        <Caret Line="71" Column="52" TopLine="47"/>
+      </Position8>
+      <Position9>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="28" Column="14"/>
+      </Position9>
+      <Position10>
+        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
+        <Caret Line="87" Column="12" TopLine="65"/>
+      </Position10>
+      <Position11>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="249" Column="3" TopLine="241"/>
+      </Position11>
+      <Position12>
+        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
+        <Caret Line="17" Column="14"/>
+      </Position12>
+      <Position13>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="28" Column="6"/>
+      </Position13>
+      <Position14>
+        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
+        <Caret Line="5" Column="22"/>
+      </Position14>
+      <Position15>
+        <Filename Value="DModCLIServerMain.pas"/>
+        <Caret Line="17" Column="18" TopLine="2"/>
+      </Position15>
+    </JumpHistory>
+  </ProjectSession>
+</CONFIG>

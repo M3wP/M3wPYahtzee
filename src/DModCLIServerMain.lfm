@@ -1,0 +1,16 @@
+object CLIServerMainDMod: TCLIServerMainDMod
+  OldCreateOrder = False
+  Height = 268
+  HorizontalOffset = 895
+  VerticalOffset = 141
+  Width = 451
+  object IdTCPServer1: TIdTCPServer
+    Bindings = <>
+    DefaultPort = 7632
+    OnConnect = IdTCPServer1Connect
+    OnDisconnect = IdTCPServer1Disconnect
+    OnExecute = IdTCPServer1Execute
+    left = 32
+    top = 16
+  end
+end

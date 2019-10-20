@@ -1,5 +1,10 @@
 unit YahtzeeClasses;
 
+{$IFDEF FPC}
+	{$MODE DELPHI}
+{$ENDIF}
+
+
 interface
 
 uses
@@ -38,9 +43,13 @@ type
 		procedure Assign(AMessage: TMessage);
 	end;
 
+{$IFNDEF FPC}
 	TMessages = TThreadedQueue<TMessage>;
-
 	TLogMessages = TThreadedQueue<AnsiString>;
+{$ELSE}
+	TMessages = TThreadList<TMessage>;
+	TLogMessages = TThreadList<AnsiString>;
+{$ENDIF}
 
 	TNamedHost = class(TObject)
 	public
@@ -688,7 +697,11 @@ procedure TMessage.ExtractParams;
 
 
 initialization
+{$IFNDEF FPC}
 	DebugMsgs:= TLogMessages.Create(512, 1);
+{$ELSE}
+	DebugMsgs:= TLogMessages.Create;
+{$ENDIF}
 
 
 finalization
