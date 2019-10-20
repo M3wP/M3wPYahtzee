@@ -5,7 +5,7 @@ unit DModCLIServerMain;
 interface
 
 uses
-	Classes, SysUtils, FileUtil, ExtCtrls, IdTCPServer, IdContext;
+	Classes, SysUtils, IdTCPServer, IdContext;
 
 type
 

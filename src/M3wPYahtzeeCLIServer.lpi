@@ -24,15 +24,7 @@
         <FormatVersion Value="1"/>
       </local>
     </RunParams>
-    <RequiredPackages Count="2">
-      <Item1>
-        <PackageName Value="LCLBase"/>
-      </Item1>
-      <Item2>
-        <PackageName Value="indylaz"/>
-      </Item2>
-    </RequiredPackages>
-    <Units Count="12">
+    <Units Count="15">
       <Unit0>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -85,6 +77,18 @@
         <Filename Value="FPC\generics.strings.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit11>
+      <Unit12>
+        <Filename Value="Indy10\System\IdBaseComponent.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="Indy10\Core\IdContext.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="Indy10\Core\IdTCPServer.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit14>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -95,7 +99,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir);FPC\inc"/>
-      <OtherUnitFiles Value="FPC"/>
+      <OtherUnitFiles Value="FPC;Indy10\System;Indy10\Core"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

@@ -8,7 +8,7 @@ uses
 	{$IFDEF UNIX}{$IFDEF UseCThreads}
 	cthreads,
 	{$ENDIF}{$ENDIF}
-	Interfaces, Classes, SysUtils, CustApp, DModCLIServerMain, YahtzeeClasses,
+	Classes, SysUtils, CustApp, DModCLIServerMain, YahtzeeClasses,
 	YahtzeeServer;
 
 type

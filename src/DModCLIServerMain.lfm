@@ -1,7 +1,7 @@
 object CLIServerMainDMod: TCLIServerMainDMod
   OldCreateOrder = False
   Height = 268
-  HorizontalOffset = 895
+  HorizontalOffset = 787
   VerticalOffset = 141
   Width = 451
   object IdTCPServer1: TIdTCPServer
