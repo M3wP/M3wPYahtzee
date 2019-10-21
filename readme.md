@@ -25,6 +25,8 @@ You could compile the FMX client and server to Linux if you have the appropriate
 
 The CLI server is a bit tricky.  In order to remove the dependencies on the GUI libraries, I have had to include a number of files directly from the Indy file set.  So, you will need to get a copy of the Indy package and copy the files into a "Indy10" folder, directly in the _src_ folder.  Once you do this, you should be able to compile it with Lazarus to the platform of your dreams.  Heh. 
 
+In addition, you will want to define FREE_ON_FINAL in IdCompilerDefines.inc if you want to resolve a number of memory usage issues in Indy10.
+
 The C64 version is a bit more complicated.  You need the cc65 toolchain, the ip65 library and some makefiles.  I will document this further and provide more detail when the client matures a little more.
 
 ## Playing the Game

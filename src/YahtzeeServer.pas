@@ -7,9 +7,6 @@ unit YahtzeeServer;
 interface
 
 uses
-	{$IFDEF UNIX}{$IFDEF UseCThreads}
-	cthreads,
-	{$ENDIF}{$ENDIF}
 	SyncObjs, Generics.Collections, Classes, IdGlobal, IdTCPConnection,
 	YahtzeeClasses;
 
@@ -331,6 +328,8 @@ procedure DoDestroyListMessages;
 		try
 		for i:= Count - 1 downto 0 do
 			Items[i].Free;
+
+        Clear;
 
 		finally
 		ListMessages.UnlockList;
@@ -1002,7 +1001,11 @@ destructor TPlayer.Destroy;
 		end;
 {$ENDIF}
 
+    if  Assigned(Client) then
+        Client.Free;
+
 	Messages.Free;
+    Zones.Free;
 
 	inherited;
 	end;
@@ -1327,12 +1330,14 @@ procedure TServerDispatcher.Execute;
 
 	begin
 	while not Terminated do
+        begin
+        Sleep(100);
+
 {$IFNDEF FPC}
 		if  ServerMsgs.QueueSize > 0 then
 			begin
 			cm:= ServerMsgs.PopItem;
 {$ELSE}
-        begin
 		cm:= nil;
 		with ServerMsgs.LockList do
 			try
@@ -1363,6 +1368,8 @@ procedure TServerDispatcher.Execute;
 						z.ProcessPlayerMessage(p, cm.Msg, handled);
 						if  handled then
 							Break;
+
+                        z:= nil;
 						end;
 
 					finally
@@ -1397,9 +1404,7 @@ procedure TServerDispatcher.Execute;
 				cm.Free;
 				end;
 			end;
-{$IFDEF FPC}
 		end;
-{$ENDIF}
 	end;
 
 { TMessageList }
@@ -2589,6 +2594,8 @@ destructor TPlayZone.Destroy;
 		end;
 
 	FGames.Free;
+
+    inherited;
 	end;
 
 function TPlayZone.GameByName(ADesc: AnsiString): TPlayGame;

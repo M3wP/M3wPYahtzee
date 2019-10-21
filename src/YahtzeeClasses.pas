@@ -615,7 +615,17 @@ procedure TMessage.Decode(AComsData: TIdBytes);
 	end;
 
 destructor TMessage.Destroy;
-	begin
+    var
+    s: AnsiString;
+
+    begin
+    with Params do
+        while Count > 0 do
+            begin
+            s:= Items[0];
+            Delete(0);
+            end;
+
 	Params.Free;
 
 	inherited;
@@ -647,8 +657,17 @@ procedure TMessage.ExtractParams;
 {$ENDIF}
 
 	begin
-	Params.Clear;
-	s:= AnsiString('');
+    with Params do
+        while Count > 0 do
+            begin
+            s:= Items[0];
+            Delete(0);
+            s:= AnsiString('');
+            end;
+
+//	Params.Clear;
+
+    s:= AnsiString('');
 	for i:= 0 to High(Data) do
 		if  Data[i] = $20 then
 			begin

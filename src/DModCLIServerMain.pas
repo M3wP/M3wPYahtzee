@@ -2,6 +2,8 @@ unit DModCLIServerMain;
 
 {$mode objfpc}{$H+}
 
+{.DEFINE DEBUG}
+
 interface
 
 uses
@@ -30,7 +32,10 @@ implementation
 {$R *.lfm}
 
 uses
-	IdGlobal, IdIOHandler, YahtzeeClasses, YahtzeeServer;
+	IdGlobal, IdIOHandler, YahtzeeClasses, YahtzeeServer
+{$IFDEF DEBUG}
+    , CustApp
+{$ENDIF};
 
 { TCLIServerMainDMod }
 
@@ -173,7 +178,11 @@ procedure TCLIServerMainDMod.IdTCPServer1Disconnect(AContext: TIdContext);
 	UniqueString(s);
     DebugMsgs.Add(s);
 {$ENDIF}
-	end;
+
+{$IFDEF DEBUG}
+    CustomApplication.Terminate;
+{$ENDIF}
+    end;
 
 end.
 

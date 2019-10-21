@@ -1,5 +1,10 @@
 # M3wP Yahtzee! Change Log
 
+## CLI Server
+
+* 21OCT2019
+	* Fix a number of memory leaks (affects the FMX server, too)
+
 ## FMX Server
 
 ### Version 0.00.78A

@@ -2,10 +2,16 @@ program M3wPYahtzeeCLIServer;
 
 {$mode objfpc}{$H+}
 
-{$DEFINE UseCThreads}
+{.DEFINE DEBUG}
+
+{$IFDEF UNIX}
+	{$DEFINE UseCThreads}
+{$ENDIF}
 
 uses
-	{$IFDEF UNIX}{$IFDEF UseCThreads}
+	{$IFDEF UNIX}
+    cmem,
+	{$IFDEF UseCThreads}
 	cthreads,
 	{$ENDIF}{$ENDIF}
 	Classes, SysUtils, CustApp, DModCLIServerMain, YahtzeeClasses,
@@ -176,7 +182,19 @@ var
 	Application: TYahtzeeServer;
 
 begin
+{$IFDEF DEBUG}
+    if  FileExists('heap.trc') then
+        DeleteFile('heap.trc');
+
+    SetHeapTraceOutput('heap.trc');
+{$ENDIF}
+
 	Application:=TYahtzeeServer.Create(nil);
+
+{$IFDEF DEBUG}
+    CustomApplication:= Application;
+{$ENDIF}
+
 	Application.Title:='M3wP Yahtzee! Server';
 	Application.Run;
 	Application.Free;
