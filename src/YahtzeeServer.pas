@@ -549,7 +549,7 @@ procedure TSystemZone.PlayersKeepAliveExpire;
 	begin
 	with FPlayers.LockList do
 		try
-		for i:= 0 to Count - 1 do
+		for i:= Count - 1 downto 0 do
 			if  Items[i].NeedKeepAlive <= 0 then
 				Remove(Items[i]);
 
