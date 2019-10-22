@@ -7,7 +7,7 @@ unit DModCLIServerMain;
 interface
 
 uses
-	Classes, SysUtils, IdTCPServer, IdContext;
+	Classes, SysUtils, IdTCPServer, IdContext, IdSchedulerOfThreadDefault;
 
 type
 
@@ -89,6 +89,8 @@ procedure TCLIServerMainDMod.IdTCPServer1Execute(AContext: TIdContext);
        	p.Messages.UnlockList;
    		end;
 {$ENDIF}
+
+	Sleep(10);
 
 	io.ReadTimeout:= 1;
 	io.ReadBytes(p.InputBuffer, -1, True);

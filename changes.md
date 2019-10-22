@@ -2,12 +2,22 @@
 
 ## CLI Server
 
+* 23OCT2019
+	* Make CPU usage nicer?
+
+* 22OCT2019
+	* Also use the server challenges
+
 * 21OCT2019
 	* Fix a number of memory leaks (affects the FMX server, too)
 
 ## FMX Server
 
 ### Version 0.00.78A
+
+* 22OCT2019
+	* Fix some FIXMEs (affects all servers)
+	* Implement server challenge message when client idle
 
 * 17OCT2019
 	* Handle when the currently playing player leaves the game
@@ -21,6 +31,9 @@
 ## FMX Client
 
 ### Version 0.00.78A
+
+* 22OCT2019
+	* Implement client keep-alive message in response to server challenge message
 
 * 16OCT2019
 	* Change Play|Join message to be all text, not mixed text and binary

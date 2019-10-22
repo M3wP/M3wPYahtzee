@@ -132,7 +132,7 @@ const
 {$ELSE}
 	LIT_SYS_PLATFRM = 'mswindows';
 {$ENDIF}
-	LIT_SYS_VERSION = '0.00.78A';
+	LIT_SYS_VERSION = '0.00.80A';
 
 
 implementation
@@ -384,6 +384,14 @@ procedure TPlayer.ExecuteMessages;
 					end
 				else
 					SendClientError(AnsiString(LIT_ERR_SERVERID));
+				end
+			else if AMessage.Method = 2 then
+				begin
+				m:= TMessage.Create;
+				m.Category:= mcClient;
+				m.Method:= $02;
+
+				SendMessages.PushItem(m);
 				end
 			else
 				SendClientError(AnsiString(LIT_ERR_SERVERCM));

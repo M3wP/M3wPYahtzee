@@ -714,7 +714,7 @@ object ClientMainForm: TClientMainForm
         Size.Height = 534.000000000000000000
         Size.PlatformDefault = False
         TabHeight = 49.000000000000000000
-        TabIndex = 1
+        TabIndex = 2
         TabOrder = 0
         TabPosition = Dots
         OnChange = TabControl4Change
@@ -916,7 +916,7 @@ object ClientMainForm: TClientMainForm
           CustomIcon = <
             item
             end>
-          IsSelected = True
+          IsSelected = False
           Size.Width = 8.000000000000000000
           Size.Height = 8.000000000000000000
           Size.PlatformDefault = False
@@ -1201,7 +1201,7 @@ object ClientMainForm: TClientMainForm
           CustomIcon = <
             item
             end>
-          IsSelected = False
+          IsSelected = True
           Size.Width = 8.000000000000000000
           Size.Height = 8.000000000000000000
           Size.PlatformDefault = False

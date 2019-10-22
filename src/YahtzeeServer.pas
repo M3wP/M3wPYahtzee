@@ -97,6 +97,9 @@ type
 
 		procedure ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 				var AHandled: Boolean); override;
+
+		procedure PlayersKeepAliveDecrement(Ams: Integer);
+		procedure PlayersKeepAliveExpire;
 	end;
 
 	TLimboZone = class(TZone)
@@ -241,6 +244,9 @@ type
 		Client: TNamedHost;
 
 		Counter: Integer;
+		KeepAliveCntr: Integer;
+		NeedKeepAlive: Integer;
+		SendKeepAlive: Boolean;
 
 		Messages: TMessages;
 
@@ -258,6 +264,9 @@ type
 		function  FindZoneByNameDesc(AName, ADesc: AnsiString): TZone;
 
 		procedure SendServerError(AMessage: AnsiString);
+
+		procedure KeepAliveReset;
+		procedure KeepAliveDecrement(Ams: Integer);
 	end;
 
 	procedure RollDice(ASet: TDieSet; var ADice: TDice);
@@ -279,8 +288,20 @@ var
 
 const
 	LIT_SYS_VERNAME: AnsiString = 'alpha';
+{$IFDEF ANDROID}
+	LIT_SYS_PLATFRM: AnsiString = 'android';
+{$ELSE}
+	{$IFDEF UNIX}
+		{$IFDEF LINUX}
+   	LIT_SYS_PLATFRM: AnsiString = 'linux';
+		{$ELSE}
+   	LIT_SYS_PLATFRM: AnsiString = 'unix';
+		{$ENDIF}
+	{$ELSE}
 	LIT_SYS_PLATFRM: AnsiString = 'mswindows';
-	LIT_SYS_VERSION: AnsiString = '0.00.78A';
+	{$ENDIF}
+{$ENDIF}
+	LIT_SYS_VERSION: AnsiString = '0.00.80A';
 
 
 implementation
@@ -306,6 +327,9 @@ const
 	LIT_ERR_PLAYJINV: AnsiString = 'Invalid play join';
 	LIT_ERR_PLAYPINV: AnsiString = 'Invalid play part';
 	LIT_ERR_PLAYLINV: AnsiString = 'Invalid play list';
+	LIT_ERR_PLAYPWDR: AnsiString = 'Play password mismatch';
+	LIT_ERR_PLAYGMST: AnsiString = 'Play in progress or full';
+	LIT_ERR_PLAYNORL: AnsiString = 'Play rolls complete';
 
 
 procedure RollDice(ASet: TDieSet; var ADice: TDice);
@@ -502,6 +526,38 @@ function TSystemZone.PlayerByName(AName: AnsiString): TPlayer;
 		end;
 	end;
 
+procedure TSystemZone.PlayersKeepAliveDecrement(Ams: Integer);
+	var
+	i: Integer;
+
+	begin
+	with FPlayers.LockList do
+		try
+		for i:= 0 to Count - 1 do
+			if  not Assigned(LimboZone.PlayerByConnection(Items[i].Connection)) then
+				Items[i].KeepAliveDecrement(Ams);
+
+		finally
+		FPlayers.UnlockList;
+		end;
+	end;
+
+procedure TSystemZone.PlayersKeepAliveExpire;
+	var
+	i: Integer;
+
+	begin
+	with FPlayers.LockList do
+		try
+		for i:= 0 to Count - 1 do
+			if  Items[i].NeedKeepAlive <= 0 then
+				Remove(Items[i]);
+
+		finally
+		FPlayers.UnlockList;
+		end;
+	end;
+
 procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 		var AHandled: Boolean);
 	var
@@ -633,6 +689,12 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 		else
 			APlayer.SendServerError(LIT_ERR_CONNCTID);
 
+		AHandled:= True;
+		end
+	else if (AMessage.Category = mcClient)
+	and (AMessage.Method = 2) then
+		begin
+		APlayer.KeepAliveReset;
 		AHandled:= True;
 		end;
 	end;
@@ -968,6 +1030,8 @@ constructor TPlayer.Create(AConnection: TIdTCPConnection);
 	Name:= '';
 	Client:= nil;
 
+	KeepAliveReset;
+
 {$IFNDEF FPC}
 	Messages:= TMessages.Create(128);
 {$ELSE}
@@ -1049,6 +1113,42 @@ function TPlayer.FindZoneByNameDesc(AName, ADesc: AnsiString): TZone;
 		finally
 		Zones.UnlockList;
 		end;
+	end;
+
+procedure TPlayer.KeepAliveDecrement(Ams: Integer);
+	var
+	m: TMessage;
+
+	begin
+	if  KeepAliveCntr > 0 then
+		Dec(KeepAliveCntr, Ams)
+	else
+		begin
+		if  SendKeepAlive then
+			begin
+			SendKeepAlive:= False;
+
+			m:= TMessage.Create;
+
+			m.Category:= mcServer;
+			m.Method:= 2;
+
+{$IFNDEF FPC}
+			Messages.PushItem(m);
+{$ELSE}
+			Messages.Add(m);
+{$ENDIF}
+			end;
+
+		Dec(NeedKeepAlive, Ams);
+		end;
+	end;
+
+procedure TPlayer.KeepAliveReset;
+	begin
+	KeepAliveCntr:= 10000;
+	NeedKeepAlive:= 5000;
+	SendKeepAlive:= True;
 	end;
 
 procedure TPlayer.RemoveZone(AZone: TZone);
@@ -1330,8 +1430,8 @@ procedure TServerDispatcher.Execute;
 
 	begin
 	while not Terminated do
-        begin
-        Sleep(100);
+		begin
+		Sleep(100);
 
 {$IFNDEF FPC}
 		if  ServerMsgs.QueueSize > 0 then
@@ -1341,13 +1441,13 @@ procedure TServerDispatcher.Execute;
 		cm:= nil;
 		with ServerMsgs.LockList do
 			try
-            if  Count > 0 then
+			if  Count > 0 then
 				begin
 				cm:= Items[0];
 				Delete(0);
 				end;
 			finally
-            ServerMsgs.UnlockList;
+			ServerMsgs.UnlockList;
 			end;
 
 		if  Assigned(cm) then
@@ -1369,7 +1469,7 @@ procedure TServerDispatcher.Execute;
 						if  handled then
 							Break;
 
-                        z:= nil;
+						z:= nil;
 						end;
 
 					finally
@@ -1377,15 +1477,16 @@ procedure TServerDispatcher.Execute;
 					end;
 
 				if  handled then
+					begin
+					p.KeepAliveReset;
 {$IFNDEF FPC}
 					DebugMsgs.PushItem('Handled in ' + z.Name + ' zone.')
 {$ELSE}
-					begin
-                    s:= 'Handled in ' + z.Name + ' zone.';
+					s:= 'Handled in ' + z.Name + ' zone.';
 					UniqueString(s);
 					DebugMsgs.Add(s);
-					end
 {$ENDIF}
+					end
 				else
 					begin
 					p.SendServerError(LIT_ERR_SERVERUN);
@@ -1393,7 +1494,7 @@ procedure TServerDispatcher.Execute;
 {$IFNDEF FPC}
 					DebugMsgs.PushItem('Unhandled message.');
 {$ELSE}
-                    s:= 'Unhandled message.';
+					s:= 'Unhandled message.';
 					UniqueString(s);
 					DebugMsgs.Add(s);
 {$ENDIF}
@@ -1790,8 +1891,21 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 					else
 						begin
 						if  Slots[s].RollNo = 3 then
-//FIXME:                    Error message
+							begin
+							m:= TMessage.Create;
+							m.Category:= mcPlay;
+							m.Method:= $00;
+
+							m.Params.Add(LIT_ERR_PLAYNORL);
+							m.DataFromParams;
+{$IFNDEF FPC}
+							APlayer.Messages.PushItem(m);
+{$ELSE}
+							APlayer.Messages.Add(m);
+{$ENDIF}
+
 							Exit;
+							end;
 
 						if  Slots[s].RollNo = 0 then
 							d:= VAL_SET_DICEALL;
@@ -2688,12 +2802,12 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 							m.Category:= mcPlay;
 							m.Method:= $00;
 
-//FIXME:    				Error message
-
+							m.Params.Add(LIT_ERR_PLAYGMST);
+							m.DataFromParams;
 {$IFNDEF FPC}
 							APlayer.Messages.PushItem(m);
 {$ELSE}
-                            APlayer.Messages.Add(m);
+							APlayer.Messages.Add(m);
 {$ENDIF}
 							end;
 						finally
@@ -2706,8 +2820,8 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer; AMessage: TMessage;
 					m.Category:= mcPlay;
 					m.Method:= $00;
 
-//FIXME:    		Error message
-
+					m.Params.Add(LIT_ERR_PLAYPWDR);
+					m.DataFromParams;
 {$IFNDEF FPC}
 					APlayer.Messages.PushItem(m);
 {$ELSE}

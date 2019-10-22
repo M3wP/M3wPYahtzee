@@ -152,6 +152,9 @@ procedure TYahtzeeServer.DoRun;
     		ListMessages.UnlockList;
     		end;
 
+        SystemZone.PlayersKeepAliveDecrement(100);
+		SystemZone.PlayersKeepAliveExpire;
+
     	LimboZone.BumpCounter;
     	LimboZone.ExpirePlayers;
 		end;

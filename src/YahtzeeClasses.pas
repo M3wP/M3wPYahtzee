@@ -131,10 +131,12 @@ const
 //		4	-	Client
 //		40	-	Error
 //		41	-	Identify
+//		52	-	KeepAlive
 //
 //		5	-	Server
 //		50	-	Error
 //		51	-	Identify
+//		52	-	Challenge
 //
 //		6	-	Play
 //		60 	- 	Error

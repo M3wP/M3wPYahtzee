@@ -4,6 +4,7 @@ object CLIServerMainDMod: TCLIServerMainDMod
   HorizontalOffset = 787
   VerticalOffset = 141
   Width = 451
+  PPI = 96
   object IdTCPServer1: TIdTCPServer
     Bindings = <>
     DefaultPort = 7632

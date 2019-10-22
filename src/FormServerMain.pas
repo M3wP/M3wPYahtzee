@@ -231,6 +231,9 @@ procedure TServerMainForm.Timer1Timer(Sender: TObject);
 		ListMessages.UnlockList;
 		end;
 
+	SystemZone.PlayersKeepAliveDecrement(Timer1.Interval);
+	SystemZone.PlayersKeepAliveExpire;
+
 	LimboZone.BumpCounter;
 	LimboZone.ExpirePlayers;
 	end;
