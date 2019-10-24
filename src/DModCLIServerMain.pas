@@ -56,6 +56,9 @@ procedure TCLIServerMainDMod.IdTCPServer1Execute(AContext: TIdContext);
 
 	p:= SystemZone.PlayerByConnection(AContext.Connection);
 
+    if  not Assigned(p) then
+        Exit;
+
 {$IFNDEF FPC}
 	while p.Messages.QueueSize > 0 do
 		begin
@@ -169,14 +172,19 @@ procedure TCLIServerMainDMod.IdTCPServer1Disconnect(AContext: TIdContext);
 
 	begin
 	p:= SystemZone.PlayerByConnection(AContext.Connection);
-	SystemZone.Remove(p);
 
-	p.Free;
+    if  Assigned(p) then
+        begin
+        p.Connection:= nil;
+        SystemZone.Remove(p);
+        end;
+
+//	p.Free;
 
 {$IFNDEF FPC}
 	DebugMsgs.PushItem('Client disconnected.');
 {$ELSE}
-    s:= 'Client disconnected.';
+    s:= 'Client disconnected gracefully.';
 	UniqueString(s);
     DebugMsgs.Add(s);
 {$ENDIF}

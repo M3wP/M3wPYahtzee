@@ -127,9 +127,12 @@ procedure TServerMainForm.IdTCPServer1Disconnect(AContext: TIdContext);
 
 	begin
 	p:= SystemZone.PlayerByConnection(AContext.Connection);
-	SystemZone.Remove(p);
 
-	p.Free;
+	if  Assigned(p) then
+		begin
+		SystemZone.Remove(p);
+		p.Connection:= nil;
+		end;
 
 	DebugMsgs.PushItem('Client disconnected.');
 	end;
@@ -147,6 +150,9 @@ procedure TServerMainForm.IdTCPServer1Execute(AContext: TIdContext);
 	io:= AContext.Connection.IOHandler;
 
 	p:= SystemZone.PlayerByConnection(AContext.Connection);
+
+	if  not Assigned(p) then
+		Exit;
 
 	while p.Messages.QueueSize > 0 do
 		begin
@@ -189,6 +195,7 @@ procedure TServerMainForm.Timer1Timer(Sender: TObject);
 	var
 	f: Boolean;
 	z: TZone;
+	p: TPlayer;
 	i: Integer;
 
 	begin
@@ -203,6 +210,18 @@ procedure TServerMainForm.Timer1Timer(Sender: TObject);
 		Memo1.ScrollBy(0, MaxInt);
 
 //	DebugMsgs.PushItem('- Heart beat.');
+
+	while ExpirePlayers.QueueSize > 0 do
+		begin
+		p:= ExpirePlayers.PopItem;
+
+		if  Assigned(p.Connection)
+		and p.Connection.Connected then
+			p.Connection.Disconnect;
+
+		DebugMsgs.PushItem('Client released.');
+		p.Free;
+		end;
 
 	while ExpireZones.QueueSize > 0 do
 		begin

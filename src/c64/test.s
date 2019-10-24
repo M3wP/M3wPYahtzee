@@ -20,8 +20,7 @@
 ;	BUGS:
 ;		- In VICE, doing a reset while successfully connected results 
 ;		  in a zombie client (the socket is not closed).  I believe the
-;		  problem is in VICE and will eventually have a work-around when
-;		  I implement idle time limitations in the server.
+;		  problem is in VICE.
 ;
 ;
 
@@ -473,7 +472,7 @@ gameData	= 	$0200
 		nxtpage	.word
 		bakpage	.word
 		textptr	.word
-		testoffx .byte
+		textoffx .byte
 		panels	.word
 		panlcnt	.byte
 	.endstruct
@@ -2443,8 +2442,8 @@ tlabel_main_begin:
 			.byte	$00		;tag	.byte
 			.word	tab_main	;panel	.word
 			.word	text_main_begin ;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$00		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$00		;textaccel .byte
 			.byte	KEY_C64_F1	;accelchar .byte
 			.word	$0000		;actvctrl .word
 			
@@ -2464,8 +2463,8 @@ tlabel_main_chat:
 			.byte	$00		;tag	.byte
 			.word	tab_main	;panel	.word
 			.word	text_main_chat  ;textptr	.word
-			.byte	$01		;testoffx .byte
-			.byte	$01		;testaccel .byte
+			.byte	$01		;textoffx .byte
+			.byte	$01		;textaccel .byte
 			.byte	KEY_C64_F3		;accelchar .byte
 			.word	$0000		;actvctrl .word
 		
@@ -2485,8 +2484,8 @@ tlabel_main_play:
 			.byte	$00		;tag	.byte
 			.word	tab_main	;panel	.word
 			.word	text_main_play  ;textptr	.word
-			.byte	$01		;testoffx .byte
-			.byte	$01		;testaccel .byte
+			.byte	$01		;textoffx .byte
+			.byte	$01		;teXtaccel .byte
 			.byte	KEY_C64_F5		;accelchar .byte
 			.word	$0000		;actvctrl .word
 		
@@ -2506,8 +2505,8 @@ hlabel_main_page:
 			.byte	$00		;tag	.byte
 			.word	tab_main	;panel	.word
 			.word	$0000 		;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$FF		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 			.word	$0000		;actvctrl .word
 
@@ -2566,7 +2565,7 @@ page_connect:
 			.word	$0000		;nxtpage
 			.word	$0000		;bakpage
 			.word	text_page_connect;textptr	.word
-			.byte	$10		;testoffx .byte
+			.byte	$10		;textoffx .byte
 			.word	page_connect_pnls;panels	.word
 			.byte	$03
 
@@ -2609,7 +2608,7 @@ panel_cnct_data_ctrls:
 label_cnct_host:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
-			.word	$0000		;changed .word
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_LABEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
@@ -2622,8 +2621,8 @@ label_cnct_host:
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
 			.word	text_cnct_host  ;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$00		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$00		;textaccel .byte
 			.byte	'h'		;accelchar .byte
 			.word	edit_cnct_host	;actvctrl .word
 			
@@ -2658,7 +2657,7 @@ edit_cnct_host_buf:
 label_cnct_user:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
-			.word	$0000		;changed .word
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_LABEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
@@ -2671,8 +2670,8 @@ label_cnct_user:
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
 			.word	text_cnct_user  ;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$00		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$00		;textaccel .byte
 			.byte	'u'		;accelchar .byte
 			.word	edit_cnct_user	;actvctrl .word
 			
@@ -2692,8 +2691,8 @@ edit_cnct_user:
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
 			.word	edit_cnct_user_buf
-			.byte	$00		;testoffx .byte
-			.byte	$FF		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 			.byte	$00		;textsiz
 			.byte	$08		;textmaxsz
@@ -2766,7 +2765,7 @@ button_cnct_dcnt:
 label_cnct_info:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
-			.word	$0000		;changed .word
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_LABEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
@@ -2779,8 +2778,8 @@ label_cnct_info:
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
 			.word	text_cnct_info  ;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$05		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$05		;textaccel .byte
 			.byte	'i'		;accelchar .byte
 			.word	combo_cnct_info	;actvctrl .word
 			
@@ -2800,8 +2799,8 @@ combo_cnct_info:
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
 			.word	$0000 		;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$FF		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 
 lpanel_cnct_log:
@@ -2858,7 +2857,7 @@ page_room:
 			.word	$0000		;nxtpage
 			.word	$0000		;bakpage
 			.word	text_page_room	;textptr	.word
-			.byte	$12		;testoffx .byte
+			.byte	$12		;textoffx .byte
 			.word	page_room_pnls	;panels	.word
 			.byte	$05
 
@@ -2941,7 +2940,7 @@ panel_room_more_ctrls:
 label_room_room:
 ;			.word	$0000			;prepare
 			.word	$0000			;present
-			.word	$0000			;changed 
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
@@ -2953,8 +2952,8 @@ label_room_room:
 			.byte	$00			;tag	.byte
 			.word	panel_room_more		;panel	.word
 			.word	text_room_room  	;textptr	.word
-			.byte	$00			;testoffx .byte
-			.byte	$00			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$00			;textaccel .byte
 			.byte	'r'			;accelchar .byte
 			.word	edit_room_room		;actvctrl .word
 
@@ -2973,8 +2972,8 @@ edit_room_room:
 			.byte	$00			;tag	.byte
 			.word	panel_room_more		;panel	.word
 			.word	edit_room_room_buf
-			.byte	$00			;testoffx .byte
-			.byte	$FF			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$FF			;textaccel .byte
 			.byte	$00			;accelchar .byte
 			.byte	$00			;textsiz
 			.byte	$08			;textmaxsz
@@ -3006,22 +3005,22 @@ button_room_list:
 label_room_pwd:
 ;			.word	$0000			;prepare
 			.word	$0000			;present
-			.word	$0000			;changed 
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
-			.byte	CLR_FACE		;colour	.byte
-			.byte	$00			;posx	.byte
-			.byte	$06			;posy	.byte
-			.byte	$0C			;width	.byte
-			.byte	$01			;height	.byte
-			.byte	$00			;tag	.byte
-			.word	panel_room_more		;panel	.word
-			.word	text_room_pwd	  	;textptr	.word
-			.byte	$00			;testoffx .byte
-			.byte	$00			;testaccel .byte
-			.byte	'p'			;accelchar .byte
-			.word	edit_room_pwd		;actvctrl .word
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$06			;posy	
+			.byte	$0C			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_room_more		;panel	
+			.word	text_room_pwd	  	;textptr
+			.byte	$00			;textoffx 
+			.byte	$02			;textaccel
+			.byte	's'			;accelchar
+			.word	edit_room_pwd		;actvctrl 
 
 edit_room_pwd:
 ;			.word	$0000			;prepare
@@ -3038,8 +3037,8 @@ edit_room_pwd:
 			.byte	$00			;tag	.byte
 			.word	panel_room_more		;panel	.word
 			.word	edit_room_pwd_buf
-			.byte	$00			;testoffx .byte
-			.byte	$FF			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$FF			;textaccel .byte
 			.byte	$00			;accelchar .byte
 			.byte	$00			;textsiz
 			.byte	$08			;textmaxsz
@@ -3148,8 +3147,8 @@ edit_room_text:
 			.byte	$00		;tag	.byte
 			.word	panel_room_data	;panel	.word
 			.word	$0000 		;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$FF		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 
 
@@ -3169,7 +3168,7 @@ page_play:
 			.word	page_ovrvw	;nxtpage
 			.word	$0000		;bakpage
 			.word	text_page_play	;textptr	.word
-			.byte	$12		;testoffx .byte
+			.byte	$12		;textoffx .byte
 			.word	page_play_pnls	;panels	.word
 			.byte	$05
 
@@ -3252,7 +3251,7 @@ panel_play_more_ctrls:
 label_play_game:
 ;			.word	$0000			;prepare
 			.word	$0000			;present
-			.word	$0000			;changed 
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
@@ -3264,8 +3263,8 @@ label_play_game:
 			.byte	$00			;tag	.byte
 			.word	panel_play_more		;panel	.word
 			.word	text_play_game  	;textptr	.word
-			.byte	$00			;testoffx .byte
-			.byte	$00			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$00			;textaccel .byte
 			.byte	'g'			;accelchar .byte
 			.word	edit_play_game		;actvctrl .word
 
@@ -3284,8 +3283,8 @@ edit_play_game:
 			.byte	$00			;tag	.byte
 			.word	panel_play_more		;panel	.word
 			.word	edit_play_game_buf
-			.byte	$00			;testoffx .byte
-			.byte	$FF			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$FF			;textaccel .byte
 			.byte	$00			;accelchar .byte
 			.byte	$00			;textsiz
 			.byte	$08			;textmaxsz
@@ -3317,22 +3316,22 @@ button_play_list:
 label_play_pwd:
 ;			.word	$0000			;prepare
 			.word	$0000			;present
-			.word	$0000			;changed 
+			.word	ctrlsLabelDefChanged	;changed
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
-			.byte	CLR_FACE		;colour	.byte
-			.byte	$00			;posx	.byte
-			.byte	$06			;posy	.byte
-			.byte	$0C			;width	.byte
-			.byte	$01			;height	.byte
-			.byte	$00			;tag	.byte
-			.word	panel_play_more		;panel	.word
-			.word	text_room_pwd	  	;textptr	.word
-			.byte	$00			;testoffx .byte
-			.byte	$00			;testaccel .byte
-			.byte	'p'			;accelchar .byte
-			.word	edit_room_pwd		;actvctrl .word
+			.byte	CLR_FACE		;colour	
+			.byte	$00			;posx	
+			.byte	$06			;posy	
+			.byte	$0C			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_play_more		;panel	
+			.word	text_room_pwd	  	;textptr
+			.byte	$00			;textoffx 
+			.byte	$02			;textaccel
+			.byte	's'			;accelchar
+			.word	edit_room_pwd		;actvctrl 
 
 edit_play_pwd:
 ;			.word	$0000			;prepare
@@ -3349,8 +3348,8 @@ edit_play_pwd:
 			.byte	$00			;tag	.byte
 			.word	panel_play_more		;panel	.word
 			.word	edit_play_pwd_buf
-			.byte	$00			;testoffx .byte
-			.byte	$FF			;testaccel .byte
+			.byte	$00			;textoffx .byte
+			.byte	$FF			;textaccel .byte
 			.byte	$00			;accelchar .byte
 			.byte	$00			;textsiz
 			.byte	$08			;textmaxsz
@@ -3475,8 +3474,8 @@ edit_play_text:
 			.byte	$00		;tag	.byte
 			.word	panel_play_data	;panel	.word
 			.word	$0000 		;textptr	.word
-			.byte	$00		;testoffx .byte
-			.byte	$FF		;testaccel .byte
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 
 page_ovrvw:
@@ -3495,7 +3494,7 @@ page_ovrvw:
 			.word	$0000		;nxtpage
 			.word	page_play	;bakpage
 			.word	text_page_ovrvw	;textptr	.word
-			.byte	$10		;testoffx .byte
+			.byte	$10		;textoffx .byte
 			.word	page_ovrvw_pnls	;panels	.word
 			.byte	$02
 
@@ -3567,7 +3566,7 @@ label_ovrvw_cntrl:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_cntrl  ;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3625,7 +3624,7 @@ label_ovrvw_1p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + GAMESLOT::name
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3645,7 +3644,7 @@ label_ovrvw_1p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3670,7 +3669,7 @@ label_ovrvw_1p_score:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	label_ovrvw_1p_score_buf	;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3714,7 +3713,7 @@ label_ovrvw_2p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + .sizeof(GAMESLOT) + GAMESLOT::name
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3734,7 +3733,7 @@ label_ovrvw_2p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3759,7 +3758,7 @@ label_ovrvw_2p_score:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	label_ovrvw_2p_score_buf;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3803,7 +3802,7 @@ label_ovrvw_3p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + (.sizeof(GAMESLOT)*2) + GAMESLOT::name
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3823,7 +3822,7 @@ label_ovrvw_3p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3848,7 +3847,7 @@ label_ovrvw_3p_score:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	label_ovrvw_3p_score_buf ;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3892,7 +3891,7 @@ label_ovrvw_4p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + (.sizeof(GAMESLOT)*3) + GAMESLOT::name
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3912,7 +3911,7 @@ label_ovrvw_4p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
+			.byte	$00		;textoffx
 			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
@@ -3981,8 +3980,8 @@ label_ovrvw_5p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + (.sizeof(GAMESLOT)*4) + GAMESLOT::name
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4001,8 +4000,8 @@ label_ovrvw_5p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4026,8 +4025,8 @@ label_ovrvw_5p_score:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	label_ovrvw_5p_score_buf ;textptr
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4070,8 +4069,8 @@ label_ovrvw_6p_name:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	gameData + (.sizeof(GAMESLOT)*5) + GAMESLOT::name
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4090,8 +4089,8 @@ label_ovrvw_6p_stat:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4115,8 +4114,8 @@ label_ovrvw_6p_score:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	label_ovrvw_6p_score_buf ;textptr
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4140,8 +4139,8 @@ label_ovrvw_round:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	text_ovrvw_round	;textptr
-			.byte	$00		;testoffx
-			.byte	$FF		;testaccel
+			.byte	$00		;textoffx
+			.byte	$FF		;textaccel
 			.byte	$00		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -4160,8 +4159,8 @@ label_ovrwv_round_det:
 			.byte	$00		;tag	
 			.word	panel_ovrvw_ovrvw	;panel	
 			.word	$0000		;textptr
-			.byte	$00		;testoffx
-			.byte	$00		;testaccel
+			.byte	$00		;textoffx
+			.byte	$00		;textaccel
 			.byte	$FF		;accelchar
 			.word	$0000		;actvctrl 
 
@@ -5624,6 +5623,24 @@ clientSendGetSysInfo:
 
 
 ;-------------------------------------------------------------------------------
+clientSendKeepAlive:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+
+		LDA	#MSG_CATG_CLNT
+		ORA	#$02
+
+		JSR	strsAppendChar
+
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 clientSendPlayJoin:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
@@ -6393,6 +6410,9 @@ clientProcConctMsg:
 		LDAX 	#text_err_pref
 		JSR	strsAppendString
 
+		LDA	#$02
+		STA	tempdat1
+
 		JSR	strsAppendMessage
 
 		LDA	#$00
@@ -6439,6 +6459,9 @@ clientProcServerMsg:
 		LDAX	#text_syserr_pref
 		JSR	strsAppendString
 
+		LDA	#$02
+		STA	tempdat1
+		
 		JSR	strsAppendMessage
 
 		LDA	#$00
@@ -6452,6 +6475,10 @@ clientProcServerMsg:
 		CMP	#$01
 		BEQ	@ident
 
+@tstnxt1:
+		CMP	#$02
+		BEQ	@chlng
+
 		JMP	clientProcUnknownMsg
 ;		RTS
 
@@ -6464,6 +6491,10 @@ clientProcServerMsg:
 		JSR	clientSendGetSysInfo
 
 		RTS
+
+@chlng:
+		JMP	clientSendKeepAlive
+;		RTS
 
 
 	.export	clientProcPlayJoinMsg
@@ -11182,6 +11213,38 @@ ctrlsSPanelDefChanged:
 
 		RTS
 
+
+;-------------------------------------------------------------------------------
+ctrlsLabelDefChanged:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+		
+		LDY	#LABELCTRL::actvctrl
+		LDA	(elemptr0), Y
+		STA	tempptr0
+		INY
+		LDA	(elemptr0), Y
+		STA	tempptr0 + 1
+		
+		LDA	tempptr0
+		STA	elemptr0
+		LDA	tempptr0 + 1
+		STA	elemptr0 + 1
+		
+;		JSR	ctrlsActivateCtrl
+		JSR	ctrlsDownCtrl
+
+@exit:
+		RTS
+		
 
 	.export	ctrlsPanelDefChanged
 ;-------------------------------------------------------------------------------

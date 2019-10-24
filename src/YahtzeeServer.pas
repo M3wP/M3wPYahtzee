@@ -234,6 +234,12 @@ type
 	TExpireZones = TThreadList<TZone>;
 {$ENDIF}
 
+{$IFNDEF FPC}
+	TExpirePlayers = TThreadedQueue<TPlayer>;
+{$ELSE}
+	TExpirePlayers = TThreadList<TPlayer>;
+{$ENDIF}
+
 	TPlayer = class(TObject)
 	public
 		Connection: TIdTCPConnection;
@@ -284,6 +290,7 @@ var
 	ListMessages: TMessageLists;
 
 	ExpireZones: TExpireZones;
+    ExpirePlayers: TExpirePlayers;
 
 
 const
@@ -551,7 +558,7 @@ procedure TSystemZone.PlayersKeepAliveExpire;
 		try
 		for i:= Count - 1 downto 0 do
 			if  Items[i].NeedKeepAlive <= 0 then
-				Remove(Items[i]);
+				Self.Remove(Items[i]);
 
 		finally
 		FPlayers.UnlockList;
@@ -705,9 +712,14 @@ procedure TSystemZone.Remove(APlayer: TPlayer);
 
 	APlayer.ClearZones;
 
-	if  Assigned(APlayer.Connection)
-	and APlayer.Connection.Connected then
-		APlayer.Connection.Disconnect;
+//	if  Assigned(APlayer.Connection)
+//	and APlayer.Connection.Connected then
+//		APlayer.Connection.Disconnect;
+{$IFNDEF FPC}
+	ExpirePlayers.PushItem(APlayer);
+{$ELSE}
+	ExpirePlayers.Add(APlayer);
+{$ENDIF}
 	end;
 
 { TLimboZone }
@@ -2947,6 +2959,12 @@ initialization
 	ExpireZones:= TExpireZones.Create;
 {$ENDIF}
 
+{$IFNDEF FPC}
+	ExpirePlayers:= TExpirePlayers.Create(512);
+{$ElSE}
+	ExpirePlayers:= TExpirePlayers.Create;
+{$ENDIF}
+
 	ListMessages:= TMessageLists.Create;
 
 {$IFNDEF FPC}
@@ -2963,6 +2981,22 @@ initialization
 	PlayZone:= TPlayZone.Create;
 
 finalization
+{$IFNDEF FPC}
+	while ExpirePlayers.QueueSize > 0 do
+		ExpirePlayers.PopItem.Free;
+{$ELSE}
+	with ExpirePlayers.LockList do
+		try
+		while Count > 0 do
+			begin
+			Items[0].Free;
+			Delete(0);
+			end;
+		finally
+		ExpirePlayers.UnlockList;
+		end;
+{$ENDIF}
+
 {$IFNDEF FPC}
 	while ExpireZones.QueueSize > 0 do
 		ExpireZones.PopItem.Free;

@@ -36,6 +36,7 @@ procedure TYahtzeeServer.DoRun;
 	var
 	ErrorMsg: String;
 //	f: Boolean;
+    p: TPlayer;
 	z: TZone;
 	i: Integer;
 	s: string;
@@ -118,6 +119,31 @@ procedure TYahtzeeServer.DoRun;
 //    		if  z.PlayerCount = 0 then
 //    			z.Free;
 //    		end;
+
+        with ExpirePlayers.LockList do
+        	try
+            while Count > 0 do
+        		begin
+        		p:= Items[0];
+        		Delete(0);
+
+        		if  Assigned(p.Connection)
+                and p.Connection.Connected then
+        			p.Connection.Disconnect;
+
+{$IFNDEF FPC}
+                DebugMsgs.PushItem('Client released.');
+{$ELSE}
+                s:= 'Client released.';
+                UniqueString(s);
+                DebugMsgs.Add(s);
+{$ENDIF}
+
+                p.Free;
+        		end;
+        	finally
+            ExpirePlayers.UnlockList;
+        	end;
 
 		with ExpireZones.LockList do
 			try

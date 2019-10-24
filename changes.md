@@ -2,6 +2,10 @@
 
 ## CLI Server
 
+* 25OCT2019
+	* Implement ExiprePlayers functionality to ensure release of memory despite behaviour of Connection disconnect - affects all servers
+	* Fix bug in PlayersKeepAliveExpire to call correct Remove (of Self) - affects all servers
+
 * 23OCT2019
 	* Make CPU usage nicer?
 
@@ -43,6 +47,9 @@
 ## C64 Client
 
 ### Version 0.00.33A
+
+* 24OCT2019
+	* Fix label accelerators not activate/down "attached" controls
 
 * 20OCT2019
 	* Bug fixes for displaying scores on the Play|Detail page
