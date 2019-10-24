@@ -3,6 +3,7 @@
 ## CLI Server
 
 * 25OCT2019
+	* Work around Indy sometimes not firing OnDisconnect when a connection is "abandonded"
 	* Implement ExiprePlayers functionality to ensure release of memory despite behaviour of Connection disconnect - affects all servers
 	* Fix bug in PlayersKeepAliveExpire to call correct Remove (of Self) - affects all servers
 
@@ -18,6 +19,9 @@
 ## FMX Server
 
 ### Version 0.00.78A
+
+* 25OCT2019
+	* Work around Indy sometimes not firing OnDisconnect when a connection is "abandonded"
 
 * 22OCT2019
 	* Fix some FIXMEs (affects all servers)
@@ -47,6 +51,13 @@
 ## C64 Client
 
 ### Version 0.00.33A
+
+* 25OCT2019
+	* Now show roll number on Play|Detail page roll button
+	* Activate Play|Detail roll button when current player gets play status
+	* Update Play|Detail player label correctly
+	* Output error string for Play|Error messages
+	* Play|StatusPeer message handling should be more "reliable" now
 
 * 24OCT2019
 	* Fix label accelerators not activate/down "attached" controls

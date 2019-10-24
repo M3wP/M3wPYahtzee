@@ -129,7 +129,12 @@ procedure TYahtzeeServer.DoRun;
 
         		if  Assigned(p.Connection)
                 and p.Connection.Connected then
-        			p.Connection.Disconnect;
+//dengland
+//                  Despite my best efforts, this isn't behaving well
+                    try
+        			    p.Connection.Disconnect;
+                        except
+                        end;
 
 {$IFNDEF FPC}
                 DebugMsgs.PushItem('Client released.');

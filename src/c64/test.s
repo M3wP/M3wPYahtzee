@@ -6895,6 +6895,13 @@ clientProcPlayStatPeerMsg:
 		LDA	readmsg0 + 2
 		STA	gameData + GAME::plyslt
 		
+;	Yes, set roll number to -1 (will get a roll of blank soon?)
+		LDY	#GAMESLOT::roll
+		LDA	#$FF
+		STA	(tempptr3), Y
+		
+		LDY	#GAMESLOT::state	;Restore value
+		
 @notplay:
 		INY
 		LDA	readmsg0 + 5
@@ -6906,30 +6913,13 @@ clientProcPlayStatPeerMsg:
 ;	Start updating user interface
 
 		JSR	ctrlsLockAcquire
-		
+
+;	Check if displaying Play|Detail page
 		LDA	currpgtag
 		CMP	#$02
 		BNE	@notdetail
-		
-		LDA	#<checkbx_det_flwactv
-		STA	elemptr0
-		LDA	#>checkbx_det_flwactv
-		STA	elemptr0 + 1
-		
-		LDY	#ELEMENT::tag
-		LDA	(elemptr0), Y
-		BEQ	@nochgdet
-	
-		LDA	gameData + GAME::plyslt
-		BMI	@nochgdet
-		
-		LDA	tempvar_q
-		
-		CMP	gameData + GAME::detslt
-		BEQ	@notdetail
-		
-		STA	gameData + GAME::detslt
-		
+
+;	Yes, so clear any selected score slot
 		LDA	#<spanel_detail_sheet
 		STA	elemptr0
 		LDA	#>spanel_detail_sheet
@@ -6939,21 +6929,43 @@ clientProcPlayStatPeerMsg:
 		LDA	#$FF
 		STA	(elemptr0), Y
 
+;	Check we do have a playing player
+		LDA	gameData + GAME::plyslt
+		BMI	@nochgdet
+
+;	Yes, so check if following active
+		LDA	#<checkbx_det_flwactv
+		STA	elemptr0
+		LDA	#>checkbx_det_flwactv
+		STA	elemptr0 + 1
+
+		LDY	#ELEMENT::tag
+		LDA	(elemptr0), Y
+		BEQ	@nochgdet
+	
+;	Yes, update the detail page
+		LDA	tempvar_q
+		STA	gameData + GAME::detslt
+		
 		LDX	#$00
 		JSR	clientDetailUpdateAll
+		JMP	@notdetail
 		
 @nochgdet:
+;	Update whether we can follow active player or not
 		JSR	clientDetailUpdateFollow
 		
 @notdetail:
+;	Check if status update was our status 
 		LDA	tempvar_q
-		
 		CMP	gameData + GAME::ourslt
 		BEQ	@ourslt
 		
+;	No, skip update game control button
 		JMP	@cont1
 		
 @ourslt:
+;	Update Play|Overview game control button
 		LDA	#<button_ovrvw_cntrl
 		STA	elemptr0
 		LDA	#>button_ovrvw_cntrl
@@ -7056,6 +7068,7 @@ clientProcPlayStatPeerMsg:
 @cont1:
 	
 clientUpdateSlotState:
+;	Update Play|Overview player slot info
 		LDA	tempvar_q
 		ASL
 		STA	tempvar_r		;Slot no * 2
@@ -7231,9 +7244,15 @@ clientProcPlayRollMsg:
 		CMP	#SLOT_ST_PREP
 		BEQ	@firstrl
 		
-;!!TODO
-;	Increment roll count
+;	Increment roll
+		LDY	#GAMESLOT::roll
+		LDA	(tempptr0), Y
 		
+		TAX
+		INX
+		TXA
+		STA	(tempptr0), Y
+
 		JMP	@cont0
 		
 		
@@ -7267,7 +7286,9 @@ clientProcPlayRollMsg:
 		BNE	@exit
 		
 		JSR	ctrlsLockAcquire
-		
+
+		JSR	clientDetailUpdateRoll
+
 		JSR	clientDetailUpdateDice
 
 ;!!TODO
@@ -7407,6 +7428,35 @@ clientProcPlayScorePeerMsg:
 clientProcPlayMsg:
 ;-------------------------------------------------------------------------------
 		LDA	imsgdat2
+		BNE	@tstfirst
+		
+;	Error message
+
+;!!TODO	
+;	Use play log instead of connection log
+		LDA	#<lpanel_cnct_log
+		STA	tempptr2
+		LDA	#>lpanel_cnct_log
+		STA	tempptr2 + 1 
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX 	#text_err_pref
+		JSR	strsAppendString
+
+		LDA	#$02
+		STA	tempdat1
+
+		JSR	strsAppendMessage
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelUpdate
+
+		RTS
+
+@tstfirst:
 		CMP	#$01
 		BNE	@tstnxt0
 		
@@ -8782,6 +8832,38 @@ clientOvrvwCntrlChng:
 		RTS
 
 
+	.export	clientDetailUpdateRoll
+;-------------------------------------------------------------------------------
+clientDetailUpdateRoll:
+;-------------------------------------------------------------------------------
+		LDY	#GAMESLOT::roll
+		LDA	(tempptr0), Y
+		
+		BPL	@normal
+	
+		LDA	#$03
+		
+@normal:
+		ASL
+		TAX
+		
+		LDA	#<button_det_roll
+		STA	elemptr0
+		LDA	#>button_det_roll
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	text_det_rolls, X
+		STA	(elemptr0), Y
+		INY
+		LDA	text_det_rolls + 1, X
+		STA	(elemptr0), Y
+		
+		JSR	ctrlsControlInvalidate
+		
+		RTS
+
+
 ;-------------------------------------------------------------------------------
 clientDetailUpdateDice:
 ;-------------------------------------------------------------------------------
@@ -9092,6 +9174,15 @@ clientDetailUpdateFollow:
 		
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
+		
+;	Update active control to roll button
+		LDA	#<button_det_roll
+		STA	elemptr0
+		LDA	#>button_det_roll
+		STA	elemptr0 + 1
+
+		JSR	ctrlsActivateCtrl
+
 		RTS
 		
 @clear:
@@ -9120,28 +9211,32 @@ clientDetailUpdateAll:
 ;	Copy the slot's ident
 		TAX
 		LDA	label_ovrvw_names, X
-		STA	elemptr0
-		LDA	label_ovrvw_names + 1, X
-		STA	elemptr0 + 1
-		
-		LDA	#<static_det_ident
 		STA	tempptr0
-		LDA	#>static_det_ident
+		LDA	label_ovrvw_names + 1, X
 		STA	tempptr0 + 1
 		
+		LDA	#<static_det_ident
+		STA	elemptr0
+		LDA	#>static_det_ident
+		STA	elemptr0 + 1
+		
 		LDY	#CONTROL::textptr
-		LDA	(elemptr0), Y
-		STA	(tempptr0), Y
+		LDA	(tempptr0), Y
+		STA	(elemptr0), Y
 		INY
-		LDA	(elemptr0), Y
-		STA	(tempptr0), Y
+		LDA	(tempptr0), Y
+		STA	(elemptr0), Y
 
+		JSR	ctrlsControlInvalidate
+		
 		LDX	gameData + GAME::detslt
 		LDA	game_slot_lo, X
 		STA	tempptr0
 		LDA	#>gameData
 		STA	tempptr0 + 1
-
+		
+		JSR	clientDetailUpdateRoll
+		
 		JSR	clientDetailUpdateDice
 		
 		JSR	clientDetailUpdateEnable
@@ -13641,11 +13736,14 @@ text_det_roll1:
 			.asciiz	"[ROLL 2/3]"
 text_det_roll2:
 			.asciiz	"[ROLL 3/3]"
+text_det_roll3:
+			.asciiz	"[ROLL FIN]"
 			
 text_det_rolls:
 			.word	text_det_roll0
 			.word	text_det_roll1
 			.word	text_det_roll2
+			.word	text_det_roll3
 
 text_det_keep1:
 			.asciiz	"[1]"

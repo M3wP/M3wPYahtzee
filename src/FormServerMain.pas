@@ -217,7 +217,12 @@ procedure TServerMainForm.Timer1Timer(Sender: TObject);
 
 		if  Assigned(p.Connection)
 		and p.Connection.Connected then
-			p.Connection.Disconnect;
+//dengland
+//			Despite my best efforts, this isn't behaving well
+			try
+				p.Connection.Disconnect;
+				except
+				end;
 
 		DebugMsgs.PushItem('Client released.');
 		p.Free;
