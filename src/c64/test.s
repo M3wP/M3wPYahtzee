@@ -498,6 +498,7 @@ gameData	= 	$0200
 	.struct	SCRSHTPANEL
 		_panel	.tag	PANEL
 		lastind	.byte
+		hveprvw	.byte
 	.endstruct
 
 	.struct	CONTROL
@@ -5920,6 +5921,17 @@ clientSendPlayKeepersPeer:
 		RTS
 
 
+;-------------------------------------------------------------------------------
+clientSendPlayScoreQuery:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_PLAY
+		ORA	#$0A
+		
+		JMP	clientSendPlayScoreDirect
+
+
 	.export	clientSendPlayScorePeer
 ;-------------------------------------------------------------------------------
 clientSendPlayScorePeer:
@@ -5929,6 +5941,7 @@ clientSendPlayScorePeer:
 		LDA	#MSG_CATG_PLAY
 		ORA	#$0B
 		
+clientSendPlayScoreDirect:
 		JSR	strsAppendChar
 		
 		LDA	gameData + GAME::ourslt
@@ -7359,8 +7372,37 @@ clientProcPlayKeepPeerMsg:
 ;-------------------------------------------------------------------------------
 clientProcPlayScoreQueryMsg:
 ;-------------------------------------------------------------------------------
-;!!TODO
-;	ScoreQuery message handling
+		LDA	readmsg0
+		CMP	#$05
+		BEQ	@scrquery
+		
+		JMP	@unknown
+
+@scrquery:
+		LDX	readmsg0 + 2
+
+;	Update the visible details?
+		LDA	currpgtag
+		CMP	#$02
+		BNE	@exit
+		
+		CPX	gameData + GAME::detslt
+		BNE	@exit
+		
+		JSR	ctrlsLockAcquire
+
+		LDA	readmsg0 + 3
+		STA	tempdat0
+		
+		LDA	readmsg0 + 5
+		STA	tempdat1
+		
+		JSR	clientDetailUpdatePreview
+
+		JSR	ctrlsLockRelease
+		
+@exit:
+		RTS
 
 @unknown:
 		JMP	clientProcUnknownMsg
@@ -8831,6 +8873,147 @@ clientOvrvwCntrlChng:
 @exit:
 		RTS
 
+
+;-------------------------------------------------------------------------------
+clientDetailUpdatePreview:
+;	IN	tempdat0	score slot
+;	IN	tempdat1	score value
+;-------------------------------------------------------------------------------
+		LDA	tempdat1
+		STA	tempvar_h
+		
+		LDA	#<spanel_detail_sheet
+		STA	elemptr0
+		LDA	#>spanel_detail_sheet
+		STA	elemptr0 + 1
+		
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	tempvar_r		;x
+		INY
+		LDA	(elemptr0), Y
+		STA	tempvar_s		;y
+		
+;	Prepare the index for the score slot
+		LDY	tempdat0
+		CPY	#$06
+		BNE	@prepscr
+		
+;!!FIXME
+;	Can't do a upper bonus preview!?!?
+		RTS
+		
+@prepscr:
+		BCS	@lower
+
+;	Prepare for "upper" area
+		LDA	tempvar_r
+		CLC
+		ADC	#$08
+		STA	tempvar_r
+		
+		INY
+		TYA
+		CLC
+		ADC	tempvar_s
+		STA	tempvar_s
+		
+		JMP	@presscr
+
+@lower:
+		DEY
+		
+		LDA	tempvar_r
+		CLC
+		ADC	#$16
+		STA	tempvar_r
+		
+		TYA	
+		SEC
+		SBC	#$05
+		
+		CLC
+		ADC	tempvar_s
+		STA	tempvar_s
+		
+		CPY	#$0D
+		BCC	@presscr
+		
+		JMP	@lbonus
+		
+@presscr:
+		LDY	#SCRSHTPANEL::hveprvw
+		LDA	#$01
+		STA	(elemptr0), Y
+		
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+		LDA	#$05
+		STA	tempvar_c
+		LDA	#$01
+		STA	tempvar_d
+	
+		LDA	#CLR_TEXT
+		JSR	screenRectSetColour
+
+		LDA	#$00
+		STA	tempdat1
+		STA	tempvar_d
+
+		LDA	#$05
+		STA	tempdat2
+
+		LDA	tempvar_r
+		STA	tempvar_a
+		LDA	tempvar_s
+		STA	tempvar_b
+		
+;	Get the score value and convert to string
+
+		LDA	#<temp_num
+		STA	tempptr0
+		LDA	#>temp_num
+		STA	tempptr0 + 1
+		
+		LDA	#$00
+		STA	tempdat0
+
+		LDAX	#text_scrsht_bscr
+		
+		JSR	strsAppendString
+		
+		LDA	#$00
+		STA	tempdat0
+
+		LDA	tempvar_h
+		LDX	#$00
+		
+		JSR	strsAppendInteger
+		
+		LDA	#<temp_num
+		STA	tempptr1
+		LDA	#>temp_num
+		STA	tempptr1 + 1
+		
+		LDA	#CLR_TEXT
+		STA	tempdat0
+		
+		LDA	#$00
+		STA	tempdat3
+
+		JSR	ctrlsDrawTextDirect
+
+		RTS
+
+@lbonus:
+;!!TODO
+;	Preview lower (yahtzee) bonuses
+
+		RTS
+		
 
 	.export	clientDetailUpdateRoll
 ;-------------------------------------------------------------------------------
@@ -11260,6 +11443,17 @@ ctrlsSPanelDefChanged:
 		AND	#STATE_DOWN
 		BEQ	@release
 
+;	Check if we need to represent the scores
+		LDY	#SCRSHTPANEL::hveprvw
+		LDA	(elemptr0), Y
+		BEQ	@capture
+
+		LDA	#SCRSHT_SCORES
+		STA	tempvar_t
+		
+		JSR	ctrlsSPanelDefPresDirect
+
+@capture:
 		LDA	mouseCapture		;Sanity check mouse capture
 		BNE	@cont0			;Should check control...
 
@@ -11292,8 +11486,7 @@ ctrlsSPanelDefChanged:
 
 @release:
 
-;!!TODO
-;	Send score test message to server 
+		JSR	clientSendPlayScoreQuery
 
 		LDA	mouseCapture		;Sanity check mouse capture
 		BEQ	@exit			;Should check control...
@@ -12549,6 +12742,11 @@ ctrlsSPanelDefPresDirect:
 		JMP	@ltstlbls
 
 @uscrs:
+;	Reset the "have preview score" flag
+		LDY	#SCRSHTPANEL::hveprvw
+		LDA	#$00
+		STA	(elemptr0), Y
+
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		CLC
@@ -13587,7 +13785,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"c64"
 text_ident_verlbl:
-			.asciiz	"0.00.33A"
+			.asciiz	"0.00.35A"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -13599,7 +13797,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.33A"
+			.asciiz	"VERSION:  0.00.35A"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:

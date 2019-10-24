@@ -50,6 +50,12 @@
 
 ## C64 Client
 
+### Version 0.00.35A
+
+* 25OCT2019
+	* Handle Play|ScoreQuery message send and receive
+	* Implement score query display (still need yahtzee/lower bonus display)
+
 ### Version 0.00.33A
 
 * 25OCT2019
