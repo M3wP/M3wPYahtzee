@@ -4655,6 +4655,7 @@ spanel_detail_sheet:
 			.word	spanel_detail_sheet_ctrls ;controls 
 			.byte	$00
 			.byte	$FF			;lastind
+			.byte	$00			;hveprvw
 
 spanel_detail_sheet_ctrls:
 			.word	$0000
@@ -7447,11 +7448,21 @@ clientProcPlayKeepPeerMsg:
 		STA	(tempptr0), Y
 
 @update:
+		LDA	currpgtag
+		CMP	#PAGE_PLYDETAIL
+		BNE	@exit
+
+		LDA	readmsg0 + 2
+		CMP	gameData + GAME::detslt
+		BNE	@exit
+
 		JSR	ctrlsLockAcquire
 		
 		JSR	clientDetailUpdateDice
 		
 		JSR	ctrlsLockRelease
+		
+@exit:
 		RTS
 
 @unknown:
@@ -9640,8 +9651,8 @@ clientOvrvwDetChng:
 		LDA	#$FF
 		STA	(elemptr0), Y
 		
-		LDY	#SCRSHTPANEL::lastind
-		STA	(elemptr0), Y
+;		LDY	#SCRSHTPANEL::lastind
+;		STA	(elemptr0), Y
 
 		LDX	#$FF
 		JSR	clientDetailUpdateAll
@@ -12844,6 +12855,11 @@ ctrlsSPanelDefPresDirect:
 
 @ulbls:
 ;	Do the "upper labels"
+
+		LDY	#SCRSHTPANEL::lastind
+		LDA	#$FF
+		STA	(elemptr0), Y
+
 		LDA	tempvar_r
 		STA	tempvar_a
 		LDA	tempvar_s
@@ -13277,18 +13293,19 @@ ctrlsSPanelDefPresDirect:
 @tstind0:
 		LDA	tempvar_t
 		AND	#SCRSHT_INDCTR
-		BNE	@ind
-		
-		JMP	@exit
+		BEQ	@exit
 
 @ind:
 		LDY	#ELEMENT::tag
 		LDA	(elemptr0), Y
 		BMI	@exit
 	
+		LDY	#SCRSHTPANEL::lastind
+		STA	(elemptr0), Y
+	
 		LDX	#$01
 		JSR	ctrlsSPanelPresSelect
-		
+				
 @exit:
 		RTS
 

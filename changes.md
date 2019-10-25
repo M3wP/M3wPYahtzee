@@ -53,6 +53,9 @@
 ### Version 0.00.35A
 
 * 25OCT2019
+	* Actually allocate a byte for the score sheet's "hveprvw" field
+	* Try to update the score sheet's selection indicator more accurately
+	* Don't update the dice when Play|KeeperPeer message unless viewing the slot's details
 	* Refactor clientProcPlayStatGameMsg and clientUpdateSlotState
 	* Update game round on Play|Overview page as game plays
 	* Update "our" and "their" scores on Play|Detail page as game plays
