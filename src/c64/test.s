@@ -10,6 +10,16 @@
 ;
 ;		- Log panel for Game
 ;
+;		- "Lower" bonuses (yahtzee bonuses) both display and preview
+;
+;		- Chat functionality (all of it...)
+;
+;		- Display server ident strings in list control
+;
+;		- List games
+;
+;		- Settings page
+;
 ;
 ;	LIMITATIONS:
 ;		- Making controls invisible requires some effort to redisplay 
@@ -327,14 +337,15 @@ gameData	= 	$0200
 	.define DIE_3		$08
 	.define DIE_4		$10
 	.define DIE_5		$20
-	
 	.define DIE_ALL		$3F
 
 	.define	SCRSHT_LABELS	$01
 	.define	SCRSHT_SCORES	$02
 	.define SCRSHT_INDCTR	$04
-	
 	.define	SCRSHT_ALL	$07
+	
+	.define PAGE_PLYOVRVW	$01
+	.define PAGE_PLYDETAIL	$02
 
 
 ;	Controls definitions
@@ -3491,7 +3502,7 @@ page_ovrvw:
 			.byte	$03		;posy	.byte
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
-			.byte	$01		;tag	.byte
+			.byte	PAGE_PLYOVRVW	;tag	.byte
 			.word	$0000		;nxtpage
 			.word	page_play	;bakpage
 			.word	text_page_ovrvw	;textptr	.word
@@ -4177,7 +4188,7 @@ page_detail:
 			.byte	$03		;posy	.byte
 			.byte	$28		;width	.byte
 			.byte	$16		;height	.byte
-			.byte	$02		;tag	.byte
+			.byte	PAGE_PLYDETAIL	;tag	.byte
 			.word	$0000		;nxtpage
 			.word	page_ovrvw	;bakpage
 			.word	text_page_detail ;textptr	.word
@@ -6787,12 +6798,21 @@ clientProcPlayStatGameMsg:
 		LDA	readmsg0 + 4
 		STA	gameData + GAME::round
 		
-		LDA	readmsg0 + 2
-		CMP	#GAME_ST_PREP
-		BCC	@cont0
-
 		JSR	ctrlsLockAcquire
 		
+;	Check given game state
+		LDA	readmsg0 + 2
+		CMP	#GAME_ST_PREP
+
+;	If less than GAME_ST_PREP then jump to @cont0
+		BCS	@tstprep
+		JMP	@cont0
+
+@tstprep:
+;	If something other than _PREP, jump to @tstplay
+		BNE	@tstplay
+
+;	At this point, game cannot be entered.  Disable any empty slot.
 		LDX	#$00
 		STX	tempvar_s
 		STX	tempvar_q
@@ -6842,6 +6862,28 @@ clientProcPlayStatGameMsg:
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
 		
+@next:
+		INC	tempvar_q
+
+		LDX	tempvar_s
+		CPX	#$0C
+		BNE	@loop
+		
+;		JMP	@cont0
+		
+		LDA	readmsg0 + 2
+		
+@tstplay:
+;FIXME
+;	Test if game is paused for specific message?
+
+		CMP	#GAME_ST_FINISH
+		BCS	@gmfinish
+		
+		LDY	#$00
+		STY	tempvar_q
+		
+@loop1:
 		LDY	tempvar_q
 		LDA	game_slot_lo, Y
 		STA	tempptr3
@@ -6850,24 +6892,62 @@ clientProcPlayStatGameMsg:
 		
 		JSR	ctrlsLockAcquire
 		JSR	clientUpdateSlotState
-
-@next:
+		
 		INC	tempvar_q
-
-		LDX	tempvar_s
-		CPX	#$0C
-		BNE	@loop
+		LDA	tempvar_q
+		CMP	#$06
+		BNE	@loop1
 		
-		JSR	ctrlsLockRelease
 		
-@cont0:
-
-;!!TODO
 ;	Update label_ovrvw_round_det for state/round
+		LDA	#<label_ovrwv_round_det
+		STA	elemptr0
+		LDA	#>label_ovrwv_round_det
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	#<game_round
+		STA	(elemptr0), Y
+		STA	tempptr0
+		INY
+		LDA	#>game_round
+		STA	(elemptr0), Y
+		STA	tempptr0 + 1
+		
+		LDA	#$00
+		STA	tempdat0
+		
+		LDA	gameData + GAME::round
+		LDX	gameData + GAME::round + 1
 
-;!!TODO
+		JSR	strsAppendInteger
+		
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsControlInvalidate
+		
+		JMP	@cont0
+
+
+@gmfinish:
 ;	Update detail page disable buttons when game over
+		LDA	#<label_ovrwv_round_det
+		STA	elemptr0
+		LDA	#>label_ovrwv_round_det
+		STA	elemptr0 + 1
+		
+		LDY	#CONTROL::textptr
+		LDA	#<text_ovrvw_finish
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_ovrvw_finish
+		STA	(elemptr0), Y
 
+		JSR	ctrlsControlInvalidate		
+	
+@cont0:
+		JSR	ctrlsLockRelease
 		RTS
 		
 @unknown:
@@ -6929,7 +7009,7 @@ clientProcPlayStatPeerMsg:
 
 ;	Check if displaying Play|Detail page
 		LDA	currpgtag
-		CMP	#$02
+		CMP	#PAGE_PLYDETAIL
 		BNE	@notdetail
 
 ;	Yes, so clear any selected score slot
@@ -7094,15 +7174,39 @@ clientUpdateSlotState:
 		
 		LDY	#GAMESLOT::state
 		LDA	(tempptr3), Y
+
+		LDX	gameData + GAME::state
+		
+		CMP	#SLOT_ST_IDLE
+		BCS	@updtst0
+		
+		CPX	#GAME_ST_PREP
+		BCS	@updtst0
+
+;	If game state is play or higher and the slot state is less than ready, 
+;	there is no player
+		LDY	#CONTROL::textptr
+		LDA	#<text_token_null
+		STA	(elemptr0), Y
+		INY
+		LDA	#>text_token_null
+		STA	(elemptr0), Y
+		
+		JMP	@done
+
+@updtst0:
 		CMP	#SLOT_ST_WAIT
 		BNE	@updconst
 		
-		LDX	gameData + GAME::state
-		CPX	#GAME_ST_PLAY
-		BCS	@updconst0
+;		CPX	#GAME_ST_PLAY
+;		BCS	@updconst
+
+		LDX 	gameData + GAME::round
+		BNE	@updconst
 		
-		LDA	tempvar_r
-		TAX
+;	Display the slot's first roll if the game isn't playing (or greater) and the slot
+;	is waiting 
+		LDX	tempvar_r
 		
 		LDY	#CONTROL::textptr
 		LDA	label_ovrvw_statbufs, X
@@ -7131,25 +7235,7 @@ clientUpdateSlotState:
 		
 		JMP	@done
 	
-@updconst0:
-		CMP	#SLOT_ST_WAIT
 @updconst:
-		BNE	@updother		;Has slot state in .A
-
-		LDX	gameData + GAME::state
-		CPX	#GAME_ST_PREP
-		BCS	@updother
-
-		LDY	#CONTROL::textptr
-		LDA	#<text_token_null
-		STA	(elemptr0), Y
-		INY
-		LDA	#>text_token_null
-		STA	(elemptr0), Y
-		
-		JMP	@done
-
-@updother:
 		ASL				;Has slot state in .A
 		TAX
 		
@@ -7198,17 +7284,21 @@ clientUpdateSlotState:
 		
 		JSR	ctrlsControlInvalidate
 		
+		LDA	currpgtag
+		CMP	#PAGE_PLYDETAIL
+		BNE	@finish
+		
 		LDA	tempvar_q
 		CMP	gameData + GAME::detslt
 		BNE	@tstour
 		
-		JSR	clientDetailUpdateScores
-		JMP	@finish
+		JMP	@updscr
 
 @tstour:
 		CMP	gameData + GAME::ourslt
 		BNE	@finish
 		
+@updscr:
 		JSR	clientDetailUpdateScores
 		
 @finish:
@@ -7291,7 +7381,7 @@ clientProcPlayRollMsg:
 		BCC	@exit
 		
 		LDA	currpgtag
-		CMP	#$02
+		CMP	#PAGE_PLYDETAIL
 		BNE	@exit
 		
 		LDA	gameData + GAME::detslt
@@ -7383,7 +7473,7 @@ clientProcPlayScoreQueryMsg:
 
 ;	Update the visible details?
 		LDA	currpgtag
-		CMP	#$02
+		CMP	#PAGE_PLYDETAIL
 		BNE	@exit
 		
 		CPX	gameData + GAME::detslt
@@ -7437,7 +7527,7 @@ clientProcPlayScorePeerMsg:
 		
 ;	Update the visible details?
 		LDA	currpgtag
-		CMP	#$02
+		CMP	#PAGE_PLYDETAIL
 		BNE	@exit
 		
 		CPX	gameData + GAME::detslt
@@ -9335,7 +9425,78 @@ clientDetailUpdateEnable:
 ;-------------------------------------------------------------------------------
 clientDetailUpdateScores:
 ;-------------------------------------------------------------------------------
+;	Update "our score"
+		LDA	#<static_det_yourscr
+		STA	elemptr0
+		LDA	#>static_det_yourscr
+		STA	elemptr0 + 1
+		
+		LDX	gameData + GAME::ourslt
+		LDA	game_slot_lo, X
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
+		
+		LDA	#<text_det_yourscr_buf
+		STA	tempptr0
+		LDA	#>text_det_yourscr_buf
+		STA	tempptr0 + 1
+		
+		LDA	#$00
+		STA	tempdat0
+		
+		LDY	#GAMESLOT::score + 1
+		LDA	(tempptr3), Y
+		TAX
+		DEY
+		LDA	(tempptr3), Y
+		
+		JSR	strsAppendInteger
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		JSR	ctrlsControlInvalidate
+		
+;	Update "their score" if the detail view isn't for us
 
+		LDX	gameData + GAME::detslt
+		CPX	gameData + GAME::ourslt
+		BEQ	@exit
+		
+		LDA	#<static_det_theirscr
+		STA	elemptr0
+		LDA	#>static_det_theirscr
+		STA	elemptr0 + 1
+		
+;		LDX	gameData + GAME::detslt
+		LDA	game_slot_lo, X
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
+		
+		LDA	#<text_det_theirscr_buf
+		STA	tempptr0
+		LDA	#>text_det_theirscr_buf
+		STA	tempptr0 + 1
+		
+		LDA	#$00
+		STA	tempdat0
+		
+		LDY	#GAMESLOT::score + 1
+		LDA	(tempptr3), Y
+		TAX
+		DEY
+		LDA	(tempptr3), Y
+		
+		JSR	strsAppendInteger
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		JSR	ctrlsControlInvalidate
+
+@exit:
 		RTS
 
 
@@ -9348,7 +9509,7 @@ clientDetailUpdateFollow:
 		STA	elemptr0 + 1
 		
 		LDA	currpgtag
-		CMP	#$02
+		CMP	#PAGE_PLYDETAIL
 		BNE	@clear
 		
 		LDA	gameData + GAME::plyslt
@@ -13558,6 +13719,9 @@ pageBack:
 			
 temp_num:
 			.res 	6
+			
+game_round:
+			.res	6
 
 temp_bin: 
 			.res 	2
@@ -13890,6 +14054,8 @@ text_ovrvw_round:
 text_ovrvw_wait:
 			.asciiz	"WAITING..."
 			
+text_ovrvw_finish:
+			.asciiz	"FINISHED!"
 
 text_slotsts:
 			.word	text_slotst_none

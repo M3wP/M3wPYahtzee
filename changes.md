@@ -53,6 +53,9 @@
 ### Version 0.00.35A
 
 * 25OCT2019
+	* Refactor clientProcPlayStatGameMsg and clientUpdateSlotState
+	* Update game round on Play|Overview page as game plays
+	* Update "our" and "their" scores on Play|Detail page as game plays
 	* Handle Play|ScoreQuery message send and receive
 	* Implement score query display (still need yahtzee/lower bonus display)
 
