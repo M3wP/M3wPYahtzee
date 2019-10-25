@@ -52,6 +52,13 @@
 
 ### Version 0.00.35A
 
+* 26OCT2019
+	* Panels must be enabled and visible when finding an element key accelerator
+	* Implement Lobby|Join and Lobby|Part functionality (UI and messages)
+	* Implement y offset in log panel control
+	* (Hopefully) fix default active control assignment in prepare procedure
+	* Always prepare all controls on a page (regardless of panel visibility)
+
 * 25OCT2019
 	* Actually allocate a byte for the score sheet's "hveprvw" field
 	* Try to update the score sheet's selection indicator more accurately

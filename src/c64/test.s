@@ -503,7 +503,9 @@ gameData	= 	$0200
 	.struct	LOGPANEL
 		_panel	.tag	PANEL
 		lines	.word
+		linecnt .byte
 		currln	.byte
+		offsy	.byte
 	.endstruct
 
 	.struct	SCRSHTPANEL
@@ -2816,23 +2818,25 @@ combo_cnct_info:
 			.byte	$00		;accelchar .byte
 
 lpanel_cnct_log:
-;			.word	$0000		;prepare
-			.word	ctrlsLPanelDefPresent	;present	.word
-			.word	ctrlsPanelDefChanged	;changed .word
-			.word	$0000		;keypress .word
+;			.word	$0000			;prepare
+			.word	ctrlsLPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed 
+			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
-			.byte	CLR_TEXT	;colour	.byte
-			.byte	$00		;posx	.byte
-			.byte	$0C		;posy	.byte
-			.byte	$28		;width	.byte
-			.byte	$0D		;height	.byte
-			.byte	$00		;tag	.byte
+			.byte	CLR_TEXT		;colour	
+			.byte	$00			;posx	
+			.byte	$0C			;posy	
+			.byte	$28			;width	
+			.byte	$0D			;height	
+			.byte	$00			;tag	
 			.word	page_connect
-			.word	lpanel_cnct_log_ctrls	;controls .word
+			.word	lpanel_cnct_log_ctrls	;controls
 			.byte	$00
 			.word	lpanel_cnct_log_lines
+			.byte	$0D
 			.byte	$00
+			.byte	$00			;offsy
 
 lpanel_cnct_log_lines:
 			.word	cnct_log_line0
@@ -2876,7 +2880,7 @@ page_room:
 page_room_pnls:
 			.word	tab_main
 			.word	panel_room_more
-			.word	panel_room_log
+			.word	lpanel_room_log
 			.word	panel_room_data
 			.word 	panel_room_less
 			.word	$0000
@@ -2937,7 +2941,7 @@ panel_room_more:
 			.byte	$00			;tag	.byte
 			.word	page_room
 			.word	panel_room_more_ctrls	;controls 
-			.byte	$07
+			.byte	$08
 			
 panel_room_more_ctrls:
 			.word	label_room_room
@@ -2946,6 +2950,7 @@ panel_room_more_ctrls:
 			.word	label_room_pwd
 			.word	edit_room_pwd
 			.word	button_room_join
+			.word	button_room_part
 			.word	button_room_less
 			.word	$0000
 
@@ -3063,21 +3068,40 @@ edit_room_pwd_buf:
 button_room_join:
 ;			.word	$0000			;prepare
 			.word	$0000			;present	
-			.word	$0000
+			.word	clientRoomJoinChng
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	$00			;options	.byte
-			.byte	CLR_FACE		;colour	.byte
-			.byte	$1E			;posx	.byte
-			.byte	$06			;posy	.byte
-			.byte	$0A			;width	.byte
-			.byte	$01			;height	.byte
-			.byte	$00			;tag	.byte
-			.word	panel_room_more		;panel	.word
-			.word	text_room_join		;textptr	.word
-			.byte	$00			;textoffx .byte
-			.byte	$01			;textaccel .byte
-			.byte	'j'			;accelchar .byte			
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1E			;posx	
+			.byte	$06			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_room_more		;panel	
+			.word	text_room_join		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'j'			;accelchar
+
+button_room_part:
+;			.word	$0000			;prepare
+			.word	$0000			;present	
+			.word	clientRoomPartChng
+			.word	$0000			;keypress 
+			.byte	$00
+			.byte	$00			;options
+			.byte	CLR_FACE		;colour	
+			.byte	$1E			;posx	
+			.byte	$06			;posy	
+			.byte	$0A			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_room_more		;panel	
+			.word	text_room_part		;textptr
+			.byte	$00			;textoffx
+			.byte	$01			;textaccel
+			.byte	'p'			;accelchar
 
 button_room_less:
 ;			.word	$0000			;prepare
@@ -3098,25 +3122,46 @@ button_room_less:
 			.byte	$08			;textaccel .byte
 			.byte	'<'			;accelchar .byte			
 
-panel_room_log:
+lpanel_room_log:
 ;			.word	$0000			;prepare
-			.word	ctrlsPanelDefPresent	;present
+			.word	ctrlsLPanelDefPresent	;present
 			.word	ctrlsPanelDefChanged	;changed 
 			.word	$0000			;keypress 
 ;			.byte	TYPE_PANEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
-			.byte	CLR_TEXT	;colour	.byte
-			.byte	$00		;posx	.byte
-			.byte	$0A		;posy	.byte
-			.byte	$28		;width	.byte
-			.byte	$0D		;height	.byte
-			.byte	$00		;tag	.byte
+			.byte	CLR_TEXT		;colour	
+			.byte	$00			;posx	
+			.byte	$0A			;posy	
+			.byte	$28			;width	
+			.byte	$0D			;height	
+			.byte	$00			;tag	
 			.word	page_room
-			.word	panel_room_log_ctrls	;controls .word
+			.word	panel_room_log_ctrls	;controls 
 			.byte	$00
+			.word	lpanel_room_log_lines
+			.byte	$11
+			.byte	$10
+			.byte	$04			;offsy
 
-;!!TODO - Make this a log panel
+lpanel_room_log_lines:
+			.word	room_log_line0
+			.word	room_log_line1
+			.word	room_log_line2
+			.word	room_log_line3
+			.word	room_log_line4
+			.word	room_log_line5
+			.word	room_log_line6
+			.word	room_log_line7
+			.word	room_log_line8
+			.word	room_log_line9
+			.word	room_log_lineA
+			.word	room_log_lineB
+			.word	room_log_lineC
+			.word	room_log_lineD
+			.word	room_log_lineE
+			.word	room_log_lineF
+			.word	room_log_line10
 
 panel_room_log_ctrls:
 			.word	$0000
@@ -5654,6 +5699,58 @@ clientSendKeepAlive:
 
 
 ;-------------------------------------------------------------------------------
+clientSendRoomJoin:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_LOBY
+		ORA	#$01
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_room_room_buf
+		JSR	strsAppendString
+		
+		LDA	edit_room_pwd_buf
+		BEQ	@complete
+		
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+		
+		LDAX	#edit_room_pwd_buf
+		JSR	strsAppendString
+		
+@complete:
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendRoomPart:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_LOBY
+		ORA	#$02
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_room_room_buf
+		JSR	strsAppendString
+		
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 clientSendPlayJoin:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
@@ -6414,9 +6511,358 @@ clientProcTextMsg:
 
 
 ;-------------------------------------------------------------------------------
+clientProcRoomJoinMsg:
+;-------------------------------------------------------------------------------
+		JSR	inetScanReadParams
+		
+		LDA	readparmcnt
+		CMP	#$02
+		BEQ	@join
+		
+		JMP	@unknown
+
+@join:
+		LDY	readmsg0
+		INY
+		LDA	#KEY_ASC_SPACE
+		STA	readmsg0, Y
+
+;TODO
+;	Update edit_room_room_buf with room actually joined
+
+		JSR	ctrlsLockAcquire
+		
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1 
+		
+		LDA	room_haveblank
+		BNE	@skip0
+		
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+@skip0:		
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_indent_pref
+		JSR	strsAppendString
+
+		LDA	readparm1
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+		
+		LDAX	#text_room_ujoins
+		JSR	strsAppendString
+
+		LDA	readparm0
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+
+		LDA	#$01
+		STA	room_haveblank
+
+		JSR	ctrlsLogPanelUpdate
+
+;TODO
+;	Notify user when not viewing the Chat|Room page
+
+;	Change Game Join button to Part 
+		LDA	#<button_room_join
+		STA	elemptr0
+		LDA	#>button_room_join
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<button_room_part
+		STA	elemptr0
+		LDA	#>button_room_part
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<button_room_join
+		CMP	actvCtrl
+		BNE	@tstpick
+
+		LDA	#>button_room_join
+		CMP	actvCtrl + 1
+		BNE	@tstpick
+
+		JSR	ctrlsActivateCtrl
+
+@tstpick:
+		LDA	#<button_room_join
+		CMP	pickCtrl
+		BNE	@cont
+
+		LDA	#>button_room_join
+		CMP	pickCtrl + 1
+		BNE	@cont
+
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+
+
+;	Disable Game Name and Password edits
+@cont:
+		LDA	#<edit_room_room
+		STA	elemptr0
+		LDA	#>edit_room_room
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<edit_room_pwd
+		STA	elemptr0
+		LDA	#>edit_room_pwd
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		JSR	ctrlsLockRelease
+
+		RTS
+		
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+
+;-------------------------------------------------------------------------------
+clientProcRoomPartMsg:
+;-------------------------------------------------------------------------------
+		JSR	inetScanReadParams
+		
+		LDA	readparmcnt
+		CMP	#$02
+		BEQ	@part
+		
+		JMP	@unknown
+
+@part:
+		LDY	readmsg0
+		INY
+		LDA	#KEY_ASC_SPACE
+		STA	readmsg0, Y
+		
+;TODO
+;	Update edit_room_room_buf with room actually parted??
+
+		JSR	ctrlsLockAcquire
+		
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1 
+		
+		LDA	room_haveblank
+		BNE	@skip0
+		
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+@skip0:		
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_outdent_pref
+		JSR	strsAppendString
+		
+		LDA	readparm1
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+		
+		LDAX	#text_room_uparts
+		JSR	strsAppendString
+
+		LDA	readparm0
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+
+		LDA	#$01
+		STA	room_haveblank
+
+		JSR	ctrlsLogPanelUpdate
+
+;TODO
+;	Notify user when not viewing the Chat|Room page
+
+;	Change Game Part button to Join
+		LDA	#<button_room_part
+		STA	elemptr0
+		LDA	#>button_room_part
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		LDA	#<button_room_join
+		STA	elemptr0
+		LDA	#>button_room_join
+		STA	elemptr0 + 1
+
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<button_room_part
+		CMP	actvCtrl
+		BNE	@tstpick
+
+		LDA	#>button_room_part
+		CMP	actvCtrl + 1
+		BNE	@tstpick
+
+		JSR	ctrlsActivateCtrl
+
+@tstpick:
+		LDA	#<button_room_part
+		CMP	pickCtrl
+		BNE	@cont
+
+		LDA	#>button_room_part
+		CMP	pickCtrl + 1
+		BNE	@cont
+
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+
+
+;	Enable Game Name and Password edits
+@cont:
+		LDA	#<edit_room_room
+		STA	elemptr0
+		LDA	#>edit_room_room
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		LDA	#<edit_room_pwd
+		STA	elemptr0
+		LDA	#>edit_room_pwd
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		JSR	ctrlsLockRelease
+
+		RTS
+		
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
+;-------------------------------------------------------------------------------
 clientProcLobbyMsg:
 ;-------------------------------------------------------------------------------
+		LDA	imsgdat2
+		BNE	@tstfirst
+		
+;	Error message
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1 
+
+		LDA	room_haveblank
+		BNE	@skip0
+
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+
+@skip0:
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX 	#text_err_pref
+		JSR	strsAppendString
+
+		LDA	#$02
+		STA	tempdat1
+
+		JSR	strsAppendMessage
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		LDA	#$01
+		STA	room_haveblank
+		
+		JSR	ctrlsLogPanelUpdate
+
 		RTS
+
+@tstfirst:
+		CMP	#$01
+		BNE	@tstnxt0
+		
+		JMP	clientProcRoomJoinMsg
+;		RTS
+		
+@tstnxt0:
+		CMP	#$02
+		BNE	@tstnxt1
+		
+		JMP	clientProcRoomPartMsg
+;		RTS
+
+
+@tstnxt1:
+		JMP	clientProcUnknownMsg
+;		RTS
 
 
 ;-------------------------------------------------------------------------------
@@ -7865,6 +8311,8 @@ clientInitLblPres:
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
 		
+		JSR	ctrlsActivateCtrl
+		
 		LDA	#INET_PROC_INIT
 		STA	inetproc
 		
@@ -8310,6 +8758,60 @@ clientPlayPartChng:
 		RTS
 
 
+	.export	clientRoomJoinChng
+;-------------------------------------------------------------------------------
+clientRoomJoinChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	inetstat
+		CMP	#INET_STATE_ERR
+		BEQ	@exit
+
+		LDA	edit_room_room_buf
+		BEQ	@exit
+
+		JSR	clientSendRoomJoin
+
+@exit:
+		RTS
+
+
+	.export	clientRoomPartChng
+;-------------------------------------------------------------------------------
+clientRoomPartChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	inetstat
+		CMP	#INET_STATE_ERR
+		BEQ	@exit
+
+		LDA	edit_room_room_buf
+		BEQ	@exit
+
+		JSR	clientSendRoomPart
+		
+@exit:
+		RTS
+
+
 	.export	clientCnctCnctChng
 ;-------------------------------------------------------------------------------
 clientCnctCnctChng:
@@ -8598,9 +9100,9 @@ clientRoomMoreChng:
 		
 		JSR	ctrlsActivateCtrl
 
-		LDA	#<panel_room_log
+		LDA	#<lpanel_room_log
 		STA	elemptr0
-		LDA	#>panel_room_log
+		LDA	#>lpanel_room_log
 		STA	elemptr0 + 1
 		
 		LDY	#ELEMENT::posy
@@ -8609,6 +9111,10 @@ clientRoomMoreChng:
 		INY
 		INY
 		LDA	#$0D
+		STA	(elemptr0), Y
+		
+		LDY	#LOGPANEL::offsy
+		LDA	#$04
 		STA	(elemptr0), Y
 		
 		LDY	#ELEMENT::state
@@ -8687,9 +9193,9 @@ clientRoomLessChng:
 		
 		JSR	ctrlsActivateCtrl
 
-		LDA	#<panel_room_log
+		LDA	#<lpanel_room_log
 		STA	elemptr0
-		LDA	#>panel_room_log
+		LDA	#>lpanel_room_log
 		STA	elemptr0 + 1
 		
 		LDY	#ELEMENT::posy
@@ -8698,6 +9204,10 @@ clientRoomLessChng:
 		INY
 		INY
 		LDA	#$11
+		STA	(elemptr0), Y
+		
+		LDY	#LOGPANEL::offsy
+		LDA	#$00
 		STA	(elemptr0), Y
 		
 		LDY	#ELEMENT::state
@@ -9910,6 +10420,19 @@ initMem:
 
 		JSR	ctrlsLogPanelInit
 
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1
+
+		JSR	ctrlsLogPanelInit
+		
+		LDA	#$01
+		STA	room_haveblank
+		LDA	#$00
+		STA	room_lastuser
+		
+		
 ;	Intialise keyboard handler
 
 		LDA	#$00
@@ -10195,6 +10718,35 @@ strsAppendString:
 
 @loop:
 		LDA	(tempptr1), Y
+		BEQ	@exit
+
+		INY
+		STY	tempdat3
+
+		LDY	tempdat0
+		STA	(tempptr0), Y
+		INY
+		STY	tempdat0
+
+		LDY	tempdat3
+
+		JMP	@loop
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+strsAppendParam:
+;-------------------------------------------------------------------------------
+		STA	tempptr1
+		STX	tempptr1 + 1
+
+		LDY	tempdat3
+
+@loop:
+		LDA	(tempptr1), Y
+		CMP	#KEY_ASC_SPACE
 		BEQ	@exit
 
 		INY
@@ -11269,8 +11821,8 @@ ctrlsLogPanelInit:
 		LDA	(tempptr2), Y
 		STA	tempptr1 + 1
 
-		LDY	#ELEMENT::height
-		LDA	(tempptr2), Y
+		INY
+		LDA	(tempptr2), Y		;linecnt
 		ASL
 		
 		TAY
@@ -11315,8 +11867,8 @@ ctrlsLogPanelGetNextLine:
 		LDA	(tempptr2), Y
 		STA	tempptr1 + 1
 
-		LDY	#ELEMENT::height
-		LDA	(tempptr2), Y
+		INY
+		LDA	(tempptr2), Y		;linecnt
 
 		CMP	tempvar_a
 		BCS	@havenext
@@ -11418,8 +11970,6 @@ ctrlsLogPanelUpdate:
 		JMP	@update
 
 @hidden:
-;!!TODO:	Signal on tab that there is a message
-
 		RTS
 
 @update:
@@ -12205,6 +12755,12 @@ ctrlsPageKeyPress:
 		
 		STY	ctrlvar_a
 		
+		LDY	#ELEMENT::state
+		LDA	(panlptr0), Y
+		AND	#(STATE_VISIBLE | STATE_ENABLED)
+		CMP	#(STATE_VISIBLE | STATE_ENABLED)
+		BNE	@nextpanl
+		
 		LDY	#PANEL::controls
 		LDA	(panlptr0), Y
 		STA	ctrlptr1
@@ -12485,8 +13041,11 @@ ctrlsPanelDefPrepare:
 		LDY	#ELEMENT::state
 		LDA	(panlptr0), Y
 		AND	#STATE_VISIBLE
-		BEQ	@exit
-		
+;		BEQ	@exit
+		STA	ctrlvar_d
+	
+		BEQ	@skip0
+
 		LDA	panlptr0
 		STA	elemptr0
 		LDA	panlptr0 + 1
@@ -12494,6 +13053,7 @@ ctrlsPanelDefPrepare:
 
 		JSR	ctrlsControlInvalidate
 		
+@skip0:
 		LDY	#PANEL::controls
 		LDA	(panlptr0), Y
 		STA	ctrlptr1
@@ -12537,6 +13097,9 @@ ctrlsPanelDefPrepare:
 ;		JMP	@next
 ;		
 ;@def:
+		LDA	ctrlvar_d
+		BEQ	@next
+
 		JSR	ctrlsControlDefPrepare
 	
 @next:	
@@ -12577,6 +13140,12 @@ ctrlsControlDefPrepare:
 		BNE	@cont
 
 		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#(STATE_VISIBLE | STATE_ENABLED)
+		CMP	#(STATE_VISIBLE | STATE_ENABLED)
+		BNE	@cont
+
+;	Activate the first visible control
 		LDA	(elemptr0), Y
 		ORA	#STATE_ACTIVE
 		STA	(elemptr0), Y
@@ -12683,16 +13252,23 @@ ctrlsLPanelDefPresent:
 		LDA	(elemptr0), Y
 		STA	ctrlptr0 + 1
 
-		LDY	#ELEMENT::height
+		INY
 		LDA	(elemptr0), Y
 		ASL
-		STA	tempvar_c
+		STA	tempvar_c		;Total count to loop	
+
+;	Fetch offsy for indexing ctrlptr0
+		LDY	#LOGPANEL::offsy
+		LDA	(elemptr0), Y		
+		ASL
+		PHA
 
 		LDY	#ELEMENT::posy
 		LDA	(elemptr0), Y
 		STA	tempvar_x
 
-		LDY	#$00
+		PLA
+		TAY
 		STY	tempvar_y
 		
 @loop:
@@ -13283,13 +13859,13 @@ ctrlsSPanelDefPresDirect:
 		LDA	(elemptr0), Y
 		BMI	@tstind0
 		
-		LDY	#ELEMENT::tag
-		CMP	(elemptr0), Y
-		BEQ	@tstind0
-		
 		LDX	#$00
 		JSR	ctrlsSPanelPresSelect
-		
+
+		LDY	#SCRSHTPANEL::lastind
+		LDA	#$FF
+		STA	(elemptr0), Y
+
 @tstind0:
 		LDA	tempvar_t
 		AND	#SCRSHT_INDCTR
@@ -13709,6 +14285,8 @@ ctrlvar_b:
 			.res	1
 ctrlvar_c:
 			.res	1
+ctrlvar_d:
+			.res	1
 ctrlptr_a:
 			.res	2
 
@@ -13830,6 +14408,47 @@ cnct_log_lineB:
 			.res	41
 cnct_log_lineC:
 			.res	41
+
+
+room_log_line0:
+			.res	41
+room_log_line1:
+			.res	41
+room_log_line2:
+			.res	41
+room_log_line3:
+			.res	41
+room_log_line4:
+			.res	41
+room_log_line5:
+			.res	41
+room_log_line6:
+			.res	41
+room_log_line7:
+			.res	41
+room_log_line8:
+			.res	41
+room_log_line9:
+			.res	41
+room_log_lineA:
+			.res	41
+room_log_lineB:
+			.res	41
+room_log_lineC:
+			.res	41
+room_log_lineD:
+			.res	41
+room_log_lineE:
+			.res	41
+room_log_lineF:
+			.res	41
+room_log_line10:
+			.res	41
+			
+room_haveblank:
+			.res 	1
+room_lastuser:
+			.res	9
 
 
 msgs_change_idx:
@@ -14030,7 +14649,11 @@ text_room_join:
 			.asciiz	"[JOIN    ]"
 text_room_part:	
 			.asciiz	"[PART    ]"
-
+			
+text_room_ujoins:
+			.asciiz	" JOINS "
+text_room_uparts:
+			.asciiz	" PARTS "
 
 text_page_play:
 			.asciiz	"GAME"
@@ -14273,6 +14896,11 @@ text_err_pref:
 			.asciiz	"! "
 text_list_pref:
 			.asciiz "* "
+text_indent_pref:
+			.asciiz "> "
+text_outdent_pref:
+			.asciiz "< "
+
 
 text_err_init:
 			.asciiz	"!!INITIALISATION ERROR (NO DEVICE?)"
