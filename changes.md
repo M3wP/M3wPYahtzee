@@ -53,6 +53,8 @@
 ### Version 0.00.35A
 
 * 26OCT2019
+	* Default host name to "PLAY-CLASSICS.NET"!
+	* Implement Lobby|Peer message receive
 	* Panels must be enabled and visible when finding an element key accelerator
 	* Implement Lobby|Join and Lobby|Part functionality (UI and messages)
 	* Implement y offset in log panel control

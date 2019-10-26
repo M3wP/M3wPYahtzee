@@ -2664,8 +2664,9 @@ edit_cnct_host:
 			
 
 edit_cnct_host_buf:
-	.repeat	61	
-		.byte	$00
+			.asciiz "PLAY-CLASSICS.NET"
+	.repeat	43	
+			.byte	$00
 	.endrep
 
 label_cnct_user:
@@ -2690,26 +2691,26 @@ label_cnct_user:
 			.word	edit_cnct_user	;actvctrl .word
 			
 edit_cnct_user:
-;			.word	$0000		;prepare
+;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
-			.word	$0000		;changed .word
+			.word	$0000			;changed 
 			.word	ctrlsEditDefKeyPress
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_DOWNCAPTURE
-			.byte	CLR_PAPER	;colour	.byte
-			.byte	$0B		;posx	.byte
-			.byte	$06		;posy	.byte
-			.byte	$09		;width	.byte
-			.byte	$01		;height	.byte
-			.byte	$00		;tag	.byte
-			.word	panel_cnct_data	;panel	.word
+			.byte	CLR_PAPER		;colour	
+			.byte	$0B			;posx	
+			.byte	$06			;posy	
+			.byte	$09			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_cnct_data		;panel	
 			.word	edit_cnct_user_buf
-			.byte	$00		;textoffx .byte
-			.byte	$FF		;textaccel .byte
-			.byte	$00		;accelchar .byte
-			.byte	$00		;textsiz
-			.byte	$08		;textmaxsz
+			.byte	$00			;textoffx 
+			.byte	$FF			;textaccel 
+			.byte	$00			;accelchar 
+			.byte	$00			;textsiz
+			.byte	$08			;textmaxsz
 
 edit_cnct_user_buf:
 	.repeat	9	
@@ -3189,24 +3190,31 @@ panel_room_data_ctrls:
 			.word	$0000
 
 edit_room_text:
-;			.word	$0000		;prepare
-			.word	$0000		;present	.word
-			.word	$0000		;changed .word
-			.word	$0000		;keypress .word
+;			.word	$0000			;prepare
+			.word	ctrlsEditDefPresent
+			.word	ctrlsRoomTextChng	;changed 
+			.word	ctrlsEditDefKeyPress
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_DOWNCAPTURE
-			.byte	CLR_PAPER	;colour	.byte
-			.byte	$00		;posx	.byte
-			.byte	$18		;posy	.byte
-			.byte	$28		;width	.byte
-			.byte	$01		;height	.byte
-			.byte	$00		;tag	.byte
-			.word	panel_room_data	;panel	.word
-			.word	$0000 		;textptr	.word
-			.byte	$00		;textoffx .byte
-			.byte	$FF		;textaccel .byte
-			.byte	$00		;accelchar .byte
+			.byte	CLR_PAPER		;colour	
+			.byte	$00			;posx	
+			.byte	$18			;posy	
+			.byte	$28			;width	
+			.byte	$01			;height	
+			.byte	$00			;tag	
+			.word	panel_room_data		;panel	
+			.word	edit_room_text_buf	;textptr	
+			.byte	$00			;textoffx 
+			.byte	$FF			;textaccel
+			.byte	$00			;accelchar
+			.byte	$00			;textsiz
+			.byte	$28			;textmaxsz
+			
+edit_room_text_buf:
+	.repeat	41
+			.byte	$00
+	.endrep
 
 
 page_play:
@@ -5751,6 +5759,39 @@ clientSendRoomPart:
 
 
 ;-------------------------------------------------------------------------------
+clientSendRoomPeer:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+		
+		LDA	#MSG_CATG_LOBY
+		ORA	#$04
+		
+		JSR	strsAppendChar
+		
+		LDAX	#edit_room_room_buf
+		JSR	strsAppendString
+		
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+
+		LDAX	#edit_cnct_user_buf
+		JSR	strsAppendString
+
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+		
+		LDAX	#edit_room_text_buf
+		JSR	strsAppendString
+
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 clientSendPlayJoin:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
@@ -6576,6 +6617,9 @@ clientProcRoomJoinMsg:
 
 		LDA	#$01
 		STA	room_haveblank
+		
+		LDA	#$00
+		STA	room_lastuser
 
 		JSR	ctrlsLogPanelUpdate
 
@@ -6721,6 +6765,8 @@ clientProcRoomPartMsg:
 
 		LDA	#$01
 		STA	room_haveblank
+		LDA	#$00
+		STA	room_lastuser
 
 		JSR	ctrlsLogPanelUpdate
 
@@ -6799,6 +6845,154 @@ clientProcRoomPartMsg:
 ;		RTS
 
 
+	.export	clientProcRoomPeerMsg
+;-------------------------------------------------------------------------------
+clientProcRoomPeerMsg:
+;-------------------------------------------------------------------------------
+		JSR	inetScanReadParams
+		LDA	readparmcnt
+		CMP	#$02
+		BCS	@peer
+		
+		JMP	@unknown
+
+@peer:
+		JSR	ctrlsLockAcquire
+		
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1 
+
+;	Compare user in message with the last one
+
+		LDA	#$00
+;		STA	tempvar_a		;Found?
+		STA	tempvar_b		;lastuser idx
+		
+		LDAX	#readmsg0
+		STAX	tempptr0
+		
+		LDAX	#room_lastuser
+		STAX	tempptr1
+		
+		LDA	readparm1
+		STA	tempvar_c		;message idx
+		
+@loop0:
+		LDY	tempvar_c
+		LDA	(tempptr0), Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@found0
+		
+		LDY	tempvar_b
+		CMP	(tempptr1), Y
+		BEQ	@next0
+		
+		LDA	#$00
+		JMP	@done0
+	
+@next0:
+		INC	tempvar_c
+		INC	tempvar_b
+		
+		JMP	@loop0
+		
+@found0:
+		LDA	#$01
+;		STA	tempvar_a
+		
+@done0:
+		BNE	@havelast
+
+		LDA	room_haveblank
+		BNE	@skip0
+		
+		JSR	ctrlsLogPanelGetNextLine
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+@skip0:		
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_msg_pref
+		JSR	strsAppendString
+
+		LDA	readparm1
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDAX	#text_room_usays
+		JSR	strsAppendString
+
+		LDA	#$00
+		JSR	strsAppendChar
+		
+@havelast:
+		LDY	readmsg0
+		INY
+
+;FIXME
+;	Check message text length and only output 40 chars at a time!!
+
+		LDA	#$00
+		STA	readmsg0, Y
+
+		JSR	ctrlsLogPanelGetNextLine
+		
+;		LDAX	#readmsg0
+;		STAX	tempptr3
+		
+		CLC
+		LDA	#<readmsg0
+		ADC	readparm2
+		STA	tempptr3
+		LDA	#>readmsg0
+		ADC	#$00
+		STA	tempptr3 + 1
+		
+		LDAX	tempptr3
+		JSR	strsAppendString
+		
+		LDA	#$00
+		JSR	strsAppendChar
+		
+		LDA	#$00
+		STA	room_haveblank
+
+		LDY	readparm1
+		LDX	#$00
+		
+@loop1:
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@done1
+		
+		STA	room_lastuser, X
+		
+		INY
+		INX
+		
+		JMP	@loop1
+		
+@done1:
+		LDA	#$00
+		STA	room_lastuser, X
+
+		JSR	ctrlsLogPanelUpdate
+		
+		JSR	ctrlsLockRelease
+
+		RTS
+		
+@unknown:
+		JMP	clientProcUnknownMsg
+;		RTS
+
+
 ;-------------------------------------------------------------------------------
 clientProcLobbyMsg:
 ;-------------------------------------------------------------------------------
@@ -6861,6 +7055,13 @@ clientProcLobbyMsg:
 
 
 @tstnxt1:
+		CMP	#$04
+		BNE	@tstnxt2
+		
+		JMP	clientProcRoomPeerMsg
+;		RTS
+
+@tstnxt2:
 		JMP	clientProcUnknownMsg
 ;		RTS
 
@@ -9228,6 +9429,34 @@ clientRoomLessChng:
 @exit:
 		RTS
 
+
+;-------------------------------------------------------------------------------
+ctrlsRoomTextChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsPanelDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BNE	@exit
+
+		LDA	edit_room_text_buf
+		BEQ	@exit
+		
+		JSR	clientSendRoomPeer
+		
+		LDA	#$00
+		STA	edit_room_text_buf
+		LDY	#EDITCTRL::textsiz
+		STA	(elemptr0), Y		
+		
+		JSR	ctrlsControlInvalidate
+
+@exit:
+		RTS
 
 ;-------------------------------------------------------------------------------
 clientMainPlayChng:
@@ -14351,7 +14580,7 @@ readbufidx:
 readmsglen:
 			.res	1
 readmsg0:
-			.res	60
+			.res	100
 
 readparmcnt:
 			.res	1
@@ -14448,7 +14677,7 @@ room_log_line10:
 room_haveblank:
 			.res 	1
 room_lastuser:
-			.res	9
+			.res	11
 
 
 msgs_change_idx:
@@ -14654,6 +14883,8 @@ text_room_ujoins:
 			.asciiz	" JOINS "
 text_room_uparts:
 			.asciiz	" PARTS "
+text_room_usays:
+			.asciiz	" SAYS"
 
 text_page_play:
 			.asciiz	"GAME"
@@ -14900,6 +15131,8 @@ text_indent_pref:
 			.asciiz "> "
 text_outdent_pref:
 			.asciiz "< "
+text_msg_pref:
+			.asciiz ": "
 
 
 text_err_init:
