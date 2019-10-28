@@ -2,6 +2,11 @@
 
 ## CLI Server
 
+* 28OCT2019
+	* Incorporate new TCPServer into code
+	* Implement my own TCPServer to handle multiple connections based on Areat Synapse
+	* REMOVE INDY10!  I'm over it.  Too many problems.
+
 * 25OCT2019
 	* Work around Indy sometimes not firing OnDisconnect when a connection is "abandonded"
 	* Implement ExiprePlayers functionality to ensure release of memory despite behaviour of Connection disconnect - affects all servers

@@ -24,71 +24,64 @@
         <FormatVersion Value="1"/>
       </local>
     </RunParams>
-    <Units Count="15">
+    <Units Count="14">
       <Unit0>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
       <Unit1>
-        <Filename Value="DModCLIServerMain.pas"/>
+        <Filename Value="YahtzeeClasses.pas"/>
         <IsPartOfProject Value="True"/>
-        <ComponentName Value="CLIServerMainDMod"/>
-        <HasResources Value="True"/>
-        <ResourceBaseClass Value="DataModule"/>
       </Unit1>
       <Unit2>
-        <Filename Value="YahtzeeClasses.pas"/>
+        <Filename Value="YahtzeeServer.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit2>
       <Unit3>
-        <Filename Value="YahtzeeServer.pas"/>
+        <Filename Value="FPC\inc\generics.dictionaries.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit3>
       <Unit4>
-        <Filename Value="FPC\inc\generics.dictionaries.inc"/>
+        <Filename Value="FPC\inc\generics.dictionariesh.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit4>
       <Unit5>
-        <Filename Value="FPC\inc\generics.dictionariesh.inc"/>
-        <IsPartOfProject Value="True"/>
-      </Unit5>
-      <Unit6>
         <Filename Value="FPC\generics.collections.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Generics.Collections"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="FPC\generics.defaults.pas"/>
+        <IsPartOfProject Value="True"/>
       </Unit6>
       <Unit7>
-        <Filename Value="FPC\generics.defaults.pas"/>
+        <Filename Value="FPC\generics.hashes.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit7>
       <Unit8>
-        <Filename Value="FPC\generics.hashes.pas"/>
+        <Filename Value="FPC\generics.helpers.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit8>
       <Unit9>
-        <Filename Value="FPC\generics.helpers.pas"/>
+        <Filename Value="FPC\generics.memoryexpanders.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit9>
       <Unit10>
-        <Filename Value="FPC\generics.memoryexpanders.pas"/>
+        <Filename Value="FPC\generics.strings.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit10>
       <Unit11>
-        <Filename Value="FPC\generics.strings.pas"/>
+        <Filename Value="TCPServer.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit11>
       <Unit12>
-        <Filename Value="Indy10\System\IdBaseComponent.pas"/>
+        <Filename Value="synalist-code\synsock.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit12>
       <Unit13>
-        <Filename Value="Indy10\Core\IdContext.pas"/>
+        <Filename Value="synalist-code\blcksock.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit13>
-      <Unit14>
-        <Filename Value="Indy10\Core\IdTCPServer.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit14>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -99,7 +92,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir);FPC\inc"/>
-      <OtherUnitFiles Value="FPC;Indy10\System;Indy10\Core"/>
+      <OtherUnitFiles Value="FPC;synalist-code"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

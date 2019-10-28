@@ -5,12 +5,12 @@ Hello and welcome to the **M3wP Yahtzee!** read me!
 
 I have developed a multi-platform client/server version of the Hasbro game Yahtzee!  It is currently in development and quite crude but should be playable on PC, Android, iOS and Mac.  The client will eventually even be available for the humble Commodore 64 and compatibles (because I love that platform).
 
-I now have a Linux CLI server!   
+I now have a Linux CLI server!   There is a CLI server for Win64, as well.
 
-At this point in time, I am only going to be providing binaries for Windows and Android (and the Linux x64 CLI Server) because I don't have the required development tools for iOS and Mac.  The C64 client is now available too but is still unfinished.  You can play the game with it but you are slightly "blind" and there are some glitches.
+At this point in time, I am only going to be providing binaries for Linux, Windows and Android because I don't have the required development tools for iOS and Mac.  The C64 client is now available too but is still unfinished.
 
 ## Download and Installation
-The Windows x86 (32 bit) binaries are available in the _bin/Win32_ folder as compressed files.  You will need to decompress them before you can run them.
+The Windows x86 (32 bit) binaries are available in the _bin/Win32_ folder as compressed files.  You will need to decompress them before you can run them.  Likewise, the Windows x64 binaries are in the _bin/Win64_ folder.
 
 The Android client binary (I have not compiled or tested the server on this platform) is available in the _bin/Android_ folder.  It is currently compiled only for debugging and you will need to manually install it using adb.
 
@@ -19,13 +19,11 @@ You'll find the Linux x64 CLI server in _bin/Linux64_.
 The Commodore64 binaries are available in the _bin/C64_ folder.
 
 ## Compiling
-The Windows, Android, iOS and Mac versions require Delphi FMX.  I am using Delphi XE8 at the present time.  You should find all you need in the _src_ folder.
+The Windows, Android, iOS and Mac versions require Delphi FMX.  I am using Delphi XE8 at the present time.  You should find all you need in the _src/FMX_ folder.
 
 You could compile the FMX client and server to Linux if you have the appropriate version of Delphi.  If you can do this, please let me know and forward me the binaries.  I'd love to hear from you!
 
-The CLI server is a bit tricky.  In order to remove the dependencies on the GUI libraries, I have had to include a number of files directly from the Indy file set.  So, you will need to get a copy of the Indy package and copy the files into a "Indy10" folder, directly in the _src_ folder.  Once you do this, you should be able to compile it with Lazarus to the platform of your dreams.  Heh. 
-
-In addition, you will want to define FREE_ON_FINAL in IdCompilerDefines.inc if you want to resolve a number of memory usage issues in Indy10.
+The CLI server is a bit tricky.  You will need the Areat Synapse library in your _src_ tree.  Download it and decompress it to _src/synalist-code_.
 
 The C64 version is a bit more complicated.  You need the cc65 toolchain, the ip65 library and some makefiles.  I will document this further and provide more detail when the client matures a little more.
 
@@ -54,6 +52,8 @@ When you are finished playing, click the "Part" button to leave the game.  You a
 
 ## Future Development
 There are many planned features for the game and the apps (both client and server) will be enhanced to be prettier and show more information.  The project is currently in an Alpha state but should be playable for the most part.
+
+I am in the process of rebuilding the server and client using Areat Synapse and LCL instead of Indy10 and FMX.  I have seriously had enough of the problems involved.  The FMX client will be maintained essentially for Android and iOS only.
 
 ## Contact
 Please feel free to contact me for further information.  You can reach me at:

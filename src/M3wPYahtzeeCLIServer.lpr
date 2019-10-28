@@ -1,6 +1,7 @@
 program M3wPYahtzeeCLIServer;
 
-{$mode objfpc}{$H+}
+{$MODE DELPHI}
+{$H+}
 
 {.DEFINE DEBUG}
 
@@ -9,13 +10,16 @@ program M3wPYahtzeeCLIServer;
 {$ENDIF}
 
 uses
-	{$IFDEF UNIX}
+{$IFDEF UNIX}
+    {$IFNDEF DEBUG}
     cmem,
+    {$ENDIF}
 	{$IFDEF UseCThreads}
 	cthreads,
-	{$ENDIF}{$ENDIF}
-	Classes, SysUtils, CustApp, DModCLIServerMain, YahtzeeClasses,
-	YahtzeeServer;
+    {$ENDIF}
+{$ENDIF}
+	Classes, SysUtils, CustApp, YahtzeeClasses, YahtzeeServer, TCPServer, blcksock,
+    synsock;
 
 type
 
@@ -24,9 +28,16 @@ type
 	TYahtzeeServer = class(TCustomApplication)
 	protected
 		procedure DoRun; override;
+
+		procedure DoConnect(const AIdent: TGUID);
+		procedure DoDisconnect(const AIdent: TGUID);
+		procedure DoReject(const AConnection: TTCPConnection);
+		procedure DoReadData(const AIdent: TGUID; const AData: TMsgData);
+
 	public
 		constructor Create(TheOwner: TComponent); override;
-		destructor Destroy; override;
+		destructor  Destroy; override;
+
 		procedure WriteHelp; virtual;
 	end;
 
@@ -39,8 +50,9 @@ procedure TYahtzeeServer.DoRun;
     p: TPlayer;
 	z: TZone;
 	i: Integer;
-	s: string;
+	lm: TLogMessage;
 	silent: Boolean;
+    s: string;
 
 	begin
 	// quick check parameters
@@ -60,14 +72,17 @@ procedure TYahtzeeServer.DoRun;
 		Exit;
 		end;
 
-    CLIServerMainDMod:= TCLIServerMainDMod.Create(nil);
-    CLIServerMainDMod.IdTCPServer1.Active:= True;
+    TCPServer.TCPServer:= TTCPServer.Create;
+	TCPServer.TCPServer.OnConnect:= DoConnect;
+	TCPServer.TCPServer.OnDisconnect:= DoDisconnect;
+	TCPServer.TCPServer.OnReject:= DoReject;
+	TCPServer.TCPServer.OnReadData:= DoReadData;
 
     if  HasOption('m', '') then
 		begin
 		s:= GetOptionValue('m', '');
 		if  TryStrToInt(s, i) then
-			CLIServerMainDMod.IdTCPServer1.MaxConnections:= i
+			TCPServer.TCPServer.MaxConnections:= i
 		else
 			begin
     		ShowException(Exception.Create('Invalid max connections value!'));
@@ -75,6 +90,10 @@ procedure TYahtzeeServer.DoRun;
     		Exit;
 			end;
 		end;
+
+    TCPListener:= TTCPListener.Create('7632');
+
+	ServerDisp:= TServerDispatcher.Create(False);
 
 	silent:= HasOption('s', '');
 
@@ -90,20 +109,21 @@ procedure TYahtzeeServer.DoRun;
 //			Memo1.Lines.Add(string(DebugMsgs.PopItem));
 //    		DebugMsgs.PopItem;
 
-        with DebugMsgs.LockList do
+        with LogMessages.LockList do
 			try
 			while Count > 0 do
 				begin
-				s:= Items[0];
+				lm:= Items[0];
 				Delete(0);
 				if  not silent then
 					begin
-					Writeln(s);
+					Writeln(lm.Message);
 					Flush(Output);
 					end;
+                lm.Free;
 				end;
 			finally
-			DebugMsgs.UnlockList;
+			LogMessages.UnlockList;
 			end;
 
 
@@ -127,24 +147,16 @@ procedure TYahtzeeServer.DoRun;
         		p:= Items[0];
         		Delete(0);
 
-        		if  Assigned(p.Connection)
-                and p.Connection.Connected then
-//dengland
-//                  Despite my best efforts, this isn't behaving well
-                    try
-        			    p.Connection.Disconnect;
-                        except
-                        end;
+                TCPServer.TCPServer.DisconnectIdent(p.Ident);
 
-{$IFNDEF FPC}
-                DebugMsgs.PushItem('Client released.');
-{$ELSE}
-                s:= 'Client released.';
-                UniqueString(s);
-                DebugMsgs.Add(s);
-{$ENDIF}
+                AddLogMessage(slkInfo, GUIDToString(p.Ident) + ' released.');
 
                 p.Free;
+
+{$IFDEF DEBUG}
+                Terminate;
+                Break;
+{$ENDIF}
         		end;
         	finally
             ExpirePlayers.UnlockList;
@@ -190,16 +202,124 @@ procedure TYahtzeeServer.DoRun;
     	LimboZone.ExpirePlayers;
 		end;
 
-	CLIServerMainDMod.Free;
+	TCPListener.Terminate;
+    TCPListener.WaitFor;
 
+//	TCPServer.TCPServer.Free;
+
+{$IFNDEF DEBUG}
 //	stop program loop
 	Terminate;
+{$ENDIF}
+    end;
+
+procedure TYahtzeeServer.DoConnect(const AIdent: TGUID);
+	var
+	p: TPlayer;
+	m: TBaseMessage;
+	s: string;
+
+	begin
+	AddLogMessage(slkInfo, GUIDToString(AIdent) + ' connected.');
+
+	p:= TPlayer.Create(AIdent);
+	SystemZone.Add(p);
+
+	m:= TBaseMessage.Create;
+	m.Category:= mcServer;
+	m.Method:= $01;
+	m.Params.Add(LIT_SYS_VERNAME);
+	m.Params.Add(LIT_SYS_PLATFRM);
+	m.Params.Add(LIT_SYS_VERSION);
+
+	m.DataFromParams;
+
+    p.SendWorkerMessage(m);
+	end;
+
+procedure TYahtzeeServer.DoDisconnect(const AIdent: TGUID);
+	var
+	p: TPlayer;
+
+	begin
+	p:= SystemZone.PlayerByIdent(AIdent);
+
+    if  Assigned(p) then
+        SystemZone.Remove(p);
+
+    AddLogMessage(slkInfo, GUIDToString(AIdent) + ' disconnected gracefully.');
+	end;
+
+procedure TYahtzeeServer.DoReject(const AConnection: TTCPConnection);
+	begin
+
+	end;
+
+procedure TYahtzeeServer.DoReadData(const AIdent: TGUID; const AData: TMsgData);
+	var
+	p: TPlayer;
+	i,
+	j: Integer;
+	im: TBaseMessage;
+	s: string;
+    buf: TMsgData;
+
+	begin
+	p:= SystemZone.PlayerByIdent(AIdent);
+
+    if  Assigned(p) then
+		begin
+//        p.Lock.Acquire;
+//        try
+		i:= Length(p.InputBuffer);
+    	SetLength(p.InputBuffer, i + Length(AData));
+
+//		for j:= Low(AData) to High(AData) do
+//			begin
+//			p.InputBuffer[i]:= AData[j];
+//			Inc(i);
+//			end;
+
+		Move(AData[0], p.InputBuffer[i], Length(AData));
+
+        while Length(p.InputBuffer) > 0 do
+			begin
+            if  p.InputBuffer[0] > (Length(p.InputBuffer) - 1) then
+				Break;
+
+			im:= TBaseMessage.Create;
+			im.Ident:= AIdent;
+
+        	SetLength(buf, p.InputBuffer[0] + 1);
+            Move(p.InputBuffer[0], buf[0], Length(buf));
+
+            im.Decode(buf);
+
+            if  Length(p.InputBuffer) > Length(buf) then
+				p.InputBuffer:= Copy(p.InputBuffer, Length(buf), MaxInt)
+			else
+				SetLength(p.InputBuffer, 0);
+
+			s:= '>>' + IntToStr(buf[0]) + ' $' +
+					IntToHex(buf[1], 2)+ ': ';
+
+			for i:= 2 to High(buf) do
+            	s:= s + Char(buf[i]);
+
+			AddLogMessage(slkDebug, GUIDToString(AIdent) + ' ' + s);
+
+			TCPServer.TCPServer.ReadMessages.Add(im);
+            end;
+//        finally
+//        p.Lock.Release;
+//        end;
+        end;
 	end;
 
 constructor TYahtzeeServer.Create(TheOwner: TComponent);
 	begin
 	inherited Create(TheOwner);
-	StopOnException:=True;
+	StopOnException:= True;
 	end;
 
 destructor TYahtzeeServer.Destroy;
@@ -223,7 +343,7 @@ begin
     SetHeapTraceOutput('heap.trc');
 {$ENDIF}
 
-	Application:=TYahtzeeServer.Create(nil);
+	Application:= TYahtzeeServer.Create(nil);
 
 {$IFDEF DEBUG}
     CustomApplication:= Application;

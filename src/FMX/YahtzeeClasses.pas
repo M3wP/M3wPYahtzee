@@ -8,34 +8,28 @@ unit YahtzeeClasses;
 interface
 
 uses
-	Generics.Collections, Classes;
+{$IFDEF ANDROID}
+	ORawByteString,
+{$ENDIF}
+	Generics.Collections, Classes, IdGlobal;
 
 type
- 	TMsgData = array of Byte;
+	TMsgCategory = (mcSystem, mcText, mcLobby, mcConnect, mcClient, mcServer, mcPlay);
 
-     { TBaseIdentMessage }
+	TMsgData = array of Byte;
 
-    TBaseIdentMessage = class
-		Ident: TGUID;
-        Data: TMsgData;
-
-        constructor Create; virtual;
-
-		function  Encode: TMsgData; virtual;
-		procedure Decode(const AData: TMsgData); virtual;
-	end;
-
-    TIdentMessages = TThreadList<TBaseIdentMessage>;
-
-    TMsgCategory = (mcSystem, mcText, mcLobby, mcConnect, mcClient, mcServer, mcPlay);
-
-	TBaseMessage = class(TBaseIdentMessage)
+	TMessage = class(TObject)
 	public
 		Category: TMsgCategory;
 		Method: Byte;
+		Data: TMsgData;
 		Params: TList<AnsiString>;
 
-		constructor Create; override;
+{$IFDEF ANDROID}
+//		DataText: string;
+{$ENDIF}
+
+		constructor Create;
 		destructor  Destroy; override;
 
 		procedure ExtractParams; virtual;
@@ -43,22 +37,19 @@ type
 
 		function  DataToString: AnsiString;
 
-		function  Encode: TMsgData; override;
-		procedure Decode(const AData: TMsgData); override;
+		procedure Encode(var AComsData: TIdBytes); virtual;
+		procedure Decode(AComsData: TIdBytes); virtual;
 
-		procedure Assign(AMessage: TBaseMessage);
+		procedure Assign(AMessage: TMessage);
 	end;
 
-//	TMessages = TThreadList<TMessage>;
-
-    TLogKind = (slkError, slkWarning, slkInfo, slkDebug);
-
-    TLogMessage = class
-        Kind: TLogKind;
-        Message: string;
-    end;
-
-	TLogMessages = TThreadList<TLogMessage>;
+{$IFNDEF FPC}
+	TMessages = TThreadedQueue<TMessage>;
+	TLogMessages = TThreadedQueue<AnsiString>;
+{$ELSE}
+	TMessages = TThreadList<TMessage>;
+	TLogMessages = TThreadList<AnsiString>;
+{$ENDIF}
 
 	TNamedHost = class(TObject)
 	public
@@ -161,30 +152,16 @@ const
 //		6A	-	ScoreQuery
 //		6B	-	ScorePeer
 
-procedure AddLogMessage(const AKind: TLogKind; const AMessage: string);
-
 var
-	LogMessages: TLogMessages;
+	DebugMsgs: TLogMessages;
 
 
 implementation
 
-uses
-    SysUtils;
-
-
-procedure AddLogMessage(const AKind: TLogKind; const AMessage: string);
-    var
-    lm: TLogMessage;
-
-    begin
-    lm:= TLogMessage.Create;
-    lm.Kind:= AKind;
-    lm.Message:= FormatDateTime('hh:nn:ss.zzz ', Now) + AMessage;
-    UniqueString(lm.Message);
-
-    LogMessages.Add(lm);
-    end;
+{$IFDEF ANDROID}
+//uses
+//	SysUtils;
+{$ENDIF}
 
 function  DieSetToByte(ADieSet: TDieSet): Byte;
 	var
@@ -526,28 +503,10 @@ function  YahtzeeBonusStealScore(ALocation: TScoreLocation; ADice: TDice): Word;
 		Result:= 0;
 	end;
 
-{ TBaseIdentMessage }
-
-constructor TBaseIdentMessage.Create;
-    begin
-    inherited;
-
-    end;
-
-function TBaseIdentMessage.Encode: TMsgData;
-    begin
-    Result:= Data;
-    end;
-
-procedure TBaseIdentMessage.Decode(const AData: TMsgData);
-    begin
-    Data:= AData;
-    end;
-
 
 { TMessage }
 
-procedure TBaseMessage.Assign(AMessage: TBaseMessage);
+procedure TMessage.Assign(AMessage: TMessage);
 	var
 	i: Integer;
 
@@ -563,14 +522,14 @@ procedure TBaseMessage.Assign(AMessage: TBaseMessage);
 		Params.Add(AMessage.Params[i]);
 	end;
 
-constructor TBaseMessage.Create;
+constructor TMessage.Create;
 	begin
 	inherited Create;
 
 	Params:= TList<AnsiString>.Create;
 	end;
 
-procedure TBaseMessage.DataFromParams;
+procedure TMessage.DataFromParams;
 	var
 	s: AnsiString;
 	i: Integer;
@@ -584,37 +543,47 @@ procedure TBaseMessage.DataFromParams;
 			s:= s + AnsiString(' ');
 		end;
 
+{$IFDEF ANDROID}
+	SetLength(Data, AnsiLength(s));
+	for i:= 1 to AnsiLength(s) do
+		Data[i - 1]:= Byte(s[i]);
+{$ELSE}
 	SetLength(Data, Length(s));
 	for i:= Low(s) to High(s) do
 		Data[i - Low(s)]:= Ord(s[i]);
+{$ENDIF}
 	end;
 
-function TBaseMessage.DataToString: AnsiString;
+function TMessage.DataToString: AnsiString;
 	var
 	i: Integer;
 
 	begin
 	Result:= AnsiString('');
 	for i:= 0 to High(Data) do
+{$IFDEF ANDROID}
+		Result.Append(Data[i], 1);
+{$ELSE}
 		Result:= Result + AnsiChar(Data[i]);
+{$ENDIF}
 	end;
 
-procedure TBaseMessage.Decode(const AData: TMsgData);
+procedure TMessage.Decode(AComsData: TIdBytes);
 	var
 	i: Integer;
 	c: Byte;
 
 	begin
-	if  (Length(AData) > 0)
-	and (Length(AData) = AData[0] + 1) then
+	if  (Length(AComsData) > 0)
+	and (Length(AComsData) = (AComsData[0] + 1)) then
 		begin
-		SetLength(Data, Length(AData) - 2);
+		SetLength(Data, Length(AComsData) - 2);
 
-		c:= AData[1] shr 4;
+		c:= AComsData[1] shr 4;
 		if  c in [Ord(Low(TMsgCategory))..Ord(High(TMsgCategory))] then
 			begin
-			Category:= TMsgCategory(AData[1] shr 4);
-			Method:= AData[1] and $0F;
+			Category:= TMsgCategory(AComsData[1] shr 4);
+			Method:= AComsData[1] and $0F;
 			end
 		else
 			begin
@@ -622,18 +591,32 @@ procedure TBaseMessage.Decode(const AData: TMsgData);
 			Method:= $0E;
 			end;
 
-		for i:= 2 to High(AData) do
-			Data[i - 2]:= AData[i]
+{$IFDEF ANDROID}
+//		DataText:= '';
+{$ENDIF}
+
+		for i:= 2 to High(AComsData) do
+			begin
+			Data[i - 2]:= AComsData[i];
+
+{$IFDEF ANDROID}
+//			DataText:= DataText + '$' + IntToHex(AComsData[i], 2) + ' ';
+{$ENDIF}
+			end;
 		end
 	else
 		begin
 		SetLength(Data, 0);
 		Category:= mcSystem;
 		Method:= $0F;
+
+{$IFDEF ANDROID}
+//		DataText:= '';
+{$ENDIF}
 		end;
 	end;
 
-destructor TBaseMessage.Destroy;
+destructor TMessage.Destroy;
     var
     s: AnsiString;
 
@@ -650,27 +633,30 @@ destructor TBaseMessage.Destroy;
 	inherited;
 	end;
 
-function TBaseMessage.Encode: TMsgData;
+procedure TMessage.Encode(var AComsData: TIdBytes);
 	var
 	i: Integer;
 	c: Byte;
 
 	begin
-	SetLength(Result, 2 + Length(Data));
+	SetLength(AComsData, 2 + Length(Data));
 
-	Result[0]:= Length(Data) + 1;
+	AComsData[0]:= Length(AComsData) - 1;
 
 	c:= (Ord(Category) shl 4) or (Method and $0F);
-	Result[1]:= c;
+	AComsData[1]:= c;
 
 	for i:= 0 to High(Data) do
-		Result[2 + i]:= Data[i];
+		AComsData[2 + i]:= Data[i];
 	end;
 
-procedure TBaseMessage.ExtractParams;
+procedure TMessage.ExtractParams;
 	var
 	i: Integer;
 	s: AnsiString;
+{$IFDEF ANDROID}
+	t: string;
+{$ENDIF}
 
 	begin
     with Params do
@@ -691,25 +677,55 @@ procedure TBaseMessage.ExtractParams;
 			s:= AnsiString('');
 			end
 		else
-			s:= s + AnsiChar(Data[i]);
+{$IFDEF ANDROID}
+			begin
+//			s.Append(Data[i], 1);
+			s.Length:= s.Length + 1;
+			s.Chars[s.Length - 1]:= AnsiChar(Data[i]);
 
+//			if  (Category = mcPlay)
+//			and (Method = $01)
+//			and (i = High(Data)) then
+//				begin
+//				t:= '$' + IntToHex(Byte(s.Chars[0]), 2);
+//				DebugMsgs.PushItem(AnsiString(t));
+//				end;
+			end;
+{$ELSE}
+			s:= s + AnsiChar(Data[i]);
+{$ENDIF}
+
+{$IFDEF ANDROID}
+	if  AnsiLength(s) > 0 then
+{$ELSE}
 	if  Length(s) > 0 then
+{$ENDIF}
 		Params.Add(s);
+
+{$IFDEF ANDROID}
+//	if  (Category = mcPlay)
+//	and (Method = $01)
+//	and (Params.Count > 2) then
+//		begin
+//		t:= '';
+//		for i:= 0 to AnsiLength(Params[2]) - 1 do
+//			t:= '$' + IntToHex(Byte(Params[2][i]), 2) + ' ';
+//
+//		DebugMsgs.PushItem(AnsiString(t));
+//		end;
+{$ENDIF}
 	end;
 
 
 initialization
-	LogMessages:= TLogMessages.Create;
+{$IFNDEF FPC}
+	DebugMsgs:= TLogMessages.Create(512, 1);
+{$ELSE}
+	DebugMsgs:= TLogMessages.Create;
+{$ENDIF}
 
 
 finalization
-    with LogMessages.LockList do
-        while Count > 0 do
-            begin
-            Items[Count - 1].Free;
-            Delete(Count - 1);
-            end;
-
-	LogMessages.Free;
+	DebugMsgs.Free;
 
 end.
