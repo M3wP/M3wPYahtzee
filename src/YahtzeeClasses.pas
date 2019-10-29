@@ -453,21 +453,31 @@ function  IsYahtzee(ADice: TDice): Boolean;
 
 function  IsYahtzeeBonus(ASheet: TScoreSheet; var ALocation: TScoreLocation): Boolean;
 	var
-	i: TScoreLocation;
+	i,
+    j: TScoreLocation;
+
 
 	begin
 	Result:= False;
 
-	if  ASheet[slYahtzee] <> VAL_KND_SCOREINVALID then
+	if  (ASheet[slYahtzee] <> VAL_KND_SCOREINVALID)
+    and (ASheet[slYahtzee] <> 0) then
 		begin
-		Result:= True;
+//		Result:= True;
+
+        j:= slAces;
 
 		for i:= slYahtzeeBonus1 to slYahtzeeBonus3 do
 			if  ASheet[i] = VAL_KND_SCOREINVALID then
 				begin
-				ALocation:= i;
+				j:= i;
 				Break;
 				end;
+
+        Result:= j > slAces;
+
+        if  Result then
+            ALocation:= j;
 		end;
 	end;
 

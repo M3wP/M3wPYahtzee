@@ -2,6 +2,9 @@
 
 ## CLI Server
 
+* 29OCT2019
+	* Yahtzee Bonuses only apply when you haven't got a Yahtzee score of 0 and you can only have three of them!
+
 * 28OCT2019
 	* Incorporate new TCPServer into code
 	* Implement my own TCPServer to handle multiple connections based on Areat Synapse
@@ -25,6 +28,9 @@
 
 ### Version 0.00.78A
 
+* 29OCT2019
+	* Yahtzee Bonuses only apply when you haven't got a Yahtzee score of 0 and you can only have three of them!
+	
 * 25OCT2019
 	* Work around Indy sometimes not firing OnDisconnect when a connection is "abandonded"
 
