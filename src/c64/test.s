@@ -2659,7 +2659,7 @@ edit_cnct_host:
 			.byte	$00		;textoffx .byte
 			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
-			.byte	$00		;textsiz
+			.byte	$11		;textsiz
 			.byte	$3C		;textmaxsz
 			
 
@@ -5306,6 +5306,9 @@ sendmsgtable:
 		.word	sendmsg0
 		.word	sendmsg1
 		.word	sendmsg2
+		.word	sendmsg3
+		.word	sendmsg4
+		.word	sendmsg5
 
 
 ;-------------------------------------------------------------------------------
@@ -5314,7 +5317,7 @@ inetGetNextSend:
 		LDY	sendmsgscnt
 
 	.if	DEBUG_MSGSPUSHSZ
-		CPY	#$06
+		CPY	#$0C
 		BNE	@cont
 		
 		LDA	#$02
@@ -14566,11 +14569,18 @@ data_received:
 sendmsgscnt:
 			.res 	1
 sendmsg0:
-			.res	60
+			.res	100
 sendmsg1:
-			.res 	60
+			.res 	100
 sendmsg2:
-			.res 	60
+			.res 	100
+sendmsg3:
+			.res 	100
+sendmsg4:
+			.res 	100
+sendmsg5:
+			.res 	100
+			
 readmsgbuflen:
 			.res	2
 readmsgidx:
