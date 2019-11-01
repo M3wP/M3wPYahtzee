@@ -8,23 +8,24 @@
       <Unit0>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
         <IsPartOfProject Value="True"/>
-        <CursorPos X="37" Y="11"/>
+        <TopLine Value="178"/>
+        <CursorPos Y="197"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit0>
       <Unit1>
         <Filename Value="YahtzeeClasses.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="2"/>
-        <CursorPos X="22" Y="28"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="188"/>
+        <CursorPos X="42" Y="208"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit1>
       <Unit2>
         <Filename Value="YahtzeeServer.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="1"/>
-        <CursorPos X="19" Y="2781"/>
+        <EditorIndex Value="2"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit2>
@@ -50,10 +51,11 @@
         <Filename Value="FPC\generics.collections.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Generics.Collections"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="1917"/>
-        <CursorPos Y="1927"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="1938"/>
+        <CursorPos Y="1958"/>
         <UsageCount Value="328"/>
+        <Loaded Value="True"/>
       </Unit5>
       <Unit6>
         <Filename Value="FPC\generics.defaults.pas"/>
@@ -104,26 +106,28 @@
         <Filename Value="TCPServer.pas"/>
         <IsPartOfProject Value="True"/>
         <IsVisibleTab Value="True"/>
-        <EditorIndex Value="3"/>
-        <TopLine Value="391"/>
-        <CursorPos X="42" Y="407"/>
+        <EditorIndex Value="4"/>
+        <TopLine Value="303"/>
+        <CursorPos Y="333"/>
         <UsageCount Value="268"/>
         <Loaded Value="True"/>
       </Unit11>
       <Unit12>
         <Filename Value="synalist-code\synsock.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="4"/>
-        <UsageCount Value="167"/>
+        <EditorIndex Value="6"/>
+        <TopLine Value="50"/>
+        <CursorPos X="14" Y="75"/>
+        <UsageCount Value="205"/>
         <Loaded Value="True"/>
       </Unit12>
       <Unit13>
         <Filename Value="synalist-code\blcksock.pas"/>
         <IsPartOfProject Value="True"/>
-        <EditorIndex Value="5"/>
-        <TopLine Value="1881"/>
-        <CursorPos Y="1889"/>
-        <UsageCount Value="167"/>
+        <EditorIndex Value="8"/>
+        <TopLine Value="1017"/>
+        <CursorPos X="14" Y="1033"/>
+        <UsageCount Value="205"/>
         <Loaded Value="True"/>
       </Unit13>
       <Unit14>
@@ -134,7 +138,7 @@
         <EditorIndex Value="-1"/>
         <TopLine Value="160"/>
         <CursorPos X="9" Y="193"/>
-        <UsageCount Value="324"/>
+        <UsageCount Value="310"/>
       </Unit14>
       <Unit15>
         <Filename Value="Indy10\System\IdBaseComponent.pas"/>
@@ -142,243 +146,203 @@
         <WindowIndex Value="-1"/>
         <TopLine Value="-1"/>
         <CursorPos X="-1" Y="-1"/>
-        <UsageCount Value="37"/>
+        <UsageCount Value="23"/>
       </Unit15>
       <Unit16>
         <Filename Value="Indy10\Core\IdContext.pas"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="87"/>
         <CursorPos X="14" Y="108"/>
-        <UsageCount Value="37"/>
+        <UsageCount Value="23"/>
       </Unit16>
       <Unit17>
         <Filename Value="Indy10\Core\IdTCPServer.pas"/>
         <EditorIndex Value="-1"/>
         <CursorPos X="3" Y="33"/>
-        <UsageCount Value="37"/>
+        <UsageCount Value="23"/>
       </Unit17>
       <Unit18>
-        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\classes\classesh.inc"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="1619"/>
-        <CursorPos X="15" Y="1637"/>
-        <UsageCount Value="12"/>
-      </Unit18>
-      <Unit19>
-        <Filename Value="Indy10\Core\IdCustomTCPServer.pas"/>
-        <EditorIndex Value="-1"/>
-        <UsageCount Value="2"/>
-      </Unit19>
-      <Unit20>
-        <Filename Value="Indy10\Core\IdYarn.pas"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="11"/>
-        <CursorPos X="3" Y="39"/>
-        <UsageCount Value="2"/>
-      </Unit20>
-      <Unit21>
         <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\sysutils\sysutilh.inc"/>
         <EditorIndex Value="-1"/>
-        <TopLine Value="235"/>
+        <TopLine Value="211"/>
         <CursorPos X="13" Y="253"/>
-        <UsageCount Value="130"/>
-      </Unit21>
-      <Unit22>
+        <UsageCount Value="116"/>
+      </Unit18>
+      <Unit19>
         <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\sysutils\sysutils.inc"/>
         <EditorIndex Value="-1"/>
-        <TopLine Value="679"/>
+        <TopLine Value="667"/>
         <CursorPos X="3" Y="681"/>
-        <UsageCount Value="130"/>
-      </Unit22>
-      <Unit23>
+        <UsageCount Value="116"/>
+      </Unit19>
+      <Unit20>
         <Filename Value="synalist-code\sswin32.inc"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="306"/>
-        <CursorPos X="3" Y="323"/>
-        <UsageCount Value="134"/>
-      </Unit23>
-      <Unit24>
+        <EditorIndex Value="10"/>
+        <TopLine Value="927"/>
+        <CursorPos X="3" Y="945"/>
+        <UsageCount Value="133"/>
+        <Loaded Value="True"/>
+      </Unit20>
+      <Unit21>
         <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\inc\objpash.inc"/>
         <EditorIndex Value="-1"/>
-        <TopLine Value="186"/>
-        <CursorPos X="21" Y="203"/>
-        <UsageCount Value="130"/>
-      </Unit24>
-      <Unit25>
+        <TopLine Value="132"/>
+        <CursorPos X="26" Y="146"/>
+        <UsageCount Value="116"/>
+      </Unit21>
+      <Unit22>
         <Filename Value="synalist-code\synautil.pas"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="1576"/>
         <CursorPos Y="1594"/>
-        <UsageCount Value="30"/>
+        <UsageCount Value="16"/>
+      </Unit22>
+      <Unit23>
+        <Filename Value="synalist-code\ssdotnet.inc"/>
+        <EditorIndex Value="5"/>
+        <TopLine Value="105"/>
+        <CursorPos X="34" Y="123"/>
+        <UsageCount Value="58"/>
+        <Loaded Value="True"/>
+      </Unit23>
+      <Unit24>
+        <Filename Value="synalist-code\ssfpc.inc"/>
+        <EditorIndex Value="9"/>
+        <TopLine Value="133"/>
+        <CursorPos X="31" Y="187"/>
+        <UsageCount Value="75"/>
+        <Loaded Value="True"/>
+      </Unit24>
+      <Unit25>
+        <Filename Value="synalist-code\sslinux.inc"/>
+        <EditorIndex Value="7"/>
+        <TopLine Value="238"/>
+        <CursorPos X="3" Y="250"/>
+        <UsageCount Value="75"/>
+        <Loaded Value="True"/>
       </Unit25>
     </Units>
     <JumpHistory Count="30" HistoryIndex="29">
       <Position1>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="3803" Column="3" TopLine="3801"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="157" Column="17" TopLine="125"/>
       </Position1>
       <Position2>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="407" Column="31" TopLine="397"/>
+        <Caret Line="708" Column="29" TopLine="676"/>
       </Position2>
       <Position3>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="104" Column="28" TopLine="95"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="730" Column="23" TopLine="714"/>
       </Position3>
       <Position4>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="157" TopLine="147"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="754" Column="21" TopLine="725"/>
       </Position4>
       <Position5>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="205" TopLine="195"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="11" Column="22"/>
       </Position5>
       <Position6>
-        <Filename Value="TCPServer.pas"/>
-        <Caret Line="399" TopLine="395"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="93" Column="29" TopLine="61"/>
       </Position6>
       <Position7>
-        <Filename Value="TCPServer.pas"/>
-        <Caret Line="402" TopLine="395"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="94" Column="29" TopLine="77"/>
       </Position7>
       <Position8>
-        <Filename Value="TCPServer.pas"/>
-        <Caret Line="403" TopLine="395"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="241" Column="12" TopLine="221"/>
       </Position8>
       <Position9>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="3788" TopLine="3777"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="264" Column="27" TopLine="235"/>
       </Position9>
       <Position10>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1579" TopLine="1574"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="637" Column="25" TopLine="612"/>
       </Position10>
       <Position11>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1878" Column="3" TopLine="1876"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="956" Column="16" TopLine="924"/>
       </Position11>
       <Position12>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1886" Column="3" TopLine="1881"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="1043" Column="33" TopLine="1011"/>
       </Position12>
       <Position13>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1890" Column="23" TopLine="1881"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="1371" Column="23" TopLine="1349"/>
       </Position13>
       <Position14>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="103" Column="24" TopLine="86"/>
+        <Caret Line="199" Column="27" TopLine="178"/>
       </Position14>
       <Position15>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="157" TopLine="147"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="94" Column="13" TopLine="75"/>
       </Position15>
       <Position16>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="205" TopLine="195"/>
+        <Caret Line="197" TopLine="178"/>
       </Position16>
       <Position17>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1889" TopLine="1881"/>
+        <Filename Value="FPC\generics.collections.pas"/>
+        <Caret Line="1949" Column="35" TopLine="1938"/>
       </Position17>
       <Position18>
-        <Filename Value="TCPServer.pas"/>
-        <Caret Line="387" Column="30" TopLine="366"/>
+        <Filename Value="FPC\generics.collections.pas"/>
+        <Caret Line="1958" TopLine="1938"/>
       </Position18>
       <Position19>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="373" TopLine="370"/>
+        <Caret Line="537" TopLine="517"/>
       </Position19>
       <Position20>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="103" Column="28" TopLine="86"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="310" TopLine="291"/>
       </Position20>
       <Position21>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="157" TopLine="147"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="532" Column="40" TopLine="515"/>
       </Position21>
       <Position22>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="205" TopLine="195"/>
+        <Filename Value="YahtzeeServer.pas"/>
+        <Caret Line="506" Column="15" TopLine="497"/>
       </Position22>
       <Position23>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1889" TopLine="1881"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="422" Column="38" TopLine="415"/>
       </Position23>
       <Position24>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="427" TopLine="417"/>
+        <Caret Line="538" Column="19" TopLine="524"/>
       </Position24>
       <Position25>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1889" TopLine="1881"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="108" Column="13" TopLine="89"/>
       </Position25>
       <Position26>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="373" Column="19" TopLine="362"/>
+        <Caret Line="306" Column="5" TopLine="288"/>
       </Position26>
       <Position27>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1889" TopLine="1881"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="52" Column="6" TopLine="33"/>
       </Position27>
       <Position28>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="505" Column="21" TopLine="494"/>
+        <Caret Line="69" Column="17" TopLine="54"/>
       </Position28>
       <Position29>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="373" TopLine="360"/>
+        <Caret Line="529" TopLine="528"/>
       </Position29>
       <Position30>
-        <Filename Value="synalist-code\blcksock.pas"/>
-        <Caret Line="1889" TopLine="1881"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="108" Column="13" TopLine="88"/>
       </Position30>
     </JumpHistory>
   </ProjectSession>
-  <Debugging>
-    <BreakPoints Count="6">
-      <Item1>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Line Value="157"/>
-      </Item1>
-      <Item2>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Line Value="205"/>
-      </Item2>
-      <Item3>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Line Value="96"/>
-      </Item3>
-      <Item4>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="TCPServer.pas"/>
-        <Line Value="402"/>
-      </Item4>
-      <Item5>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="synalist-code\blcksock.pas"/>
-        <Line Value="1889"/>
-      </Item5>
-      <Item6>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="TCPServer.pas"/>
-        <Line Value="373"/>
-      </Item6>
-    </BreakPoints>
-  </Debugging>
 </CONFIG>

@@ -10,12 +10,17 @@ uses
 	SyncObjs, Generics.Collections, Classes, TCPServer, YahtzeeClasses;
 
 type
+
+	{ TServerDispatcher }
 	TServerDispatcher = class(TThread)
 	protected
 		procedure Execute; override;
 
 	public
+		ReadMessages: TIdentMessages;
 
+		constructor Create;
+		destructor  Destroy; override;
 	end;
 
 	TPlayer = class;
@@ -223,6 +228,8 @@ type
     TPlayer = class(TObject)
 	public
 		Ident: TGUID;
+		Ticket: string;
+//		Connection: TTCPConnection;
 
 		Zones: TZones;
 
@@ -252,13 +259,11 @@ type
 
 		procedure SendServerError(AMessage: AnsiString);
 
-		procedure SendWorkerMessage(var AMessage: TBaseMessage);
+		procedure AddSendMessage(var AMessage: TBaseMessage);
 
 		procedure KeepAliveReset;
 		procedure KeepAliveDecrement(Ams: Integer);
 	end;
-
-	procedure RollDice(ASet: TDieSet; var ADice: TDice);
 
 var
 	SystemZone: TSystemZone;
@@ -320,17 +325,6 @@ const
 	LIT_ERR_PLAYNORL: AnsiString = 'Play rolls complete';
 
 
-procedure RollDice(ASet: TDieSet; var ADice: TDice);
-	var
-	i: Integer;
-
-	begin
-	for i:= 1 to 5 do
-		if  i in ASet then
-			ADice[i - 1]:= Random(6) + 1;
-	end;
-
-
 procedure DoDestroyListMessages;
 	var
 	i: Integer;
@@ -358,7 +352,7 @@ procedure TZone.Add(APlayer: TPlayer);
 	FPlayers.Add(APlayer);
 	APlayer.Zones.Add(Self);
 
-	AddLogMessage(slkInfo, GUIDToString(APlayer.Ident) + ' added to zone ' +
+	AddLogMessage(slkInfo, '"' + APlayer.Ticket + '" added to zone ' +
             Name + ' (' + Desc + ').');
 	end;
 
@@ -439,7 +433,7 @@ procedure TZone.Remove(APlayer: TPlayer);
 	FPlayers.Remove(APlayer);
 	APlayer.Zones.Remove(Self);
 
-	AddLogMessage(slkInfo, GUIDToString(APlayer.Ident) + ' removed from zone ' +
+	AddLogMessage(slkInfo, '"' + APlayer.Ticket + '" removed from zone ' +
             Name + '(' + Desc + ').');
 	end;
 
@@ -541,7 +535,7 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 		m.Params.Add(AnsiString(ARR_LIT_NAM_CATEGORY[mcSystem]));
 		m.DataFromParams;
 
-		APlayer.SendWorkerMessage(m);
+		APlayer.AddSendMessage(m);
 
 		ListMessages.Add(ml);
 
@@ -549,7 +543,7 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 		end
 	else if (AMessage.Category = mcSystem) then
 		begin
-		TCPServer.TCPServer.DisconnectIdent(APlayer.Ident);
+		TCPServer.TCPServer.DisconnectByIdent(APlayer.Ident);
 
 		AHandled:= True;
 		end
@@ -600,7 +594,7 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 				m.Params[0]:= APlayer.Name;
 				m.DataFromParams;
 
-				a.SendWorkerMessage(m);
+				a.AddSendMessage(m);
 				end;
 			end
 		else
@@ -624,7 +618,7 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 				m.Params.Add(APlayer.Name);
 				m.DataFromParams;
 
-				APlayer.SendWorkerMessage(m);
+				APlayer.AddSendMessage(m);
 
 				APlayer.Name:= n;
 				end
@@ -679,8 +673,8 @@ procedure TLimboZone.BumpCounter;
 			    p.Counter:= p.Counter + 1;
 
                 if  p.Counter mod 100 = 0 then
-				    AddLogMessage(slkInfo, GUIDToString(p.Ident) +
-                            ' bumping auth wait count: ' + IntToStr(p.Counter));
+				    AddLogMessage(slkInfo, '"' + p.Ticket +
+							'" bumping auth wait count: ' + IntToStr(p.Counter));
 
                 finally
                 p.Lock.Release;
@@ -709,8 +703,8 @@ procedure TLimboZone.ExpirePlayers;
 			    if  Assigned(p.Client)
 			    and (Length(p.Name) > 0) then
 				    begin
-				    AddLogMessage(slkInfo, GUIDToString(p.Ident) +
-                            ' authenticated, move to lobby/play.');
+				    AddLogMessage(slkInfo, '"' + p.Ticket +
+							'" authenticated, move to lobby/play.');
 
                     LimboZone.Remove(p);
 
@@ -719,7 +713,7 @@ procedure TLimboZone.ExpirePlayers;
 				    end
 			    else if p.Counter >= 600 then
 				    begin
-                    AddLogMessage(slkInfo, GUIDToString(p.Ident) + ' auth failure.');
+                    AddLogMessage(slkInfo, '"' + p.Ticket + '" auth failure.');
 
                     SystemZone.Remove(p);
 				    end;
@@ -806,7 +800,7 @@ procedure TLobbyRoom.Add(APlayer: TPlayer);
 
 		m.DataFromParams;
 
-        APeer.SendWorkerMessage(m);
+        APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -854,7 +848,7 @@ procedure TLobbyRoom.ProcessPlayerMessage(APlayer: TPlayer;
 		m.Category:= mcLobby;
 		m.Method:= $04;
 
-        APeer.SendWorkerMessage(m);
+        APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -901,7 +895,7 @@ procedure TLobbyRoom.Remove(APlayer: TPlayer);
 
 		m.DataFromParams;
 
-        APeer.SendWorkerMessage(m);
+        APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -1039,7 +1033,7 @@ procedure TPlayer.KeepAliveDecrement(Ams: Integer);
 			m.Category:= mcServer;
 			m.Method:= 2;
 
-			SendWorkerMessage(m);
+			AddSendMessage(m);
 			end;
 
 		Dec(NeedKeepAlive, Ams);
@@ -1083,13 +1077,13 @@ procedure TPlayer.SendServerError(AMessage: AnsiString);
 	m.Params.Add(AMessage);
 	m.DataFromParams;
 
-	SendWorkerMessage(m);
+	AddSendMessage(m);
 	end;
 
-procedure TPlayer.SendWorkerMessage(var AMessage: TBaseMessage);
+procedure TPlayer.AddSendMessage(var AMessage: TBaseMessage);
 	begin
     AMessage.Ident:= Ident;
-	TCPServer.TCPServer.WorkerByIdent(Ident).SendMessages.Add(AMessage);
+	TCPServer.TCPServer.AddSendMessage(Ident, AMessage);
 	end;
 
 { TLobbyZone }
@@ -1194,7 +1188,7 @@ procedure TLobbyZone.ProcessPlayerMessage(APlayer: TPlayer;
 					m.Category:= mcLobby;
 					m.Method:= $00;
 
-					APlayer.SendWorkerMessage(m);
+					APlayer.AddSendMessage(m);
 					end;
 				end
 			else
@@ -1268,7 +1262,7 @@ procedure TLobbyZone.ProcessPlayerMessage(APlayer: TPlayer;
 
 			m.DataFromParams;
 
-			APlayer.SendWorkerMessage(m);
+			APlayer.AddSendMessage(m);
 
 			ListMessages.Add(ml);
 			end
@@ -1329,7 +1323,7 @@ procedure TServerDispatcher.Execute;
 
 		im:= nil;
 		try
-			with TCPServer.TCPServer.ReadMessages.LockList do
+			with ReadMessages.LockList do
 				try
 				if  Count > 0 then
 					begin
@@ -1337,11 +1331,11 @@ procedure TServerDispatcher.Execute;
 					Delete(0);
 					end;
 				finally
-				TCPServer.TCPServer.ReadMessages.UnlockList;
+				ReadMessages.UnlockList;
 				end;
 
 			except
-			AddLogMessage(slkError, 'Dispatcher cannot reach TCPServer!');
+			AddLogMessage(slkError, 'Dispatcher cannot read messages!');
 			end;
 
 		if  Assigned(im) then
@@ -1375,17 +1369,20 @@ procedure TServerDispatcher.Execute;
 					if  handled then
 						begin
 						p.KeepAliveReset;
-						AddLogMessage(slkDebug, 'Handled in ' + z.Name + ' zone.');
+						AddLogMessage(slkDebug, '"' + p.Ticket +
+								'" handled in ' + z.Name + ' zone.');
 						end
 					else
 						begin
 						p.SendServerError(LIT_ERR_SERVERUN);
 
-						AddLogMessage(slkDebug, 'Unhandled message.');
+						AddLogMessage(slkDebug, '"' + p.Ticket +
+								'" unhandled message.');
 						end;
 
 					except
-					AddLogMessage(slkError, 'Error processing player message!');
+					AddLogMessage(slkError, '"' + p.Ticket +
+								'" error processing player message!');
 					end;
 
 				finally
@@ -1394,6 +1391,32 @@ procedure TServerDispatcher.Execute;
         except
 		AddLogMessage(slkError, 'Unknown dispatcher error!');
 		end;
+	end;
+
+constructor TServerDispatcher.Create;
+	begin
+	ReadMessages:= TIdentMessages.Create;
+
+	inherited Create(False);
+	end;
+
+destructor TServerDispatcher.Destroy;
+	begin
+    with ReadMessages.LockList do
+		try
+        	while Count > 0 do
+				begin
+				Items[Count - 1].Free;
+				Delete(Count - 1);
+				end;
+
+			finally
+            ReadMessages.UnlockList;
+			end;
+
+    ReadMessages.Free;
+
+	inherited Destroy;
 	end;
 
 { TMessageList }
@@ -1449,8 +1472,8 @@ constructor TMessageList.Create(APlayer: TPlayer);
 
 	if  u > 9 then
         begin
-		AddLogMessage(slkInfo, GUIDToString(APlayer.Ident) +
-                ' out of room for new Message List!');
+		AddLogMessage(slkInfo, '"' + APlayer.Ticket +
+				'" out of room for new Message List!');
         Exit;
         end;
 
@@ -1497,7 +1520,7 @@ procedure TMessageList.ProcessList;
 
 		m.DataFromParams;
 
-        Player.SendWorkerMessage(m);
+        Player.AddSendMessage(m);
 
 		Inc(c);
 		end;
@@ -1512,7 +1535,7 @@ procedure TMessageList.ProcessList;
 
 	m.DataFromParams;
 
-	Player.SendWorkerMessage(m);
+	Player.AddSendMessage(m);
 
 	Process:= False;
 	Complete:= Data.Count = 0;
@@ -1544,7 +1567,7 @@ procedure TPlayGame.Add(APlayer: TPlayer);
 
 		m.DataFromParams;
 
-		APeer.SendWorkerMessage(m);
+		APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -1643,7 +1666,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 		m.Category:= mcPlay;
 		m.Method:= $04;
 
-		APeer.SendWorkerMessage(m);
+		APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -1775,7 +1798,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 							m.Params.Add(LIT_ERR_PLAYNORL);
 							m.DataFromParams;
 
-                            APlayer.SendWorkerMessage(m);
+                            APlayer.AddSendMessage(m);
 
 							Exit;
 							end;
@@ -1809,7 +1832,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 
 //							m.DataFromParams;
 
-							Slots[i].Player.SendWorkerMessage(m);
+							Slots[i].Player.AddSendMessage(m);
 							end;
 
 					if  Slots[s].State = psPreparing then
@@ -1865,7 +1888,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 								for j:= 0 to 4 do
 									m.Data[1 + j]:= Slots[s].Dice[j];
 
-								Slots[i].Player.SendWorkerMessage(m);
+								Slots[i].Player.AddSendMessage(m);
 								end;
 						end;
 
@@ -1900,7 +1923,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 								m:= TBaseMessage.Create;
 								m.Assign(AMessage);
 
-								Slots[i].Player.SendWorkerMessage(m);
+								Slots[i].Player.AddSendMessage(m);
 								end;
 						end;
 
@@ -1948,7 +1971,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 					m.Data[2]:= Hi(r);
 					m.Data[3]:= Lo(r);
 
-					APlayer.SendWorkerMessage(m);
+					APlayer.AddSendMessage(m);
 
 					if  o > slAces then
 						begin
@@ -1960,7 +1983,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 						m.Data[2]:= Hi(100);
 						m.Data[3]:= Lo(100);
 
-                        APlayer.SendWorkerMessage(m);
+                        APlayer.AddSendMessage(m);
 						end;
 
 					finally
@@ -2015,7 +2038,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 								m.Data[2]:= Hi(r);
 								m.Data[3]:= Lo(r);
 
-								Slots[i].Player.SendWorkerMessage(m);
+								Slots[i].Player.AddSendMessage(m);
 								end;
 
 						if  (n in [slAces..slSixes])
@@ -2054,7 +2077,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 										m.Data[2]:= Hi(r);
 										m.Data[3]:= Lo(r);
 
-										Slots[i].Player.SendWorkerMessage(m);
+										Slots[i].Player.AddSendMessage(m);
 										end;
 								end;
 							end;
@@ -2075,7 +2098,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 									m.Data[2]:= Hi(100);
 									m.Data[3]:= Lo(100);
 
-                                    Slots[i].Player.SendWorkerMessage(m);
+                                    Slots[i].Player.AddSendMessage(m);
 									end;
 							end;
 
@@ -2164,7 +2187,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 										for j:= 0 to 4 do
 											m.Data[1 + j]:= Slots[Turn].Dice[j];
 
-										Slots[i].Player.SendWorkerMessage(m);
+										Slots[i].Player.AddSendMessage(m);
 
 										for j:= 1 to 5 do
 											begin
@@ -2178,7 +2201,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 											m.Data[1]:= j;
 											m.Data[2]:= 0;
 
-											Slots[i].Player.SendWorkerMessage(m);
+											Slots[i].Player.AddSendMessage(m);
 											end;
 										end;
 								end;
@@ -2223,7 +2246,7 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 
 		m.DataFromParams;
 
-		APeer.SendWorkerMessage(m);
+		APeer.AddSendMessage(m);
 		end;
 
 	begin
@@ -2350,7 +2373,7 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 							for j:= 0 to 4 do
 								m.Data[1 + j]:= Slots[Turn].Dice[j];
 
-							Slots[i].Player.SendWorkerMessage(m);
+							Slots[i].Player.AddSendMessage(m);
 
 							for j:= 1 to 5 do
 								begin
@@ -2364,7 +2387,7 @@ procedure TPlayGame.Remove(APlayer: TPlayer);
 								m.Data[1]:= j;
 								m.Data[2]:= 0;
 
-								Slots[i].Player.SendWorkerMessage(m);
+								Slots[i].Player.AddSendMessage(m);
 								end;
 							end;
 					end;
@@ -2441,7 +2464,7 @@ procedure TPlayGame.SendGameStatus(APlayer: TPlayer);
 
 //	m.DataFromParams;
 
-    APlayer.SendWorkerMessage(m);
+    APlayer.AddSendMessage(m);
 	end;
 
 procedure TPlayGame.SendSlotStatus(APlayer: TPlayer; ASlot: Integer);
@@ -2465,7 +2488,7 @@ procedure TPlayGame.SendSlotStatus(APlayer: TPlayer; ASlot: Integer);
 	m.Data[2]:= Hi(Slots[ASlot].Score);
 	m.Data[3]:= Lo(Slots[ASlot].Score);
 
-    APlayer.SendWorkerMessage(m);
+    APlayer.AddSendMessage(m);
 	end;
 
 { TPlayZone }
@@ -2614,7 +2637,7 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer;
 							m.Params.Add(LIT_ERR_PLAYGMST);
 							m.DataFromParams;
 
-                            APlayer.SendWorkerMessage(m);
+                            APlayer.AddSendMessage(m);
 							end;
 						finally
 						g.Lock.Release;
@@ -2629,7 +2652,7 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer;
 					m.Params.Add(LIT_ERR_PLAYPWDR);
 					m.DataFromParams;
 
-                    APlayer.SendWorkerMessage(m);
+                    APlayer.AddSendMessage(m);
 					end;
 				end
 			else
@@ -2715,7 +2738,7 @@ procedure TPlayZone.ProcessPlayerMessage(APlayer: TPlayer;
 
 			m.DataFromParams;
 
-            APlayer.SendWorkerMessage(m);
+            APlayer.AddSendMessage(m);
 
             ListMessages.Add(ml);
 			end

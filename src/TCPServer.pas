@@ -12,7 +12,14 @@ uses
 type
 	{ TTCPConnection }
  	TTCPConnection = class
+    protected
+		Bucket: Integer;
+		SendMessages: TIdentMessages;
+
+	public
 		Ident: TGUID;
+		Ticket: string;
+		RemoteAddress: string;
 		Socket: TTCPBlockSocket;
 
 		constructor Create; overload;
@@ -36,29 +43,43 @@ type
 	end;
 
     TTCPServer = class;
+	TTCPWorker = class;
+
+    TTCPConnections = TThreadList<TTCPConnection>;
+
+	{ TTCPConnectBucket }
+	 TTCPConnectBucket = record
+    	Worker: TTCPWorker;
+		Connections: TTCPConnections;
+	end;
+
+	TTCPConnectBuckets = array[0..31] of TTCPConnectBucket;
 
 	{ TTCPWorker }
-
     TTCPWorker = class(TThread)
     private
-		FConnection: TTCPConnection;
+		FConnections: TTCPConnections;
 		FServer: TTCPServer;
+		FIndex: Integer;
+		FExpired: TTCPConnections;
 
 	protected
+        function  ProcessConnection(AConnection: TTCPConnection): Boolean;
+
 		procedure Execute; override;
 
 	public
-		SendMessages: TIdentMessages;
+//		SendMessages: TIdentMessages;
 
-		constructor Create(const AServer: TTCPServer;
-				AConnection: TTCPConnection);
+		constructor Create(const AServer: TTCPServer; const AIndex: Integer;
+				AConnections: TTCPConnections);
 		destructor  Destroy; override;
 	end;
 
 
-    TTCPWorkerList = TThreadList<TTCPWorker>;
+    TTCPWorkers = TThreadList<TTCPWorker>;
 
-    TTCPConnectNotify = procedure(const AIdent: TGUID) of object;
+    TTCPConnectNotify = procedure(const AConnection: TTCPConnection) of object;
 	TTCPRejectNotify = procedure(const AConnection: TTCPConnection) of object;
 	TTCPReadDataNotify = procedure(const AIdent: TGUID; const AData: TMsgData) of object;
 
@@ -75,20 +96,27 @@ type
 
 		FMaxConnects: Cardinal;
 
+		FConnectBuckets: TTCPConnectBuckets;
+		FConnections: TTCPConnections;
+		FWorkers: TTCPWorkers;
+
+	protected
+		function  ConnectionByIdent(const AIdent: TGUID): TTCPConnection;
+
+		procedure AddConnection(const AConnection: TTCPConnection;
+				const AIndex: Integer);
+		procedure RemoveConnection(const AConnection: TTCPConnection;
+				const AIndex: Integer);
+
 	public
-		ReadMessages: TIdentMessages;
-
-		Workers: TTCPWorkerList;
-
 		constructor Create;
 		destructor  Destroy; override;
 
-		function  WorkerByIdent(const AIdent: TGUID): TTCPWorker;
-		procedure SendWorkerMessage(var AMessage: TBaseIdentMessage);
-		procedure InitWorkerFromConnection(const ATCPConnection: TTCPConnection);
-		procedure DisconnectIdent(const AIdent: TGUID);
+		procedure AddSendMessage(const AIdent: TGUID;
+				AMessage: TBaseIdentMessage);
+		procedure DisconnectByIdent(const AIdent: TGUID);
 
-//FIXME:  Need locking!
+//FIXME:  Need locking?!?!
 		property  OnConnect: TTCPConnectNotify read FOnConnect write FOnConnect;
 		property  OnDisconnect: TTCPConnectNotify read FOnDisconnect write FOnDisconnect;
         property  OnReject: TTCPRejectNotify read FOnReject write FOnReject;
@@ -97,6 +125,10 @@ type
 		property  MaxConnections: Cardinal read FMaxConnects write FMaxConnects;
 	end;
 
+
+	function GUIDToTicket(const AGUID: TGUID): string;
+	function GUIDToBucket(const AGUID: TGUID): Integer;
+
 var
 	TCPServer: TTCPServer;
 	TCPListener: TTCPListener;
@@ -104,26 +136,201 @@ var
 
 implementation
 
+{$IFDEF LINUX}
+const
+	SOL_TCP = 6;
+	TCP_KEEPIDLE = 4;	/* Start keeplives after this period */
+    TCP_KEEPINTVL = 5;	/* Interval between keepalives */
+    TCP_KEEPCNT = 6;	/* Number of keepalives before death */
+{$ENDIF}
 
-{ TTCPServer }
+{$IFDEF WINDOWS}
+const
+	IOC_IN	=		$80000000;
+	IOC_VENDOR =    $18000000;
+	SIO_KEEPALIVE_VALS = IOC_IN or IOC_VENDOR or 4;
 
-function TTCPServer.WorkerByIdent(const AIdent: TGUID): TTCPWorker;
+type
+    tcp_keepalive = packed record
+		onoff: Cardinal;
+      	keepalivetime: Cardinal;
+      	keepaliveinterval: Cardinal;
+    end;
+{$ENDIF}
+
+var
+	BucketHashVector: array[0..31] of Byte;
+
+
+function GUIDToTicket(const AGUID: TGUID): string;
+	var
+	i: Integer;
+	b: Byte;
+
+	begin
+	Result:= '';
+
+	for i:= 0 to SizeOf(TGUID) - 1 do
+		begin
+        b:= PByte(@AGUID)[i] and $7F;
+		b:= b or $20;
+		if  b = $7F then
+			b:= $20;
+
+		Result:= Result + Char(b);
+		end;
+	end;
+
+procedure InitBucketHashVector;
     var
 	i: Integer;
 
 	begin
-    Result:= nil;
-	with Workers.LockList do
-		try
-            for i:= 0 to Count - 1 do
-				if 	CompareMem(@Items[i].FConnection.Ident, @AIdent, SizeOf(TGUID)) then
-					begin
-					Result:= Items[i];
-					Break;
-					end;
-			finally
-            Workers.UnlockList;
+    Randomize;
+
+	for i:= 0 to 31 do
+    	BucketHashVector[i]:= Random(32);
+	end;
+
+function GUIDToBucket(const AGUID: TGUID): Integer;
+    var
+	bytes: array[0..16] of Byte;
+    i,
+	j: Integer;
+	o,
+	m,
+    b,
+	v,
+	r: Byte;
+
+	begin
+    for i:= 0 to 15 do
+		bytes[i]:= PByte(@AGUID)[i];
+
+	bytes[16]:= 0;
+
+    i:= 0;
+    r:= 0;
+	while i < 130 do
+		begin
+		b:= 0;
+
+		for j:= 0 to 4 do
+			begin
+        	o:= i div 8;
+        	m:= 1 shl (i - (o * 8));
+
+            if  (bytes[o] and m) <> 0 then
+            	b:= b or (1 shl j);
+
+			Inc(i);
 			end;
+
+        Assert(b < 32, 'Error in hash function vector!');
+
+		v:= BucketHashVector[b];
+		r:= r xor v;
+        end;
+
+    Assert(r < 32, 'Error in hash function result!');
+
+	Result:= r;
+	end;
+
+{ TTCPServer }
+
+function TTCPServer.ConnectionByIdent(const AIdent: TGUID): TTCPConnection;
+    var
+	i: Integer;
+
+	begin
+	Result:= nil;
+
+	with FConnections.LockList do
+        try
+		for  i:= 0 to Count - 1 do
+			if  CompareMem(@AIdent, @Items[i].Ident, SizeOf(TGUID)) then
+				begin
+				Result:= Items[i];
+				Break;
+				end;
+
+        	finally
+            FConnections.UnlockList;
+			end;
+	end;
+
+procedure TTCPServer.AddConnection(const AConnection: TTCPConnection;
+		const AIndex: Integer);
+	begin
+	FLock.Acquire;
+	try
+    	if  FMaxConnects > 0 then
+        	with FConnections.LockList do
+				try
+                    if  Cardinal(Count) >= FMaxConnects then
+						begin
+                        if  Assigned(FOnReject) then
+                    		FOnReject(AConnection);
+						Exit;
+						end;
+					finally
+	            	FConnections.UnlockList;
+					end;
+
+		AConnection.Bucket:= AIndex;
+    	FConnections.Add(AConnection);
+
+        if  Assigned(FOnConnect) then
+    		FOnConnect(AConnection);
+
+    	if  not Assigned(FConnectBuckets[AIndex].Worker) then
+         	begin
+			FConnectBuckets[AIndex].Connections:= TTCPConnections.Create;
+			FConnectBuckets[AIndex].Connections.Add(AConnection);
+
+			FConnectBuckets[AIndex].Worker:= TTCPWorker.Create(Self,
+					AIndex, FConnectBuckets[AIndex].Connections);
+			end
+		else
+			FConnectBuckets[AIndex].Connections.Add(AConnection);
+
+		finally
+        FLock.Release;
+		end;
+	end;
+
+procedure TTCPServer.RemoveConnection(const AConnection: TTCPConnection;
+		const AIndex: Integer);
+	begin
+    FLock.Acquire;
+    try
+    	FConnections.Remove(AConnection);
+
+		if  Assigned(FConnectBuckets[AIndex].Connections) then
+			begin
+	    	FConnectBuckets[AIndex].Connections.Remove(AConnection);
+
+	        with FConnectBuckets[AIndex].Connections.LockList do
+				if  Count = 0 then
+					begin
+	                FConnectBuckets[AIndex].Worker.Terminate;
+					FConnectBuckets[AIndex].Worker:= nil;
+
+					FConnectBuckets[AIndex].Connections.Free;
+	                FConnectBuckets[AIndex].Connections:= nil;
+					end;
+
+			end;
+
+        if  Assigned(FOnDisconnect) then
+    		FOnDisconnect(AConnection);
+
+		finally
+        FLock.Release;
+		end;
+
+	AConnection.Free;
 	end;
 
 constructor TTCPServer.Create;
@@ -132,274 +339,276 @@ constructor TTCPServer.Create;
 
     FLock:= TCriticalSection.Create;
 
-	ReadMessages:= TIdentMessages.Create;
-
-	Workers:= TTCPWorkerList.Create;
+	FConnections:= TTCPConnections.Create;
+	FWorkers:= TTCPWorkers.Create;
 
 	end;
 
 destructor TTCPServer.Destroy;
     var
 	i: Integer;
-    w: TTCPWorker;
-	im: TBaseIdentMessage;
-	s: string;
 
 	begin
-	w:= nil;
-
-	repeat
-    	with Workers.LockList do
-			try
-                if  Count > 0 then
-                    begin
-					w:= Items[0];
-                    Delete(0);
-                    end
-                else
-					w:= nil;
-
-				finally
-                Workers.UnlockList;
-				end;
-
-		if  Assigned(w) then
-			begin
-            w.FServer:= nil;
-			w.Terminate;
-//			w.WaitFor;
-			end;
-
-    	until not Assigned(w);
-
-
-	Workers.Free;
-
-	with ReadMessages.LockList do
+   	with FWorkers.LockList do
 		try
-            for i:= Count - 1 downto 0 do
-				begin
-				im:= Items[i];
-				Delete(i);
-				im.Free;
-				end;
+        	for i:= Count - 1 downto 0 do
+				Items[i].Terminate;
 
 			finally
-            ReadMessages.UnlockList;
+        	FWorkers.UnlockList;
 			end;
 
-	ReadMessages.Free;
+	while True do
+		begin
+		with FConnections.LockList do
+			try
+				if  Count = 0 then
+					Break;
+
+				finally
+                FConnections.UnlockList;
+				end;
+
+		Sleep(10);
+		end;
+
+	FWorkers.Free;
+
+    for i:= 0 to High(FConnectBuckets) do
+  		if  Assigned(FConnectBuckets[i].Connections) then
+			FConnectBuckets[i].Connections.Free;
+
+	FConnections.Free;
 
     FLock.Free;
 
 	inherited;
 	end;
 
-procedure TTCPServer.SendWorkerMessage(var AMessage: TBaseIdentMessage);
+procedure TTCPServer.AddSendMessage(const AIdent: TGUID;
+		AMessage: TBaseIdentMessage);
     var
-	w: TTCPWorker;
+	c: TTCPConnection;
 
 	begin
-    w:= WorkerByIdent(AMessage.Ident);
+    FLock.Acquire;
+	try
+        c:= ConnectionByIdent(AIdent);
 
-	if  Assigned(w) then
-        try
-			w.SendMessages.Add(AMessage);
+		if  Assigned(c) then
+			c.SendMessages.Add(AMessage);
 
-			except
-			end
-	else
-//FIXME:
-//		Log message
-        AMessage.Free;
-	end;
-
-procedure TTCPServer.InitWorkerFromConnection(
-		const ATCPConnection: TTCPConnection);
-    var
-	c: Cardinal;
-	w: TTCPWorker;
-
-	begin
-//    with  Workers.LockList do
-//		try
-//			c:= Count;
-//
-//			finally
-//            Workers.UnlockList;
-//			end;
-
-	c:= 0;
-
-	if  (FMaxConnects = 0)
-	or  ((FMaxConnects > 0)
-	and  (c < FMaxConnects)) then
-		begin
-        w:= TTCPWorker.Create(Self, ATCPConnection);
-//FIXME:
-//		Log Message?
-		end
-	else if Assigned(FOnReject) then
-		begin
-		FOnReject(ATCPConnection);
-
-        try
-			ATCPConnection.Socket.CloseSocket;
-            ATCPConnection.Free;
-
-			except
-			end;
-
-//FIXME:
-//		Log Message?
+		finally
+        FLock.Release;
 		end;
 	end;
 
-procedure TTCPServer.DisconnectIdent(const AIdent: TGUID);
-	var
-	w: TTCPWorker;
+procedure TTCPServer.DisconnectByIdent(const AIdent: TGUID);
+    var
+	c: TTCPConnection;
 
 	begin
-    w:= WorkerByIdent(AIdent);
+    FLock.Acquire;
+	try
+        c:= ConnectionByIdent(AIdent);
 
-	if  Assigned(w) then
-		w.Terminate;
+		if  Assigned(c) then
+			RemoveConnection(c, c.Bucket);
+
+		finally
+        FLock.Release;
+		end;
 	end;
+
 
 { TTCPWorker }
 
-procedure TTCPWorker.Execute;
+function TTCPWorker.ProcessConnection(AConnection: TTCPConnection): Boolean;
     var
-    i,
+	i,
 	j: Integer;
 	s,
 	s2: string;
 	im: TBaseIdentMessage;
 	buf: TMsgData;
+	TimeV: TTimeVal;
+	FDSet: TFDSet;
 
 	begin
-    FServer.Workers.Add(Self);
+	Result:= True;
 
-    if  Assigned(FServer.FOnConnect) then
-		FServer.FOnConnect(FConnection.Ident);
+	TimeV.tv_usec:= 1000;
+	TimeV.tv_sec:= 0;
+	FDSet:= AConnection.Socket.FdSet;
+	if  synsock.Select(AConnection.Socket.Socket, nil, nil, @FDSet, @TimeV) > 0 then
+		begin
+		Result:= False;
+		AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+				'" lost connection - error.');
 
-	while not Terminated do
-		try
-        Sleep(100);
-
-		i:= FConnection.Socket.WaitingData;
-      	if  i > 0 then
-			begin
-			SetLength(buf, i);
-
-            j:= FConnection.Socket.RecvBufferEx(TMemory(@(buf[0])), i, 100);
-
-            if j > i then
-				raise Exception.Create('Buffer exceeded bounds!');
-
-            if  j < i then
-			    SetLength(buf, j);
-
-			if  FConnection.Socket.LastError = 0 then
-				begin
-				if  Assigned(FServer.FOnReadData) then
-					FServer.FOnReadData(FConnection.Ident, buf);
-				end
-			else
-				raise Exception.Create('This is bad!');
-//FIXME:
-//				Server log message
-				;
-			end;
-
-		with  SendMessages.LockList do
-			try
-                while Count > 0 do
-					begin
-					im:= Items[0];
-
-                    buf:= im.Encode;
-
-                    s2:= '<<' + IntToStr(buf[0]) + ' $' +
-							IntToHex(buf[1], 2) + ': ';
-					for i:= 2 to High(buf) do
-						s2:= s2 + Char(buf[i]);
-
-					AddLogMessage(slkDebug, GUIDToString(im.Ident) + ' ' + s2);
-
-					FConnection.Socket.SendBuffer(TMemory(@(buf[0])),
-							Length(buf));
-
-					if  FConnection.Socket.LastError <> 0 then
-						begin
-//FIXME:
-//						Server log message
-						Terminate;
-                        Break;
-						end;
-
-                    Delete(0);
-					im.Free;
-					end;
-
-				finally
-            	SendMessages.UnlockList;
-				end;
-        except
-		AddLogMessage(slkError, 'TCPWorker error!');
-
-		Terminate;
+		Exit;
 		end;
 
-	with  SendMessages.LockList do
-		try
-        	for i:= Count - 1 downto 0 do
+	i:= AConnection.Socket.WaitingData;
+
+//	if  i = 0 then
+//		begin
+// 		if  AConnection.Socket.CanRead(1) then
+//			begin
+//			Result:= False;
+//			AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+//					'" lost connection - informed.');
+//			Exit;
+//			end;
+//		end;
+
+  	if  i > 0 then
+		begin
+		SetLength(buf, i);
+
+        j:= AConnection.Socket.RecvBufferEx(TMemory(@(buf[0])), i, 100);
+
+        Assert(i >= j, 'Buffer exceeded bounds!');
+
+		if  j > 0 then
+			begin
+        	if  j < i then
+		    	SetLength(buf, j);
+
+			if  AConnection.Socket.LastError = 0 then
 				begin
-				im:= Items[i];
-				Delete(i);
+				if  Assigned(FServer.FOnReadData) then
+					FServer.FOnReadData(AConnection.Ident, buf);
+				end
+			else
+				begin
+    			Result:= False;
+    			AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+    					'" error while reading socket.');
+    			Exit;
+				end;
+			end;
+		end;
+
+	with  AConnection.SendMessages.LockList do
+		try
+            while Count > 0 do
+				begin
+				im:= Items[0];
+
+                buf:= im.Encode;
+
+                s2:= '<<' + IntToStr(buf[0]) + ' $' +
+						IntToHex(buf[1], 2) + ': ';
+				for i:= 2 to High(buf) do
+					s2:= s2 + Char(buf[i]);
+
+				AddLogMessage(slkDebug, '"' + AConnection.Ticket + '" ' + s2);
+
+				AConnection.Socket.SendBuffer(TMemory(@(buf[0])),
+						Length(buf));
+
+				if  AConnection.Socket.LastError <> 0 then
+					begin
+        			Result:= False;
+        			AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+        					'" error while writing socket.');
+        			Exit;
+					end;
+
+                Delete(0);
 				im.Free;
 				end;
 
 			finally
-            SendMessages.UnlockList;
+        	AConnection.SendMessages.UnlockList;
 			end;
-
-
-	if  Assigned(FServer.FOnDisconnect) then
-		FServer.FOnDisconnect(FConnection.Ident);
-
-	try
-        FConnection.Socket.CloseSocket;
-        FConnection.Socket.Free;
-		except
-//FIXME:
-//		Server log message
-		end;
-
-    FConnection.Socket:= nil;
-
-    if  Assigned(FServer) then
-	    FServer.Workers.Remove(Self);
-
-	FConnection.Free;
 	end;
 
-constructor TTCPWorker.Create(const AServer: TTCPServer;
-		AConnection: TTCPConnection);
+procedure TTCPWorker.Execute;
+    var
+	i: Integer;
+
+	begin
+	while not Terminated do
+		try
+	        Sleep(100);
+
+	        with FExpired.LockList do
+				try
+	                while Count > 0 do
+						begin
+						FServer.RemoveConnection(Items[Count - 1], FIndex);
+						Delete(Count - 1);
+						end;
+					finally
+	                FExpired.UnlockList;
+					end;
+
+            if  Terminated then
+				begin
+				FConnections:= nil;
+				Continue;
+				end;
+
+	        with FConnections.LockList do
+				try
+	                for i:= 0 to Count - 1 do
+						if  not ProcessConnection(Items[i]) then
+							FExpired.Add(Items[i]);
+
+					finally
+	                FConnections.UnlockList;
+					end;
+
+	        except
+			AddLogMessage(slkError, 'TCPWorker error!');
+			Terminate;
+			end;
+
+	if  Assigned(FConnections) then
+		with  FConnections.LockList do
+			try
+	            for i:= 0 to Count - 1 do
+					FExpired.Add(Items[i]);
+
+				finally
+	            FConnections.UnlockList;
+				end;
+	end;
+
+constructor TTCPWorker.Create(const AServer: TTCPServer; const AIndex: Integer;
+		AConnections: TTCPConnections);
 	begin
     FreeOnTerminate:= True;
 
 	FServer:= AServer;
-    FConnection:= AConnection;
+	FIndex:= AIndex;
 
-	SendMessages:= TIdentMessages.Create;
+    FConnections:= AConnections;
+	FExpired:= TTCPConnections.Create;
 
 	inherited Create(False);
 	end;
 
 destructor TTCPWorker.Destroy;
+	var
+	i: Integer;
+
 	begin
-	SendMessages.Free;
+	with FExpired.LockList do
+		try
+            for i:= Count - 1 downto 0 do
+				FServer.RemoveConnection(Items[i], FIndex);
+
+			finally
+            FExpired.UnlockList;
+			end;
+
+	FExpired.Free;
+
+    if  Assigned(FServer) then
+	    FServer.FWorkers.Remove(Self);
 
 	inherited;
 	end;
@@ -413,18 +622,25 @@ procedure TTCPListener.Execute;
 
 	begin
     FConnection.Socket.Listen;
+
 	while not Terminated do
 		begin
 		if  FConnection.Socket.CanRead(100) then
 			begin
-			aclient:= TTCPConnection.Create(FConnection.Socket);
-            TCPServer.InitWorkerFromConnection(aclient);
+            try
+				aclient:= TTCPConnection.Create(FConnection.Socket);
 
+				except
+                AddLogMessage(slkError, 'Failed to accept connection');
+				Continue
+				end;
+
+          	TCPServer.AddConnection(aclient, GUIDToBucket(aclient.Ident));
             Sleep(10);
 			end;
 		end;
 
-    FConnection.Socket.CloseSocket;
+//	FConnection.Socket.CloseSocket;
 	end;
 
 constructor TTCPListener.Create(APort: string);
@@ -479,16 +695,28 @@ destructor TTCPListener.Destroy;
 
 constructor TTCPConnection.Create;
 	begin
-    if  CreateGUID(Ident) <> 0 then
+    inherited;
+
+	if  CreateGUID(Ident) <> 0 then
 		raise Exception.Create('Unable to create connection ident!');
+    Ticket:= GUIDToTicket(Ident);
+
+	SendMessages:= TIdentMessages.Create;
 
     Socket:= TTCPBlockSocket.Create;
 	end;
 
 constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
+	var
+{$IFDEF WINDOWS}
+    vInBuffer: tcp_keepalive;
+    cbBytesReturned: Cardinal;
+{$ENDIF}
+
 	begin
     if  CreateGUID(Ident) <> 0 then
 		raise Exception.Create('Unable to create connection ident!');
+    Ticket:= GUIDToTicket(Ident);
 
     Socket:= TTCPBlockSocket.Create;
 	Socket.Socket:= AListener.Accept;
@@ -496,14 +724,64 @@ constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
 	if  AListener.LastError <> 0 then
 		raise Exception.Create('Unable to accept connection (' +
 				AListener.GetErrorDescEx + ')!');
+
+	SendMessages:= TIdentMessages.Create;
+
+    RemoteAddress:= Socket.GetRemoteSinIP;
+
+{$IFDEF WINDOWS}
+//	vInBuffer.onoff:= 1;
+//	vInBuffer.keepalivetime:= 10000;
+//	vInBuffer.keepaliveinterval:= 1000;
+
+//	if  WSAIoctl(Socket.Socket, // descriptor identifying a socket
+//			SIO_KEEPALIVE_VALS,                  // dwIoControlCode
+// 			@vInBuffer,    // pointer to tcp_keepalive struct
+// 			SizeOf(tcp_keepalive),      // length of input buffer
+// 			nil,         // output buffer
+// 			0,       // size of output buffer
+// 			@cbBytesReturned,    // number of bytes returned
+//			nil,   // OVERLAPPED structure
+// 			nil // completion routine
+//			) <> 0 then
+//		begin
+//		AddLogMessage(slkWarning, 'Failed to set Windows keep alive');
+//		end
+//	else
+//		begin
+//		AddLogMessage(slkDebug, 'Set Windows keep alive');
+//		end;
+{$ENDIF}
 	end;
 
 destructor TTCPConnection.Destroy;
+	var
+	i: Integer;
+
 	begin
+	with  SendMessages.LockList do
+		try
+        	for i:= Count - 1 downto 0 do
+				begin
+				Items[i].Free;
+				Delete(i);
+				end;
+
+			finally
+            SendMessages.UnlockList;
+			end;
+
+    SendMessages.Free;
+
+	try
+        if  Assigned(Socket) then
+            Socket.CloseSocket;
+		except
+		end;
+
 	try
         if  Assigned(Socket) then
             Socket.Free;
-
 		except
 		end;
 
@@ -511,6 +789,7 @@ destructor TTCPConnection.Destroy;
 	end;
 
 initialization
+	InitBucketHashVector;
 
 finalization
     if  Assigned(TCPServer) then

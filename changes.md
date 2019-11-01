@@ -2,12 +2,24 @@
 
 ## CLI Server
 
+* 01NOV2019
+	* Reinstate software challenges to client to keep alive
+	* Revert changes for checking connection and keep-alives - wasn't working according to documents I had read
+
+* 30OCT2019
+	* Implement hash bucket workers instead of creating a thread for each connection
+	* Check for disconnects according to standards (will also not accept OOB data!)
+	* Implement connection "keep-alives" according to standards (Windows, need Linux)
+	* Store the connection "ticket" on the player, too
+	* Use connection "ticket" for output instead of ident (easier to read)
+	* Generate a "ticket" for each connection, based on its "ident" (prepare for client "re-auths")
+
 * 29OCT2019
 	* Yahtzee Bonuses only apply when you haven't got a Yahtzee score of 0 and you can only have three of them!
 
 * 28OCT2019
 	* Incorporate new TCPServer into code
-	* Implement my own TCPServer to handle multiple connections based on Areat Synapse
+	* Implement my own TCPServer to handle multiple connections based on Ararat Synapse
 	* REMOVE INDY10!  I'm over it.  Too many problems.
 
 * 25OCT2019
@@ -23,6 +35,15 @@
 
 * 21OCT2019
 	* Fix a number of memory leaks (affects the FMX server, too)
+
+
+## LCL Client
+
+## Version 0.00.80A
+
+* 01NOV2019
+	* Implement LCL client for native Linux solution and testing comparisson
+
 
 ## FMX Server
 
@@ -62,6 +83,16 @@
 ## C64 Client
 
 ### Version 0.00.35A
+
+* 02NOV2019
+	* Use send data metrics to produce a connection health meter
+	* Change ip65 to export send data metics
+
+* 30OCT2019
+	* Fixes to ip65 for reading while sending causing disconnects (require modified ip65)
+	* Fixes to ip65 for timeouts when sending (require modified ip65)
+	* Update to latest ip65 version
+	* Work-around inet message send queue overflow
 
 * 26OCT2019
 	* Default host name to "PLAY-CLASSICS.NET"!

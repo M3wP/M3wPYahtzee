@@ -3,7 +3,7 @@ unit YahtzeeClasses;
 {$IFDEF FPC}
 	{$MODE DELPHI}
 {$ENDIF}
-
+{$H+}
 
 interface
 
@@ -85,6 +85,7 @@ type
 
 	function  DieSetToByte(ADieSet: TDieSet): Byte;
 	function  ByteToDieSet(AByte: Byte): TDieSet;
+	procedure RollDice(ASet: TDieSet; var ADice: TDice);
 
 	function  MakeScoreForLocation(ALocation: TScoreLocation; ADice: TDice;
 			var AUsed: TDieSet): Word;
@@ -171,6 +172,17 @@ implementation
 
 uses
     SysUtils;
+
+
+procedure RollDice(ASet: TDieSet; var ADice: TDice);
+	var
+	i: Integer;
+
+	begin
+	for i:= 1 to 5 do
+		if  i in ASet then
+			ADice[i - 1]:= Random(6) + 1;
+	end;
 
 
 procedure AddLogMessage(const AKind: TLogKind; const AMessage: string);

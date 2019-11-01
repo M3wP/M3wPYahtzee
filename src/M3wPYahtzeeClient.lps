@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="10"/>
+    <BuildModes Active="Default"/>
+    <Units Count="23">
+      <Unit0>
+        <Filename Value="M3wPYahtzeeClient.lpr"/>
+        <IsPartOfProject Value="True"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="FormClientMain.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="ClientMainForm"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="636"/>
+        <CursorPos X="72" Y="641"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+        <LoadedDesigner Value="True"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="DModClientMain.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="ClientMainDMod"/>
+        <ResourceBaseClass Value="DataModule"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="31"/>
+        <CursorPos X="19" Y="49"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+        <LoadedDesigner Value="True"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="D:\lazarus1.8\lcl\actnlist.pas"/>
+        <UnitName Value="ActnList"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="85"/>
+        <CursorPos X="31" Y="110"/>
+        <UsageCount Value="10"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="D:\lazarus1.8\lcl\include\customactionlist.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="127"/>
+        <CursorPos X="3" Y="134"/>
+        <UsageCount Value="10"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="D:\lazarus1.8\lcl\lmessages.pp"/>
+        <UnitName Value="LMessages"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="802"/>
+        <UsageCount Value="10"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="D:\lazarus1.8\lcl\lclintf.pas"/>
+        <UnitName Value="LCLIntf"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="52"/>
+        <CursorPos X="10" Y="71"/>
+        <UsageCount Value="10"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="YahtzeeClasses.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="4"/>
+        <TopLine Value="132"/>
+        <CursorPos X="34" Y="58"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="synalist-code\blcksock.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="958"/>
+        <CursorPos X="14" Y="976"/>
+        <UsageCount Value="20"/>
+      </Unit8>
+      <Unit9>
+        <Filename Value="synalist-code\synsock.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="20"/>
+      </Unit9>
+      <Unit10>
+        <Filename Value="FPC\generics.collections.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="-1"/>
+        <WindowIndex Value="-1"/>
+        <TopLine Value="-1"/>
+        <CursorPos X="-1" Y="-1"/>
+        <UsageCount Value="20"/>
+      </Unit10>
+      <Unit11>
+        <Filename Value="YahtzeeClient.pas"/>
+        <IsPartOfProject Value="True"/>
+        <EditorIndex Value="5"/>
+        <TopLine Value="876"/>
+        <CursorPos X="25" Y="933"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+      </Unit11>
+      <Unit12>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\inc\objpash.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="175"/>
+        <CursorPos X="23" Y="194"/>
+        <UsageCount Value="10"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\classes\classesh.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="2017"/>
+        <CursorPos X="18" Y="2036"/>
+        <UsageCount Value="10"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\classes\dm.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="20"/>
+        <CursorPos X="3" Y="37"/>
+        <UsageCount Value="10"/>
+      </Unit14>
+      <Unit15>
+        <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\win\wininc\messages.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1192"/>
+        <CursorPos X="5" Y="1211"/>
+        <UsageCount Value="10"/>
+      </Unit15>
+      <Unit16>
+        <Filename Value="D:\lazarus1.8\lcl\lcltype.pp"/>
+        <UnitName Value="LCLType"/>
+        <EditorIndex Value="-1"/>
+        <UsageCount Value="10"/>
+      </Unit16>
+      <Unit17>
+        <Filename Value="D:\lazarus1.8\lcl\include\customform.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1896"/>
+        <CursorPos Y="1915"/>
+        <UsageCount Value="10"/>
+      </Unit17>
+      <Unit18>
+        <Filename Value="D:\lazarus1.8\lcl\include\control.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="2848"/>
+        <CursorPos Y="2868"/>
+        <UsageCount Value="10"/>
+      </Unit18>
+      <Unit19>
+        <Filename Value="D:\lazarus1.8\lcl\include\buttoncontrol.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="3"/>
+        <CursorPos Y="22"/>
+        <UsageCount Value="10"/>
+      </Unit19>
+      <Unit20>
+        <Filename Value="D:\lazarus1.8\lcl\include\buttons.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="151"/>
+        <CursorPos Y="170"/>
+        <UsageCount Value="10"/>
+      </Unit20>
+      <Unit21>
+        <Filename Value="D:\lazarus1.8\lcl\include\bitbtn.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="47"/>
+        <CursorPos Y="65"/>
+        <UsageCount Value="10"/>
+      </Unit21>
+      <Unit22>
+        <Filename Value="D:\lazarus1.8\lcl\grids.pas"/>
+        <UnitName Value="Grids"/>
+        <EditorIndex Value="1"/>
+        <TopLine Value="1363"/>
+        <CursorPos X="14" Y="1399"/>
+        <UsageCount Value="10"/>
+        <Loaded Value="True"/>
+      </Unit22>
+    </Units>
+    <JumpHistory Count="30" HistoryIndex="29">
+      <Position1>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="479" Column="42" TopLine="461"/>
+      </Position1>
+      <Position2>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="100" Column="13" TopLine="68"/>
+      </Position2>
+      <Position3>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="720" Column="2" TopLine="699"/>
+      </Position3>
+      <Position4>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="159" Column="13" TopLine="140"/>
+      </Position4>
+      <Position5>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="791" Column="12" TopLine="761"/>
+      </Position5>
+      <Position6>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="159" Column="24" TopLine="136"/>
+      </Position6>
+      <Position7>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="789" TopLine="762"/>
+      </Position7>
+      <Position8>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="793" Column="53" TopLine="762"/>
+      </Position8>
+      <Position9>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="134" Column="23" TopLine="125"/>
+      </Position9>
+      <Position10>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="217" Column="41" TopLine="199"/>
+      </Position10>
+      <Position11>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="138" Column="13" TopLine="116"/>
+      </Position11>
+      <Position12>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="970" Column="32" TopLine="954"/>
+      </Position12>
+      <Position13>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="88" Column="16" TopLine="81"/>
+      </Position13>
+      <Position14>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="581" Column="5" TopLine="578"/>
+      </Position14>
+      <Position15>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="96" Column="13" TopLine="69"/>
+      </Position15>
+      <Position16>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="688" Column="5" TopLine="685"/>
+      </Position16>
+      <Position17>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="98" Column="13" TopLine="77"/>
+      </Position17>
+      <Position18>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="717" Column="19" TopLine="693"/>
+      </Position18>
+      <Position19>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="731" Column="39" TopLine="718"/>
+      </Position19>
+      <Position20>
+        <Filename Value="YahtzeeClient.pas"/>
+        <Caret Line="100" Column="34" TopLine="80"/>
+      </Position20>
+      <Position21>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="158" Column="33" TopLine="133"/>
+      </Position21>
+      <Position22>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="737" Column="78" TopLine="709"/>
+      </Position22>
+      <Position23>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="138" Column="13" TopLine="130"/>
+      </Position23>
+      <Position24>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="358" Column="45" TopLine="335"/>
+      </Position24>
+      <Position25>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="154" Column="13" TopLine="120"/>
+      </Position25>
+      <Position26>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="634" Column="24" TopLine="615"/>
+      </Position26>
+      <Position27>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="635" Column="24" TopLine="615"/>
+      </Position27>
+      <Position28>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="138" Column="13" TopLine="136"/>
+      </Position28>
+      <Position29>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="359" Column="48" TopLine="351"/>
+      </Position29>
+      <Position30>
+        <Filename Value="FormClientMain.pas"/>
+        <Caret Line="154" Column="13" TopLine="120"/>
+      </Position30>
+    </JumpHistory>
+  </ProjectSession>
+</CONFIG>

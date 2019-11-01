@@ -12,7 +12,8 @@
 ;
 ;		- "Lower" bonuses (yahtzee bonuses) both display and preview
 ;
-;		- Chat functionality (all of it...)
+;		- Chat functionality lists
+;		- Fix part detection in rooms
 ;
 ;		- Display server ident strings in list control
 ;
@@ -39,17 +40,18 @@
 	.include "../inc/error.inc"
 
 	.import ip65_error
-	.import eth_driver_name
-	.import eth_driver_io_base
+;	.import eth_driver_name
+;	.import eth_driver_io_base
+	.import eth_name
 	.import cfg_ip
 
 ;	.import abort_key			;Don't include these from ip65
 ;	.importzp abort_key_default		;These will be handled here
 ;	.importzp abort_key_disable
 
-	.importzp drv_init_default
+	.importzp eth_init_default
 	
-	.import drv_init
+;	.import drv_init
 	.import dns_hostname_is_dotted_quad
 	.import dns_ip
 	.import dns_resolve
@@ -69,6 +71,9 @@
 	.import timer_read
 
 	.export	check_for_abort_key		;Required for ip65 callback
+	
+	.import	tcp_loop_count
+	.import	tcp_packet_sent_count
 
 
 ;	Debugging - show raster time usage on border
@@ -605,6 +610,8 @@ ineterrk:
 ineterrc:
 			.res	1
 inetread:
+			.res	2
+inetcalc:
 			.res	2
 
 keyZPKeyDown:
@@ -4898,6 +4905,10 @@ mainPanic:
 		JMP	mainPanic
 
 
+eth_init_value:
+			.byte eth_init_default
+
+
 ;-------------------------------------------------------------------------------
 inetInitialise:
 ;-------------------------------------------------------------------------------
@@ -4912,9 +4923,10 @@ inetInitialise:
 		LDA	#INET_ERROR_INIT
 		STA	ineterrc
 
-		LDA 	#$00
-		JSR 	drv_init
-		
+;		LDA 	#$00
+;		JSR 	drv_init
+
+		LDA	eth_init_value
 		JSR 	ip65_init
 		BCC	:+
 
@@ -5375,7 +5387,9 @@ inetSendData:
 		LDX	sendptr0 + 1
 		JSR 	tcp_send
 		BCS 	@error
-		
+
+		JSR	clientDispInetHealth
+
 		LDY	senddat0
 		CPY	sendmsgscnt
 		BNE	@loop
@@ -5413,6 +5427,8 @@ inetSendData:
 		STA	sendmsgscnt
 
 		RTS
+
+
 
 
 	.export	inet_callback
@@ -5471,9 +5487,10 @@ inet_callback:
 		SBC	#$00
 		STA	readmsgbuflen + 1
 
-
-;!!TODO:	
-;	Sanity check len and idx??
+		LDA	readmsgbuflen
+		BNE	@readmsg
+		LDA	readmsgbuflen + 1
+		BEQ	@exit
 
 @readmsg:
 		LDY	readbufidx
@@ -5520,8 +5537,11 @@ inet_callback:
 
 @tstnext:
 		LDA	readbufidx
-		BEQ	@newmsg
+		BNE	@cont
 		
+		JMP	@newmsg
+		
+@cont:
 		JMP	@readmsg
 
 @exit:
@@ -5580,6 +5600,41 @@ inetScanReadParams:
 		
 		JMP	@mark
 	
+	
+;-------------------------------------------------------------------------------
+clientDispInetHealth:
+;-------------------------------------------------------------------------------
+		LDA	inetproc
+		CMP	#INET_PROC_EXEC
+		BNE	@exit	
+		
+		SEC
+		LDA	#$04
+		SBC	tcp_loop_count
+		CLC
+		ADC	tcp_packet_sent_count
+		LSR
+		TAX
+		
+		LDA	screenRowsLo
+		STA	inetcalc
+		LDA	screenRowsHi
+		STA	inetcalc + 1
+		
+		LDY	#$27
+		
+		LDA	healthbars, X
+		STA	(inetcalc), Y
+		
+		LDA	colourRowsHi
+		STA	inetcalc + 1
+		
+		LDA	healthclrs, X
+		STA	(inetcalc), Y
+		
+@exit:
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientMsgProcs:
@@ -8367,25 +8422,28 @@ clientOutputInetConfig:
 		LDAX	#text_driver_pref
 		JSR	strsAppendString
 
-		LDAX 	#eth_driver_name
+;		LDAX 	#eth_driver_name
+;		JSR	strsAppendString
+
+		LDAX 	#eth_name
 		JSR	strsAppendString
 
 		LDA	#$00
 		JSR	strsAppendChar
-
-		JSR	ctrlsLogPanelGetNextLine
-		
-		LDAX 	#text_iobase_pref
-		JSR	strsAppendString
-		
-		LDA 	eth_driver_io_base + 1
-		JSR 	strsAppendHex
-		
-		LDA 	eth_driver_io_base
-		JSR 	strsAppendHex
-
-		LDA	#$00
-		JSR	strsAppendChar
+;
+;		JSR	ctrlsLogPanelGetNextLine
+;		
+;		LDAX 	#text_iobase_pref
+;		JSR	strsAppendString
+;		
+;		LDA 	eth_driver_io_base + 1
+;		JSR 	strsAppendHex
+;		
+;		LDA 	eth_driver_io_base
+;		JSR 	strsAppendHex
+;
+;		LDA	#$00
+;		JSR	strsAppendChar
 		
 		JSR	ctrlsLogPanelGetNextLine
 
@@ -13461,6 +13519,8 @@ ctrlsPagePresent:
 @exit:
 		LDA	#$00
 		STA	msgs_dirty_idx
+		
+		JSR	clientDispInetHealth
 
 		RTS
 
@@ -15119,8 +15179,8 @@ text_scrsht_bscr:
 
 text_driver_pref:
 			.asciiz "= USING DRIVER: "
-text_iobase_pref:
-			.asciiz	"= DEVICE I/O  : $"
+;text_iobase_pref:
+;			.asciiz	"= DEVICE I/O  : $"
 text_ipcfg_pref:
 			.asciiz	"= WITH IP ADDR: "
 
@@ -15163,6 +15223,11 @@ text_err_okay:
 
 hexdigits:
 			.byte "0123456789ABCDEF"
+			
+healthbars:
+			.byte	$A0, $E3, $F7, $F8, $62, $79, $6F, $64, $20
+healthclrs:
+			.byte	$0D, $05, $05, $07, $0A, $0A, $02, $02, $02
 
 			
 clrschme_cnt	=	$01

@@ -29,8 +29,8 @@ type
 	protected
 		procedure DoRun; override;
 
-		procedure DoConnect(const AIdent: TGUID);
-		procedure DoDisconnect(const AIdent: TGUID);
+		procedure DoConnect(const AConnection: TTCPConnection);
+		procedure DoDisconnect(const AConnection: TTCPConnection);
 		procedure DoReject(const AConnection: TTCPConnection);
 		procedure DoReadData(const AIdent: TGUID; const AData: TMsgData);
 
@@ -93,7 +93,7 @@ procedure TYahtzeeServer.DoRun;
 
     TCPListener:= TTCPListener.Create('7632');
 
-	ServerDisp:= TServerDispatcher.Create(False);
+	ServerDisp:= TServerDispatcher.Create;
 
 	silent:= HasOption('s', '');
 
@@ -147,10 +147,9 @@ procedure TYahtzeeServer.DoRun;
         		p:= Items[0];
         		Delete(0);
 
-                TCPServer.TCPServer.DisconnectIdent(p.Ident);
+                AddLogMessage(slkInfo, '"' + p.Ticket + '" releasing...');
 
-                AddLogMessage(slkInfo, GUIDToString(p.Ident) + ' released.');
-
+                TCPServer.TCPServer.DisconnectByIdent(p.Ident);
                 p.Free;
 
 {$IFDEF DEBUG}
@@ -195,7 +194,7 @@ procedure TYahtzeeServer.DoRun;
     		ListMessages.UnlockList;
     		end;
 
-        SystemZone.PlayersKeepAliveDecrement(100);
+		SystemZone.PlayersKeepAliveDecrement(100);
 		SystemZone.PlayersKeepAliveExpire;
 
     	LimboZone.BumpCounter;
@@ -213,16 +212,21 @@ procedure TYahtzeeServer.DoRun;
 {$ENDIF}
     end;
 
-procedure TYahtzeeServer.DoConnect(const AIdent: TGUID);
+procedure TYahtzeeServer.DoConnect(const AConnection: TTCPConnection);
 	var
 	p: TPlayer;
 	m: TBaseMessage;
 	s: string;
 
 	begin
-	AddLogMessage(slkInfo, GUIDToString(AIdent) + ' connected.');
+	AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+			'" connected from IP: ' + AConnection.RemoteAddress);
 
-	p:= TPlayer.Create(AIdent);
+	p:= TPlayer.Create(AConnection.Ident);
+
+	p.Ident:= AConnection.Ident;
+	p.Ticket:= AConnection.Ticket;
+
 	SystemZone.Add(p);
 
 	m:= TBaseMessage.Create;
@@ -234,25 +238,25 @@ procedure TYahtzeeServer.DoConnect(const AIdent: TGUID);
 
 	m.DataFromParams;
 
-    p.SendWorkerMessage(m);
+    p.AddSendMessage(m);
 	end;
 
-procedure TYahtzeeServer.DoDisconnect(const AIdent: TGUID);
+procedure TYahtzeeServer.DoDisconnect(const AConnection: TTCPConnection);
 	var
 	p: TPlayer;
 
 	begin
-	p:= SystemZone.PlayerByIdent(AIdent);
+	p:= SystemZone.PlayerByIdent(AConnection.Ident);
 
     if  Assigned(p) then
         SystemZone.Remove(p);
 
-    AddLogMessage(slkInfo, GUIDToString(AIdent) + ' disconnected gracefully.');
+    AddLogMessage(slkInfo, '"' + AConnection.Ticket + '" disconnecting gracefully...');
 	end;
 
 procedure TYahtzeeServer.DoReject(const AConnection: TTCPConnection);
 	begin
-
+//TODO:  Send a nice server error message, "Can't - full"
 	end;
 
 procedure TYahtzeeServer.DoReadData(const AIdent: TGUID; const AData: TMsgData);
@@ -306,9 +310,9 @@ procedure TYahtzeeServer.DoReadData(const AIdent: TGUID; const AData: TMsgData);
 			for i:= 2 to High(buf) do
             	s:= s + Char(buf[i]);
 
-			AddLogMessage(slkDebug, GUIDToString(AIdent) + ' ' + s);
+			AddLogMessage(slkDebug, '"' + p.Ticket + '" ' + s);
 
-			TCPServer.TCPServer.ReadMessages.Add(im);
+			ServerDisp.ReadMessages.Add(im);
             end;
 //        finally
 //        p.Lock.Release;
