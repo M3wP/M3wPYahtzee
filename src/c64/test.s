@@ -909,6 +909,40 @@ userIRQHandler:
 		STA	vicBrdrClr
 	.endif
 
+
+;	UI notify with flash?
+		LDA	uiflshcnt
+		BEQ	@flshfin
+		
+		LDA	uiflshdly
+		BEQ	@flash
+		
+		DEC	uiflshdly
+		JMP	@flshfin
+		
+@flash:
+		LDA	uiflshcnt
+		
+		AND	#$01
+		BNE	@flshoff
+		
+		LDA	#$01
+		STA	vicBrdrClr
+		
+		JMP	@flshdone
+		
+@flshoff:
+		LDA	current_clrs
+		STA	vicBrdrClr
+		
+		
+@flshdone:
+		LDA	#$08
+		STA	uiflshdly
+		
+		DEC	uiflshcnt
+
+@flshfin:
 		JSR	userProcessMouse	;Do mouse first so we can skip
 						;	expensive all lines
 						;	keyboard scan when mouse
@@ -5201,17 +5235,17 @@ inetDisconnected:
 @pick:
 		LDA	#<button_cnct_dcnt
 		CMP	pickCtrl
-		BNE	@exit
+		BNE	@done
 
 		LDA	#>button_cnct_dcnt
 		CMP	pickCtrl + 1
-		BNE	@exit
+		BNE	@done
 
 		LDA	#$00
 		STA	pickCtrl
 		STA	pickCtrl + 1
 
-@exit:
+@done:
 		LDA	#<button_cnct_upd
 		STA	elemptr0
 		LDA	#>button_cnct_upd
@@ -5220,6 +5254,22 @@ inetDisconnected:
 		LDA	#STATE_ENABLED
 		JSR	ctrlsExcludeState
 
+;	Clear the game data if we have a slot
+
+		LDA	gameData + GAME::ourslt
+		BMI	@exit
+		
+		JSR	initGameData
+		JSR	clientInitGameOvrvw
+		
+		JSR	clientResetPlayGame
+
+@exit:
+		LDA	#$00
+		STA	sendmsgscnt
+		STA	readbufidx
+		STA	readmsglen
+		
 		JSR	ctrlsLockRelease
 
 		RTS
@@ -5326,21 +5376,29 @@ sendmsgtable:
 ;-------------------------------------------------------------------------------
 inetGetNextSend:
 ;-------------------------------------------------------------------------------
+		LDA	inetproc
+		CMP	#INET_PROC_EXEC
+		BNE	@fail
+				
 		LDY	sendmsgscnt
 
-	.if	DEBUG_MSGSPUSHSZ
+;	.if	DEBUG_MSGSPUSHSZ
 		CPY	#$0C
 		BNE	@cont
 		
-		LDA	#$02
-		STA	vicBrdrClr
-		LDA	#$05
-		STA	vicBkgdClr
-		
-		JMP	mainPanic
+@fail:
+;		LDA	#$02
+;		STA	vicBrdrClr
+;		LDA	#$05
+;		STA	vicBkgdClr
+;		
+;		JMP	mainPanic
+
+		CLC
+		RTS
 
 @cont:
-	.endif
+;	.endif
 
 		LDA	sendmsgtable, Y
 		STA	tempptr0
@@ -5354,6 +5412,7 @@ inetGetNextSend:
 		LDA	#$01
 		STA	tempdat0
 
+		SEC
 		RTS
 
 
@@ -5600,7 +5659,26 @@ inetScanReadParams:
 		
 		JMP	@mark
 	
-	
+
+	.export	clientNotifyFail
+;-------------------------------------------------------------------------------
+clientNotifyFail:
+;-------------------------------------------------------------------------------
+		SEI
+		LDA	#$06
+		STA	uiflshcnt
+		
+		LDA	#$08
+		STA	uiflshdly
+		
+		LDA	current_clrs
+		STA	vicBrdrClr
+		
+		CLI
+		
+		RTS
+		
+
 ;-------------------------------------------------------------------------------
 clientDispInetHealth:
 ;-------------------------------------------------------------------------------
@@ -5679,6 +5757,8 @@ clientSendIdent:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
 
+		BCC	@failed
+
 		LDA	#MSG_CATG_CLNT
 		ORA	#$01
 
@@ -5705,12 +5785,22 @@ clientSendIdent:
 		STA	(tempptr0), Y
 
 		RTS
+		
+@failed:
+		JSR	clientNotifyFail
+
+		LDA	#INET_PROC_DISC
+		STA	inetproc
+		
+		RTS
 
 
 ;-------------------------------------------------------------------------------
 clientSendUser:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+
+		BCC	@failed
 
 		LDA	#MSG_CATG_CNCT
 		ORA	#$01
@@ -5726,12 +5816,20 @@ clientSendUser:
 		STA	(tempptr0), Y
 
 		RTS
+		
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 
 ;-------------------------------------------------------------------------------
 clientSendGetSysInfo:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 
 		LDA	#MSG_CATG_TEXT
 		ORA	#$00
@@ -5744,12 +5842,19 @@ clientSendGetSysInfo:
 		STA	(tempptr0), Y
 
 		RTS
+		
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
 
 
 ;-------------------------------------------------------------------------------
 clientSendKeepAlive:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+
+		BCC	@failed
 
 		LDA	#MSG_CATG_CLNT
 		ORA	#$02
@@ -5763,11 +5868,18 @@ clientSendKeepAlive:
 
 		RTS
 
+@failed:
+;		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendRoomJoin:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_LOBY
 		ORA	#$01
@@ -5794,11 +5906,17 @@ clientSendRoomJoin:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
 
 ;-------------------------------------------------------------------------------
 clientSendRoomPart:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_LOBY
 		ORA	#$02
@@ -5815,11 +5933,18 @@ clientSendRoomPart:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendRoomPeer:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_LOBY
 		ORA	#$04
@@ -5848,11 +5973,18 @@ clientSendRoomPeer:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayJoin:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$01
@@ -5877,6 +6009,11 @@ clientSendPlayJoin:
 		LDY	#$00
 		STA	(tempptr0), Y
 
+		RTS
+
+@failed:
+		JSR	clientNotifyFail
+		
 		RTS
 
 
@@ -5955,6 +6092,8 @@ clientSendPlayPart:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
 		
+		BCC	@failed
+		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$02
 		
@@ -5971,11 +6110,18 @@ clientSendPlayPart:
 		JMP	clientResetPlayGame
 ;		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayListNames:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$03
@@ -5991,12 +6137,22 @@ clientSendPlayListNames:
 		STA	(tempptr0), Y
 		
 		RTS
+
+@failed:
+		LDA	#INET_PROC_DISC
+		STA	inetproc
+
+		JSR	clientNotifyFail
+		
+		RTS
 		
 
 ;-------------------------------------------------------------------------------
 clientSendPlayStatPeerReady:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$07
@@ -6016,11 +6172,18 @@ clientSendPlayStatPeerReady:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayStatPeerNtRdy:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$07
@@ -6040,11 +6203,18 @@ clientSendPlayStatPeerNtRdy:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayRollPeerFirst:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$08
@@ -6064,11 +6234,18 @@ clientSendPlayRollPeerFirst:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayRoll:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$08
@@ -6097,6 +6274,11 @@ clientSendPlayRoll:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayKeepersPeer:
@@ -6104,6 +6286,8 @@ clientSendPlayKeepersPeer:
 ;	IN	tempvar_b	Flag
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
+		
+		BCC	@failed
 		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$09
@@ -6128,16 +6312,28 @@ clientSendPlayKeepersPeer:
 
 		RTS
 
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
+
 
 ;-------------------------------------------------------------------------------
 clientSendPlayScoreQuery:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
 		
+		BCC	@failed
+		
 		LDA	#MSG_CATG_PLAY
 		ORA	#$0A
 		
 		JMP	clientSendPlayScoreDirect
+
+@failed:
+		JSR	clientNotifyFail
+		
+		RTS
 
 
 	.export	clientSendPlayScorePeer
@@ -6145,7 +6341,14 @@ clientSendPlayScoreQuery:
 clientSendPlayScorePeer:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
-		
+
+		BCS	@cont
+
+@failed:
+		JSR	clientNotifyFail
+		RTS
+
+@cont:
 		LDA	#MSG_CATG_PLAY
 		ORA	#$0B
 		
@@ -9089,7 +9292,8 @@ clientCnctCnctChng:
 		BEQ	@exit
 
 		LDA	inetproc
-		BNE	@exit
+		CMP	#INET_PROC_EXEC
+		BCS	@exit
 
 		LDA	#<lpanel_cnct_log
 		STA	tempptr2 
@@ -9133,16 +9337,6 @@ clientCnctDCntChng:
 
 		LDA	#INET_PROC_DISC
 		STA	inetproc
-		
-;	Clear the game data if we have a slot
-
-		LDA	gameData + GAME::ourslt
-		BMI	@exit
-		
-		JSR	initGameData
-		JSR	clientInitGameOvrvw
-		
-		JSR	clientResetPlayGame
 
 @exit:
 		RTS
@@ -10700,6 +10894,8 @@ initMem:
 		STA	keyZPKeyScan
 		STA	keyZPDecodePtr
 		STA	keyZPDecodePtr + 1
+		
+		STA	uiflshcnt
 
 ;	Initialise logs
 
@@ -14569,6 +14765,11 @@ tempvar_x:
 tempvar_y:
 			.res	1
 tempvar_z:
+			.res	1
+			
+uiflshcnt:
+			.res 	1
+uiflshdly:
 			.res	1
 		
 ctrlvar_a:

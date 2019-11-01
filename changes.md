@@ -85,8 +85,13 @@
 ### Version 0.00.35A
 
 * 02NOV2019
+	* Change ip65 such that it no longer spin waits for no reason on tcp_close
+	* Should now be able to try to connect when a connection attempt fails?
+	* Flash notify and (when appropriate) disconnect if fail to get new internet send message
+	* Provide failure feedback when attempting to get a new internet send message
+	* Implement flash notification functionality
 	* Use send data metrics to produce a connection health meter
-	* Change ip65 to export send data metics
+	* Change ip65 to export send data metrics
 
 * 30OCT2019
 	* Fixes to ip65 for reading while sending causing disconnects (require modified ip65)
