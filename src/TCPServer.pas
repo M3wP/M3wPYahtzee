@@ -1,3 +1,48 @@
+{==============================================================================|
+| Project : M3wP Yahtzee                                                       |
+|==============================================================================|
+| Content: Socket Independent Platform Layer                                   |
+|==============================================================================|
+| Copyright (c)2019, Daniel England of Ecclestial Solutions                    |
+| All rights reserved.                                                         |
+|                                                                              |
+| Redistribution and use in source and binary forms, with or without           |
+| modification, are permitted provided that the following conditions are met:  |
+|                                                                              |
+| Redistributions of source code must retain the above copyright notice, this  |
+| list of conditions and the following disclaimer.                             |
+|                                                                              |
+| Redistributions in binary form must reproduce the above copyright notice,    |
+| this list of conditions and the following disclaimer in the documentation    |
+| and/or other materials provided with the distribution.                       |
+|                                                                              |
+| Neither the name of Daniel England, Ecclestial Solutions nor the names of its|
+| contributors may be used to endorse or promote products derived from this    |
+| software without specific prior written permission.                          |
+|                                                                              |
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"  |
+| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE    |
+| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE   |
+| ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR  |
+| ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL       |
+| DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR   |
+| SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER   |
+| CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT           |
+| LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY    |
+| OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH  |
+| DAMAGE.                                                                      |
+|==============================================================================|
+| The Initial Developer of the Original Code is Daniel England (Ecclestial     |
+| Solutions).  Contact mewpokemon {at} hotmail {dot} com with TCPServer in the |
+| subject line.                                                                |
+| Portions created by Daniel England are Copyright (c)2019.                    |
+| All Rights Reserved.                                                         |
+|==============================================================================|
+| Contributor(s):                                                              |
+|==============================================================================|
+| History:                                                                     |
+|==============================================================================}
+
 unit TCPServer;
 
 {$MODE DELPHI}
@@ -69,8 +114,6 @@ type
 		procedure Execute; override;
 
 	public
-//		SendMessages: TIdentMessages;
-
 		constructor Create(const AServer: TTCPServer; const AIndex: Integer;
 				AConnections: TTCPConnections);
 		destructor  Destroy; override;
@@ -116,7 +159,6 @@ type
 				AMessage: TBaseIdentMessage);
 		procedure DisconnectByIdent(const AIdent: TGUID);
 
-//FIXME:  Need locking?!?!
 		property  OnConnect: TTCPConnectNotify read FOnConnect write FOnConnect;
 		property  OnDisconnect: TTCPConnectNotify read FOnDisconnect write FOnDisconnect;
         property  OnReject: TTCPRejectNotify read FOnReject write FOnReject;
@@ -135,28 +177,6 @@ var
 
 
 implementation
-
-{$IFDEF LINUX}
-const
-	SOL_TCP = 6;
-	TCP_KEEPIDLE = 4;	/* Start keeplives after this period */
-    TCP_KEEPINTVL = 5;	/* Interval between keepalives */
-    TCP_KEEPCNT = 6;	/* Number of keepalives before death */
-{$ENDIF}
-
-{$IFDEF WINDOWS}
-const
-	IOC_IN	=		$80000000;
-	IOC_VENDOR =    $18000000;
-	SIO_KEEPALIVE_VALS = IOC_IN or IOC_VENDOR or 4;
-
-type
-    tcp_keepalive = packed record
-		onoff: Cardinal;
-      	keepalivetime: Cardinal;
-      	keepaliveinterval: Cardinal;
-    end;
-{$ENDIF}
 
 var
 	BucketHashVector: array[0..31] of Byte;
@@ -451,17 +471,6 @@ function TTCPWorker.ProcessConnection(AConnection: TTCPConnection): Boolean;
 
 	i:= AConnection.Socket.WaitingData;
 
-//	if  i = 0 then
-//		begin
-// 		if  AConnection.Socket.CanRead(1) then
-//			begin
-//			Result:= False;
-//			AddLogMessage(slkInfo, '"' + AConnection.Ticket +
-//					'" lost connection - informed.');
-//			Exit;
-//			end;
-//		end;
-
   	if  i > 0 then
 		begin
 		SetLength(buf, i);
@@ -639,8 +648,6 @@ procedure TTCPListener.Execute;
             Sleep(10);
 			end;
 		end;
-
-//	FConnection.Socket.CloseSocket;
 	end;
 
 constructor TTCPListener.Create(APort: string);
@@ -707,12 +714,6 @@ constructor TTCPConnection.Create;
 	end;
 
 constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
-	var
-{$IFDEF WINDOWS}
-    vInBuffer: tcp_keepalive;
-    cbBytesReturned: Cardinal;
-{$ENDIF}
-
 	begin
     if  CreateGUID(Ident) <> 0 then
 		raise Exception.Create('Unable to create connection ident!');
@@ -728,30 +729,6 @@ constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
 	SendMessages:= TIdentMessages.Create;
 
     RemoteAddress:= Socket.GetRemoteSinIP;
-
-{$IFDEF WINDOWS}
-//	vInBuffer.onoff:= 1;
-//	vInBuffer.keepalivetime:= 10000;
-//	vInBuffer.keepaliveinterval:= 1000;
-
-//	if  WSAIoctl(Socket.Socket, // descriptor identifying a socket
-//			SIO_KEEPALIVE_VALS,                  // dwIoControlCode
-// 			@vInBuffer,    // pointer to tcp_keepalive struct
-// 			SizeOf(tcp_keepalive),      // length of input buffer
-// 			nil,         // output buffer
-// 			0,       // size of output buffer
-// 			@cbBytesReturned,    // number of bytes returned
-//			nil,   // OVERLAPPED structure
-// 			nil // completion routine
-//			) <> 0 then
-//		begin
-//		AddLogMessage(slkWarning, 'Failed to set Windows keep alive');
-//		end
-//	else
-//		begin
-//		AddLogMessage(slkDebug, 'Set Windows keep alive');
-//		end;
-{$ENDIF}
 	end;
 
 destructor TTCPConnection.Destroy;
