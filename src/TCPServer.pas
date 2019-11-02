@@ -52,9 +52,27 @@ interface
 
 uses
 	Classes, SysUtils, SyncObjs, Generics.Collections, synsock, blcksock,
+//dengland Comment this out for your own use.
 	YahtzeeClasses;
 
 type
+	{TBaseIdentMessage}
+
+//dengland
+//	Uncomment this (and the code for it in the implementation section) for your
+//	own use.
+//
+//  TBaseIdentMessage = class
+//		Ident: TGUID;
+//      Data: TMsgData;
+//
+//      constructor Create; virtual;
+//
+//		function  Encode: TMsgData; virtual;
+//		procedure Decode(const AData: TMsgData); virtual;
+//	end;
+
+
 	{ TTCPConnection }
  	TTCPConnection = class
     protected
@@ -256,6 +274,28 @@ function GUIDToBucket(const AGUID: TGUID): Integer;
 
 	Result:= r;
 	end;
+
+
+{ TBaseIdentMessage }
+
+//dengland Uncomment this for your own use
+//
+//constructor TBaseIdentMessage.Create;
+//  begin
+//  inherited;
+//
+//  end;
+//
+//function TBaseIdentMessage.Encode: TMsgData;
+//  begin
+//  Result:= Data;
+//  end;
+
+//procedure TBaseIdentMessage.Decode(const AData: TMsgData);
+//  begin
+//  Data:= AData;
+//  end;
+
 
 { TTCPServer }
 
