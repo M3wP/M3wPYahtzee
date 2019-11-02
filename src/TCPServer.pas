@@ -33,7 +33,7 @@
 | DAMAGE.                                                                      |
 |==============================================================================|
 | The Initial Developer of the Original Code is Daniel England (Ecclestial     |
-| Solutions).  Contact mewpokemon {at} hotmail {dot} com with TCPServer in the |
+| Solutions).  Contact mewpokemon [at] hotmail [dot] com with TCPServer in the |
 | subject line.                                                                |
 | Portions created by Daniel England are Copyright (c)2019.                    |
 | All Rights Reserved.                                                         |
@@ -487,7 +487,6 @@ function TTCPWorker.ProcessConnection(AConnection: TTCPConnection): Boolean;
     var
 	i,
 	j: Integer;
-	s,
 	s2: string;
 	im: TBaseIdentMessage;
 	buf: TMsgData;
