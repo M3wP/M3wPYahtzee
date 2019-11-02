@@ -610,21 +610,27 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 		and (Length(AMessage.Params[0]) > 1) then
 			begin
 			n:= Copy(AMessage.Params[0], 1, 8);
-			a:= PlayerByName(n);
-			if  not Assigned(a) then
-				begin
-				m:= TBaseMessage.Create;
-				m.Assign(AMessage);
-				m.Params.Add(APlayer.Name);
-				m.DataFromParams;
 
-				APlayer.AddSendMessage(m);
+			with FPlayers.LockList do
+				try
+					a:= PlayerByName(n);
 
-				APlayer.Name:= n;
-				end
-			else
-				APlayer.SendServerError(LIT_ERR_CONNCTID);
+					if  not Assigned(a) then
+						begin
+						m:= TBaseMessage.Create;
+						m.Assign(AMessage);
+						m.Params.Add(APlayer.Name);
+						m.DataFromParams;
 
+						APlayer.AddSendMessage(m);
+
+						APlayer.Name:= n;
+						end
+					else
+						APlayer.SendServerError(LIT_ERR_CONNCTID);
+				finally
+                FPlayers.UnlockList;
+				end;
 			end
 		else
 			APlayer.SendServerError(LIT_ERR_CONNCTID);
@@ -1096,17 +1102,23 @@ procedure TLobbyZone.Add(APlayer: TPlayer);
 
 function TLobbyZone.AddRoom(ADesc, APassword: AnsiString): TLobbyRoom;
 	begin
-	Result:= RoomByName(ADesc);
-	if  not Assigned(Result) then
-		begin
-		Result:= TLobbyRoom.Create;
+	with  FRooms.LockList do
+		try
+			Result:= RoomByName(ADesc);
+			if  not Assigned(Result) then
+				begin
+				Result:= TLobbyRoom.Create;
 
-		Result.Desc:= ADesc;
-		Result.Lobby:= Self;
-		Result.Password:= APassword;
+				Result.Desc:= ADesc;
+				Result.Lobby:= Self;
+				Result.Password:= APassword;
 
-		FRooms.Add(Result);
-		end;
+				FRooms.Add(Result);
+				end;
+
+			finally
+            FRooms.UnlockList;
+			end;
 	end;
 
 constructor TLobbyZone.Create;
@@ -2501,18 +2513,24 @@ procedure TPlayZone.Add(APlayer: TPlayer);
 
 function TPlayZone.AddGame(ADesc, APassword: AnsiString): TPlayGame;
 	begin
-	Result:= GameByName(ADesc);
+	with FGames.LockList do
+		try
+			Result:= GameByName(ADesc);
 
-	if  not Assigned(Result) then
-		begin
-		Result:= TPlayGame.Create;
+			if  not Assigned(Result) then
+				begin
+				Result:= TPlayGame.Create;
 
-		Result.Desc:= ADesc;
-		Result.Play:= Self;
-		Result.Password:= APassword;
+				Result.Desc:= ADesc;
+				Result.Play:= Self;
+				Result.Password:= APassword;
 
-		FGames.Add(Result);
-		end;
+				FGames.Add(Result);
+				end;
+
+			finally
+            FGames.UnlockList;
+			end;
 	end;
 
 constructor TPlayZone.Create;

@@ -2,6 +2,9 @@
 
 ## CLI Server
 
+* 03NOV2019
+	* Plug potential holes in logic updating a player user name, creating a new room and creating a new game
+
 * 01NOV2019
 	* Reinstate software challenges to client to keep alive
 	* Revert changes for checking connection and keep-alives - wasn't working according to documents I had read
@@ -85,6 +88,12 @@
 ### Version 0.00.35A
 
 * 02NOV2019
+	* Allow the user to update their user name (still not updating back from server)
+	* Don't change the active control when parting a room if in less mode
+	* Don't part the room unless we were the one parting
+	* Change "their" to "this" score on Detail Page.
+	* Clear "their" score when showing your details.
+	* Make sure the selection can be properly cleared in the Score Sheet Panel when selecting aces
 	* Change ip65 such that it no longer spin waits for no reason on tcp_close
 	* Should now be able to try to connect when a connection attempt fails?
 	* Flash notify and (when appropriate) disconnect if fail to get new internet send message

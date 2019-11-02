@@ -2761,7 +2761,7 @@ edit_cnct_user_buf:
 button_cnct_upd:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
-			.word	$0000		;changed .word
+			.word	clientCnctUpdChng	;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE
@@ -7034,6 +7034,27 @@ clientProcRoomPartMsg:
 ;TODO
 ;	Notify user when not viewing the Chat|Room page
 
+
+;	Check that the user was us before updating the ui
+		LDX	readparm1
+		LDY	#$00
+		
+@loop0:
+		LDA	readmsg0, X
+		CMP	#KEY_ASC_SPACE
+		BEQ	@found0
+		
+		CMP	edit_cnct_user_buf, Y
+		BEQ	@next0
+		
+		JMP	@done
+
+@next0:
+		INX
+		INY
+		JMP	@loop0
+		
+@found0:
 ;	Change Game Part button to Join
 		LDA	#<button_room_part
 		STA	elemptr0
@@ -7054,6 +7075,20 @@ clientProcRoomPartMsg:
 		JSR	ctrlsIncludeState
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
+
+;	Check the room more panel is visible before changing the active control
+
+		LDA	#<panel_room_more
+		STA	tempptr0
+		LDA	#>panel_room_more
+		STA	tempptr0 + 1
+		
+		LDY	#ELEMENT::state
+		LDA	(tempptr0), Y
+		AND	#STATE_VISIBLE
+		BEQ	@cont
+		
+;	Update the active control
 
 		LDA	#<button_room_part
 		CMP	actvCtrl
@@ -7097,6 +7132,7 @@ clientProcRoomPartMsg:
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
 
+@done:
 		JSR	ctrlsLockRelease
 
 		RTS
@@ -9277,6 +9313,25 @@ clientRoomPartChng:
 		RTS
 
 
+;-------------------------------------------------------------------------------
+clientCnctUpdChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		JSR	clientSendUser
+
+@exit:
+		RTS
+		
+
 	.export	clientCnctCnctChng
 ;-------------------------------------------------------------------------------
 clientCnctCnctChng:
@@ -10463,27 +10518,33 @@ clientDetailUpdateScores:
 		
 		JSR	ctrlsControlInvalidate
 		
-;	Update "their score" if the detail view isn't for us
+;	Update "their score" if the detail view isn't for us (or blank)
 
-		LDX	gameData + GAME::detslt
-		CPX	gameData + GAME::ourslt
-		BEQ	@exit
-		
 		LDA	#<static_det_theirscr
 		STA	elemptr0
 		LDA	#>static_det_theirscr
 		STA	elemptr0 + 1
-		
-;		LDX	gameData + GAME::detslt
-		LDA	game_slot_lo, X
-		STA	tempptr3
-		LDA	#>gameData
-		STA	tempptr3 + 1
-		
+
 		LDA	#<text_det_theirscr_buf
 		STA	tempptr0
 		LDA	#>text_det_theirscr_buf
 		STA	tempptr0 + 1
+		
+		LDX	gameData + GAME::detslt
+		CPX	gameData + GAME::ourslt
+		BNE	@score
+
+		LDA	#$00
+		LDY	#$00
+		STA	(tempptr0), Y
+		
+		JMP	@done
+
+@score:
+		LDA	game_slot_lo, X
+		STA	tempptr3
+		LDA	#>gameData
+		STA	tempptr3 + 1
 		
 		LDA	#$00
 		STA	tempdat0
@@ -10499,6 +10560,7 @@ clientDetailUpdateScores:
 		LDA	#$00
 		JSR	strsAppendChar
 		
+@done:
 		JSR	ctrlsControlInvalidate
 
 @exit:
@@ -12688,6 +12750,9 @@ ctrlsSPanelDefChanged:
 		BPL	@exit
 
 		LDA	#$00
+		STA	(elemptr0), Y
+		
+		LDY	#SCRSHTPANEL::lastind
 		STA	(elemptr0), Y
 		
 		JMP	@exit
@@ -15270,7 +15335,7 @@ text_det_your:
 			.asciiz	"YOUR SCORE:"
 
 text_det_their:
-			.asciiz	"THEIR SCORE:"
+			.asciiz	"THIS SCORE:"
 			
 text_det_select:
 			.asciiz	"[SELECT  ]"
@@ -15428,7 +15493,7 @@ hexdigits:
 healthbars:
 			.byte	$A0, $E3, $F7, $F8, $62, $79, $6F, $64, $20
 healthclrs:
-			.byte	$0D, $05, $05, $07, $0A, $0A, $02, $02, $02
+			.byte	$0D, $05, $05, $07, $07, $0A, $02, $02, $02
 
 			
 clrschme_cnt	=	$01
