@@ -41,6 +41,7 @@
 | Contributor(s):                                                              |
 |==============================================================================|
 | History:                                                                     |
+|	dengland - Fix issue releasing a connection via DisconnectByIdent          |
 |==============================================================================}
 
 unit TCPServer;
@@ -78,6 +79,7 @@ type
     protected
 		Bucket: Integer;
 		SendMessages: TIdentMessages;
+        Releasing: Boolean;
 
 	public
 		Ident: TGUID;
@@ -363,6 +365,8 @@ procedure TTCPServer.AddConnection(const AConnection: TTCPConnection;
 procedure TTCPServer.RemoveConnection(const AConnection: TTCPConnection;
 		const AIndex: Integer);
 	begin
+    AddLogMessage(slkInfo, AConnection.Ticket + ' removing connection...');
+
     FLock.Acquire;
     try
     	FConnections.Remove(AConnection);
@@ -472,8 +476,10 @@ procedure TTCPServer.DisconnectByIdent(const AIdent: TGUID);
 	try
         c:= ConnectionByIdent(AIdent);
 
-		if  Assigned(c) then
-			RemoveConnection(c, c.Bucket);
+        c.Releasing:= True;
+
+//		if  Assigned(c) then
+//			RemoveConnection(c, c.Bucket);
 
 		finally
         FLock.Release;
@@ -602,7 +608,8 @@ procedure TTCPWorker.Execute;
 	        with FConnections.LockList do
 				try
 	                for i:= 0 to Count - 1 do
-						if  not ProcessConnection(Items[i]) then
+						if  Items[i].Releasing
+						or  (not ProcessConnection(Items[i])) then
 							FExpired.Add(Items[i]);
 
 					finally

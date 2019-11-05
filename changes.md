@@ -2,6 +2,9 @@
 
 ## CLI Server
 
+* 06NOV2019
+	* Fix issue releasing a Connection via DisconnectByIdent
+
 * 03NOV2019
 	* Plug potential holes in logic updating a player user name, creating a new room and creating a new game
 
@@ -42,7 +45,7 @@
 
 ## LCL Client
 
-## Version 0.00.80A
+### Version 0.00.80A
 
 * 01NOV2019
 	* Implement LCL client for native Linux solution and testing comparisson
