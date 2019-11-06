@@ -476,9 +476,8 @@ procedure TTCPServer.DisconnectByIdent(const AIdent: TGUID);
 	try
         c:= ConnectionByIdent(AIdent);
 
-        c.Releasing:= True;
-
-//		if  Assigned(c) then
+		if  Assigned(c) then
+        	c.Releasing:= True;
 //			RemoveConnection(c, c.Bucket);
 
 		finally
