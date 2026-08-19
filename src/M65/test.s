@@ -16340,7 +16340,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"M65"
 text_ident_verlbl:
-			.asciiz	"0.00.35A"
+			.asciiz	"0.00.79B"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -16352,7 +16352,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.35A"
+			.asciiz	"VERSION:  0.00.79B"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
