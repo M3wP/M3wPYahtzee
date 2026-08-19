@@ -2711,7 +2711,7 @@ panel_cnct_data_ctrls:
 			.word	button_cnct_cnct
 			.word	button_cnct_dcnt
 			.word	label_cnct_info
-			.word	combo_cnct_info
+			.word	edit_cnct_info
 			.word	$0000
 
 label_cnct_host:
@@ -2891,11 +2891,12 @@ label_cnct_info:
 			.byte	$00		;textoffx .byte
 			.byte	$05		;textaccel .byte
 			.byte	'i'		;accelchar .byte
-			.word	combo_cnct_info	;actvctrl .word
-			
-combo_cnct_info:
+			.word	edit_cnct_info	;actvctrl .word
+
+
+edit_cnct_info:
 ;			.word	$0000		;prepare
-			.word	$0000		;present	.word
+			.word	ctrlsEditDefPresent		;present	.word
 			.word	$0000		;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
@@ -2908,10 +2909,18 @@ combo_cnct_info:
 			.byte	$01		;height	.byte
 			.byte	$00		;tag	.byte
 			.word	panel_cnct_data	;panel	.word
-			.word	$0000 		;textptr	.word
+			.word	edit_cnct_info_buf ;textptr	.word
 			.byte	$00		;textoffx .byte
 			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
+			.byte	$00			;textsiz
+			.byte	$2A			;textmaxsz
+
+edit_cnct_info_buf:
+	.repeat	43	
+			.byte	$00
+	.endrep
+
 
 lpanel_cnct_log:
 ;			.word	$0000			;prepare
@@ -7522,9 +7531,45 @@ clientProcServerMsg:
 ;		RTS
 
 @ident:
-;!!TODO:	
-;	Fetch three strings from message and store as host info
-		
+;	Copy up to 42 characters of the message string into edit_cnct_info_buf
+;	and mark the control dirty so it gets redrawn.
+
+		LDA	readmsglen
+		SEC
+		SBC	#$02
+
+		CMP	#43
+		BCC	:+
+		LDA	#42
+:
+		STA	tempdat0
+
+		LDY	#$00
+@infoloop:
+		CPY	tempdat0
+		BEQ	@infodone
+
+		LDA	readmsg0 + 2, Y
+		STA	edit_cnct_info_buf, Y
+
+		INY
+		BNE	@infoloop
+
+@infodone:
+		LDA	#$00
+		STA	edit_cnct_info_buf, Y
+
+		LDA	#<edit_cnct_info
+		STA	elemptr0
+		LDA	#>edit_cnct_info
+		STA	elemptr0 + 1
+
+		LDY	#EDITCTRL::textsiz
+		LDA	tempdat0
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
+
 		JSR	clientSendIdent
 		JSR	clientSendUser
 		JSR	clientSendGetSysInfo
@@ -16044,5 +16089,5 @@ clrschme_lst:
 name_clrschme0:
 			.asciiz	"FAMILIAR"
 clrschme0:
-			.byte	$0E, $06, $01, $01, $0E, $04, $0C, $0F, $03, $01
+			.byte	$0E, $0A, $01, $01, $0E, $04, $0C, $0F, $03, $01
 ;===============================================================================
