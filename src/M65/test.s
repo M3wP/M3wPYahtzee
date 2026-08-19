@@ -2291,19 +2291,28 @@ edit_cnct_user:
 			.byte	$08			;textmaxsz
 
 edit_cnct_user_buf:
-	.repeat	9	
+	.repeat	9
 			.byte	$00
 	.endrep
-			
+
+;	Set once the server has echoed our username back as accepted
+;	(clientProcConctMsg's @ident case) - the server only accepts one
+;	clientSendUser per connection, so button_cnct_upd gets disabled
+;	once this is set.
+userNameAccepted:
+			.byte	$00
+
+
 button_cnct_upd:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
 			.word	clientCnctUpdChng	;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
-;	Hidden - no update functionality behind it yet, so it either errors
-;	or does nothing depending on state; not worth showing users.
-			.byte	$00
+;	Starts hidden (matches button_cnct_dcnt) - shown + enabled once
+;	connected, disabled again once the server accepts our username
+;	(it only accepts one clientSendUser per connection).
+			.byte	STATE_VISIBLE
 			.byte	$00		;options	.byte
 			.byte	CLR_FACE	;colour	.byte
 			.byte	$1E		;posx	.byte
@@ -5644,11 +5653,16 @@ inetConnect:
 		STA	pickCtrl + 1
 
 @exit:
+		LDA	#$00
+		STA	userNameAccepted
+
 		LDA	#<button_cnct_upd
 		STA	elemptr0
 		LDA	#>button_cnct_upd
 		STA	elemptr0 + 1
 
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsIncludeState
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
 
@@ -5773,6 +5787,8 @@ inetDisconnected:
 		LDA	#>button_cnct_upd
 		STA	elemptr0 + 1
 
+		LDA	#STATE_VISIBLE
+		JSR	ctrlsExcludeState
 		LDA	#STATE_ENABLED
 		JSR	ctrlsExcludeState
 
@@ -8143,8 +8159,24 @@ clientProcConctMsg:
 ;		RTS
 
 @ident:
-;!!TODO:	
-;	If there is one parameter, copy to user name string
+;	Server echoes mcConnect/1 back once it accepts our clientSendUser -
+;	it only accepts one per connection, so disable the Update button
+;	(button_cnct_upd) rather than let further clicks just collect
+;	"Invalid connect ident" errors.
+		LDA	#$01
+		STA	userNameAccepted
+
+		JSR	ctrlsLockAcquire
+
+		LDA	#<button_cnct_upd
+		STA	elemptr0
+		LDA	#>button_cnct_upd
+		STA	elemptr0 + 1
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
+		JSR	ctrlsLockRelease
 
 		RTS
 
@@ -10106,11 +10138,14 @@ clientCnctUpdChng:
 		AND	#STATE_DOWN
 		BEQ	@exit
 
+		LDA	userNameAccepted
+		BNE	@exit			;already accepted - button should be disabled, but don't re-send if clicked anyway
+
 		JSR	clientSendUser
 
 @exit:
 		RTS
-		
+
 
 	.export	clientCnctCnctChng
 ;-------------------------------------------------------------------------------
