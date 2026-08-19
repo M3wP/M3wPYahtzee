@@ -406,6 +406,8 @@ constructor TTCPServer.Create;
 	FConnections:= TTCPConnections.Create;
 	FWorkers:= TTCPWorkers.Create;
 
+	FMaxConnects:= 64;
+
 	end;
 
 destructor TTCPServer.Destroy;
@@ -607,9 +609,16 @@ procedure TTCPWorker.Execute;
 	        with FConnections.LockList do
 				try
 	                for i:= 0 to Count - 1 do
-						if  Items[i].Releasing
-						or  (not ProcessConnection(Items[i])) then
-							FExpired.Add(Items[i]);
+						try
+							if  Items[i].Releasing
+							or  (not ProcessConnection(Items[i])) then
+								FExpired.Add(Items[i]);
+
+						except
+						AddLogMessage(slkError, '"' + Items[i].Ticket +
+								'" error processing connection - dropping.');
+						FExpired.Add(Items[i]);
+						end;
 
 					finally
 	                FConnections.UnlockList;

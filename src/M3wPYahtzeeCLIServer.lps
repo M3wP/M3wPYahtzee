@@ -2,7 +2,7 @@
 <CONFIG>
   <ProjectSession>
     <PathDelim Value="\"/>
-    <Version Value="10"/>
+    <Version Value="12"/>
     <BuildModes Active="Default"/>
     <Units Count="26">
       <Unit0>
@@ -18,7 +18,7 @@
         <IsPartOfProject Value="True"/>
         <EditorIndex Value="3"/>
         <TopLine Value="188"/>
-        <CursorPos X="42" Y="208"/>
+        <CursorPos X="44" Y="196"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit1>
@@ -26,6 +26,8 @@
         <Filename Value="YahtzeeServer.pas"/>
         <IsPartOfProject Value="True"/>
         <EditorIndex Value="2"/>
+        <TopLine Value="141"/>
+        <CursorPos X="76" Y="158"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit2>
@@ -52,8 +54,8 @@
         <IsPartOfProject Value="True"/>
         <UnitName Value="Generics.Collections"/>
         <EditorIndex Value="1"/>
-        <TopLine Value="1938"/>
-        <CursorPos Y="1958"/>
+        <TopLine Value="274"/>
+        <CursorPos X="14" Y="301"/>
         <UsageCount Value="328"/>
         <Loaded Value="True"/>
       </Unit5>
@@ -107,8 +109,8 @@
         <IsPartOfProject Value="True"/>
         <IsVisibleTab Value="True"/>
         <EditorIndex Value="4"/>
-        <TopLine Value="303"/>
-        <CursorPos Y="333"/>
+        <TopLine Value="586"/>
+        <CursorPos X="29" Y="627"/>
         <UsageCount Value="268"/>
         <Loaded Value="True"/>
       </Unit11>
@@ -125,8 +127,8 @@
         <Filename Value="synalist-code\blcksock.pas"/>
         <IsPartOfProject Value="True"/>
         <EditorIndex Value="8"/>
-        <TopLine Value="1017"/>
-        <CursorPos X="14" Y="1033"/>
+        <TopLine Value="381"/>
+        <CursorPos X="35" Y="413"/>
         <UsageCount Value="205"/>
         <Loaded Value="True"/>
       </Unit13>
@@ -138,7 +140,7 @@
         <EditorIndex Value="-1"/>
         <TopLine Value="160"/>
         <CursorPos X="9" Y="193"/>
-        <UsageCount Value="310"/>
+        <UsageCount Value="308"/>
       </Unit14>
       <Unit15>
         <Filename Value="Indy10\System\IdBaseComponent.pas"/>
@@ -146,34 +148,34 @@
         <WindowIndex Value="-1"/>
         <TopLine Value="-1"/>
         <CursorPos X="-1" Y="-1"/>
-        <UsageCount Value="23"/>
+        <UsageCount Value="21"/>
       </Unit15>
       <Unit16>
         <Filename Value="Indy10\Core\IdContext.pas"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="87"/>
         <CursorPos X="14" Y="108"/>
-        <UsageCount Value="23"/>
+        <UsageCount Value="21"/>
       </Unit16>
       <Unit17>
         <Filename Value="Indy10\Core\IdTCPServer.pas"/>
         <EditorIndex Value="-1"/>
         <CursorPos X="3" Y="33"/>
-        <UsageCount Value="23"/>
+        <UsageCount Value="21"/>
       </Unit17>
       <Unit18>
         <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\sysutils\sysutilh.inc"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="211"/>
         <CursorPos X="13" Y="253"/>
-        <UsageCount Value="116"/>
+        <UsageCount Value="114"/>
       </Unit18>
       <Unit19>
         <Filename Value="D:\lazarus1.8\fpc\3.0.4\source\rtl\objpas\sysutils\sysutils.inc"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="667"/>
         <CursorPos X="3" Y="681"/>
-        <UsageCount Value="116"/>
+        <UsageCount Value="114"/>
       </Unit19>
       <Unit20>
         <Filename Value="synalist-code\sswin32.inc"/>
@@ -188,21 +190,21 @@
         <EditorIndex Value="-1"/>
         <TopLine Value="132"/>
         <CursorPos X="26" Y="146"/>
-        <UsageCount Value="116"/>
+        <UsageCount Value="114"/>
       </Unit21>
       <Unit22>
         <Filename Value="synalist-code\synautil.pas"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="1576"/>
         <CursorPos Y="1594"/>
-        <UsageCount Value="16"/>
+        <UsageCount Value="14"/>
       </Unit22>
       <Unit23>
         <Filename Value="synalist-code\ssdotnet.inc"/>
         <EditorIndex Value="5"/>
         <TopLine Value="105"/>
         <CursorPos X="34" Y="123"/>
-        <UsageCount Value="58"/>
+        <UsageCount Value="70"/>
         <Loaded Value="True"/>
       </Unit23>
       <Unit24>
@@ -210,7 +212,7 @@
         <EditorIndex Value="9"/>
         <TopLine Value="133"/>
         <CursorPos X="31" Y="187"/>
-        <UsageCount Value="75"/>
+        <UsageCount Value="87"/>
         <Loaded Value="True"/>
       </Unit24>
       <Unit25>
@@ -218,131 +220,133 @@
         <EditorIndex Value="7"/>
         <TopLine Value="238"/>
         <CursorPos X="3" Y="250"/>
-        <UsageCount Value="75"/>
+        <UsageCount Value="87"/>
         <Loaded Value="True"/>
       </Unit25>
     </Units>
-    <JumpHistory Count="30" HistoryIndex="29">
+    <JumpHistory Count="30" HistoryIndex="28">
       <Position1>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="157" Column="17" TopLine="125"/>
+        <Caret Line="766" Column="39" TopLine="736"/>
       </Position1>
       <Position2>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="708" Column="29" TopLine="676"/>
       </Position2>
       <Position3>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="730" Column="23" TopLine="714"/>
+        <Caret Line="56" Column="43" TopLine="35"/>
       </Position3>
       <Position4>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="754" Column="21" TopLine="725"/>
+        <Caret Line="111" Column="12" TopLine="65"/>
       </Position4>
       <Position5>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="11" Column="22"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="117" Column="24" TopLine="87"/>
       </Position5>
       <Position6>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="93" Column="29" TopLine="61"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="123" Column="14" TopLine="87"/>
       </Position6>
       <Position7>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="94" Column="29" TopLine="77"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="124" Column="15" TopLine="87"/>
       </Position7>
       <Position8>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="241" Column="12" TopLine="221"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="143" Column="41" TopLine="97"/>
       </Position8>
       <Position9>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="264" Column="27" TopLine="235"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="164" Column="23" TopLine="118"/>
       </Position9>
       <Position10>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="637" Column="25" TopLine="612"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="354" Column="47" TopLine="308"/>
       </Position10>
       <Position11>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="956" Column="16" TopLine="924"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="407" Column="23" TopLine="361"/>
       </Position11>
       <Position12>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="1043" Column="33" TopLine="1011"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="489" Column="13" TopLine="463"/>
       </Position12>
       <Position13>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="1371" Column="23" TopLine="1349"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="491" Column="20" TopLine="463"/>
       </Position13>
       <Position14>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="199" Column="27" TopLine="178"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="581" Column="21" TopLine="571"/>
       </Position14>
       <Position15>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="94" Column="13" TopLine="75"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="132" Column="19" TopLine="105"/>
       </Position15>
       <Position16>
-        <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
-        <Caret Line="197" TopLine="178"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="528" Column="37" TopLine="491"/>
       </Position16>
       <Position17>
-        <Filename Value="FPC\generics.collections.pas"/>
-        <Caret Line="1949" Column="35" TopLine="1938"/>
+        <Filename Value="TCPServer.pas"/>
       </Position17>
       <Position18>
-        <Filename Value="FPC\generics.collections.pas"/>
-        <Caret Line="1958" TopLine="1938"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="111" Column="12" TopLine="65"/>
       </Position18>
       <Position19>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="537" TopLine="517"/>
+        <Caret Line="117" Column="24" TopLine="71"/>
       </Position19>
       <Position20>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="310" TopLine="291"/>
+        <Caret Line="123" Column="14" TopLine="77"/>
       </Position20>
       <Position21>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="532" Column="40" TopLine="515"/>
+        <Caret Line="124" Column="15" TopLine="78"/>
       </Position21>
       <Position22>
-        <Filename Value="YahtzeeServer.pas"/>
-        <Caret Line="506" Column="15" TopLine="497"/>
+        <Filename Value="TCPServer.pas"/>
+        <Caret Line="143" Column="41" TopLine="97"/>
       </Position22>
       <Position23>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="422" Column="38" TopLine="415"/>
+        <Caret Line="164" Column="23" TopLine="118"/>
       </Position23>
       <Position24>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="538" Column="19" TopLine="524"/>
+        <Caret Line="354" Column="47" TopLine="308"/>
       </Position24>
       <Position25>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="108" Column="13" TopLine="89"/>
+        <Caret Line="407" Column="23" TopLine="361"/>
       </Position25>
       <Position26>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="306" Column="5" TopLine="288"/>
+        <Caret Line="489" Column="13" TopLine="443"/>
       </Position26>
       <Position27>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="52" Column="6" TopLine="33"/>
+        <Caret Line="491" Column="20" TopLine="445"/>
       </Position27>
       <Position28>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="69" Column="17" TopLine="54"/>
+        <Caret Line="581" Column="21" TopLine="535"/>
       </Position28>
       <Position29>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="529" TopLine="528"/>
+        <Caret Line="619" Column="38" TopLine="573"/>
       </Position29>
       <Position30>
         <Filename Value="TCPServer.pas"/>
-        <Caret Line="108" Column="13" TopLine="88"/>
+        <Caret Line="126" Column="3" TopLine="99"/>
       </Position30>
     </JumpHistory>
+    <RunParams>
+      <FormatVersion Value="2"/>
+      <Modes ActiveMode="default"/>
+    </RunParams>
   </ProjectSession>
 </CONFIG>

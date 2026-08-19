@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CONFIG>
   <ProjectOptions>
-    <Version Value="10"/>
+    <Version Value="12"/>
     <PathDelim Value="\"/>
     <General>
       <Flags>
         <MainUnitHasCreateFormStatements Value="False"/>
+        <CompatibilityMode Value="True"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <MainUnit Value="0"/>
       <Title Value="M3wP Yahtzee! Server"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
@@ -20,9 +20,10 @@
       <Version Value="2"/>
     </PublishOptions>
     <RunParams>
-      <local>
-        <FormatVersion Value="1"/>
-      </local>
+      <FormatVersion Value="2"/>
+      <Modes Count="1">
+        <Mode0 Name="default"/>
+      </Modes>
     </RunParams>
     <Units Count="14">
       <Unit0>
@@ -97,6 +98,7 @@
     </SearchPaths>
     <Linking>
       <Debugging>
+        <DebugInfoType Value="dsDwarf3"/>
         <UseHeaptrc Value="True"/>
       </Debugging>
     </Linking>

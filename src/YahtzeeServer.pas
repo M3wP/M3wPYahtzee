@@ -613,21 +613,26 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 
 			with FPlayers.LockList do
 				try
-					a:= PlayerByName(n);
-
-					if  not Assigned(a) then
-						begin
-						m:= TBaseMessage.Create;
-						m.Assign(AMessage);
-						m.Params.Add(APlayer.Name);
-						m.DataFromParams;
-
-						APlayer.AddSendMessage(m);
-
-						APlayer.Name:= n;
-						end
+					if  Length(APlayer.Name) > 0 then
+						APlayer.SendServerError(LIT_ERR_CONNCTID)
 					else
-						APlayer.SendServerError(LIT_ERR_CONNCTID);
+						begin
+						a:= PlayerByName(n);
+
+						if  not Assigned(a) then
+							begin
+							m:= TBaseMessage.Create;
+							m.Assign(AMessage);
+							m.Params.Add(APlayer.Name);
+							m.DataFromParams;
+
+							APlayer.AddSendMessage(m);
+
+							APlayer.Name:= n;
+							end
+						else
+							APlayer.SendServerError(LIT_ERR_CONNCTID);
+						end;
 				finally
                 FPlayers.UnlockList;
 				end;
@@ -865,7 +870,7 @@ procedure TLobbyRoom.ProcessPlayerMessage(APlayer: TPlayer;
 			if  (AMessage.Params.Count > 2)
 			and (CompareText(string(Desc), string(AMessage.Params[0])) = 0) then
 				begin
-				AMessage.Params[1]:= Copy(AMessage.Params[1], Low(AnsiString), 8);
+				AMessage.Params[1]:= Copy(APlayer.Name, Low(AnsiString), 8);
 
 				AMessage.DataFromParams;
 
@@ -1326,31 +1331,44 @@ procedure TServerDispatcher.Execute;
 	p: TPlayer;
 	handled: Boolean;
 	z: TZone;
-	i: Integer;
+	i,
+	batchcount: Integer;
 
 	begin
 	while not Terminated do
 		try
 		Sleep(100);
 
-		im:= nil;
-		try
-			with ReadMessages.LockList do
-				try
-				if  Count > 0 then
-					begin
-					im:= Items[0];
-					Delete(0);
+		// Drain a bounded batch of queued messages per tick rather than
+		// exactly one - a fixed one-per-100ms rate caps the whole server
+		// at 10 messages/sec regardless of player count. The cap keeps
+		// this loop responsive to Terminated under a sustained flood.
+		batchcount:= 0;
+
+		while batchcount < 200 do
+			begin
+			Inc(batchcount);
+
+			im:= nil;
+			try
+				with ReadMessages.LockList do
+					try
+					if  Count > 0 then
+						begin
+						im:= Items[0];
+						Delete(0);
+						end;
+					finally
+					ReadMessages.UnlockList;
 					end;
-				finally
-				ReadMessages.UnlockList;
+
+				except
+				AddLogMessage(slkError, 'Dispatcher cannot read messages!');
 				end;
 
-			except
-			AddLogMessage(slkError, 'Dispatcher cannot read messages!');
-			end;
+			if  not Assigned(im) then
+				Break;
 
-		if  Assigned(im) then
 			try
 				p:= SystemZone.PlayerByIdent(im.Ident);
 
@@ -1400,6 +1418,8 @@ procedure TServerDispatcher.Execute;
 				finally
 				im.Free;
 				end;
+			end;
+
         except
 		AddLogMessage(slkError, 'Unknown dispatcher error!');
 		end;
@@ -1689,7 +1709,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 			if  (AMessage.Params.Count > 2)
 			and (CompareText(string(Desc), string(AMessage.Params[0])) = 0) then
 				begin
-				AMessage.Params[1]:= Copy(AMessage.Params[1], Low(AnsiString), 8);
+				AMessage.Params[1]:= Copy(APlayer.Name, Low(AnsiString), 8);
 
 				AMessage.DataFromParams;
 
@@ -1720,6 +1740,9 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 
 					if  (s > 5)
 					or  (s < 0) then
+						Exit;
+
+					if  Slots[s].Player <> APlayer then
 						Exit;
 
 //					p:= TPlayerState(Ord(AMessage.Params[1][Low(AnsiString)]));
@@ -1787,6 +1810,14 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 //					s:= Ord(AMessage.Params[0][Low(AnsiString)]);
 //					d:= ByteToDieSet(Ord(AMessage.Params[1][Low(AnsiString)]));
 					s:= AMessage.Data[0];
+
+					if  (s > 5)
+					or  (s < 0) then
+						Exit;
+
+					if  Slots[s].Player <> APlayer then
+						Exit;
+
 					d:= ByteToDieSet(AMessage.Data[1]);
 
 					if  Slots[s].State = psPreparing then
@@ -1922,6 +1953,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 					f:= Boolean(AMessage.Data[2]);
 
 					if  (Turn = s)
+					and (Slots[s].Player = APlayer)
 					and (Slots[s].RollNo > 0) then
 						begin
 						if  f then
@@ -1948,7 +1980,8 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 			begin
 			AHandled:= True;
 
-			if  Length(AMessage.Data) = 2 then
+			if  (Length(AMessage.Data) = 2)
+			and (AMessage.Data[1] <= Ord(High(TScoreLocation))) then
 				begin
 				Lock.Acquire;
 					try
@@ -1960,6 +1993,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 					o:= slAces;
 
 					if  (Turn = s)
+					and (Slots[s].Player = APlayer)
 					and (Slots[s].RollNo > 0) then
 						if  IsYahtzee(Slots[s].Dice) then
 							begin
@@ -2007,7 +2041,8 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 			begin
 			AHandled:= True;
 
-			if  Length(AMessage.Data) = 2 then
+			if  (Length(AMessage.Data) = 2)
+			and (AMessage.Data[1] <= Ord(High(TScoreLocation))) then
 				begin
 				Lock.Acquire;
 					try
@@ -2019,6 +2054,7 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 					o:= slAces;
 
 					if  (Turn = s)
+					and (Slots[s].Player = APlayer)
 					and (Slots[s].RollNo > 0) then
 						if  IsYahtzee(Slots[s].Dice) then
 							begin

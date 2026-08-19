@@ -627,7 +627,7 @@ procedure TBaseMessage.Decode(const AData: TMsgData);
 	c: Byte;
 
 	begin
-	if  (Length(AData) > 0)
+	if  (Length(AData) > 1)
 	and (Length(AData) = AData[0] + 1) then
 		begin
 		SetLength(Data, Length(AData) - 2);

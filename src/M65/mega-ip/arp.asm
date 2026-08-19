@@ -1,0 +1,611 @@
+; This code will send a broadcast packet requesting a MAC address
+; ie WHO HAS IP 192.168.1.1? (ARP_REQUEST_IP)
+; it then updates ETH_STATE to ARP_WAITING.  The calling routine should
+; loop until a reply comes in, or timeout.
+
+; --- ARP retry driver ---
+ARP_STATE_IDLE      = $00
+ARP_STATE_WAIT      = $01
+
+; Ticks are caller polls. BASIC naturally polls slowly, and ML samples call
+; from a frame loop, so retries stay deterministic without raster phase issues.
+ARP_TIMEOUT_TICKS   = 15
+ARP_MAX_RETRIES     = 8
+
+ARP_STATE:        .byte $00
+ARP_RETRY_TICKS:  .byte $00
+ARP_RETRY_LEFT:   .byte $00
+ARP_LAST_RASTER_LO: .byte $00
+ARP_LAST_RASTER_HI: .byte $00
+ARP_CUR_RASTER_LO:  .byte $00
+ARP_CUR_RASTER_HI:  .byte $00
+
+ARP_REQUEST_IP:
+    .byte $00, $00, $00, $00
+
+ARP_REQUEST:
+
+    ; destination broadcast
+    lda #$ff
+    sta ETH_TX_FRAME_DEST_MAC
+    sta ETH_TX_FRAME_DEST_MAC+1
+    sta ETH_TX_FRAME_DEST_MAC+2
+    sta ETH_TX_FRAME_DEST_MAC+3
+    sta ETH_TX_FRAME_DEST_MAC+4
+    sta ETH_TX_FRAME_DEST_MAC+5
+
+    ; ETH_TYPE = $0806
+    lda #$08
+    sta ETH_TX_TYPE
+    lda #$06
+    sta ETH_TX_TYPE + 1
+
+    ; build ARP header
+
+    lda #$00
+    sta ETH_TX_FRAME_PAYLOAD+0     ; HTYPE - hardware type = 1 (Ethernet)
+    lda #$01                    
+    sta ETH_TX_FRAME_PAYLOAD+1
+
+    lda #$08
+    sta ETH_TX_FRAME_PAYLOAD+2     ; PTYPE - protocol type = 0x0800 (ipv4)
+    lda #$00
+    sta ETH_TX_FRAME_PAYLOAD+3
+
+    lda #$06
+    sta ETH_TX_FRAME_PAYLOAD+4     ; HLEN - hardware size (mac address = 6 bytes)
+    lda #$04
+    sta ETH_TX_FRAME_PAYLOAD+5     ; PLEN - protocol size (ipv4 = 4 bytes)
+
+    lda #$00
+    sta ETH_TX_FRAME_PAYLOAD+6     ; OPER - opcode 1 = request
+    lda #$01
+    sta ETH_TX_FRAME_PAYLOAD+7
+    
+    lda MEGA65_ETH_MAC+0     ; SHA - src mac address
+    sta ETH_TX_FRAME_PAYLOAD+8
+    lda MEGA65_ETH_MAC+1
+    sta ETH_TX_FRAME_PAYLOAD+9
+    lda MEGA65_ETH_MAC+2
+    sta ETH_TX_FRAME_PAYLOAD+10
+    lda MEGA65_ETH_MAC+3
+    sta ETH_TX_FRAME_PAYLOAD+11
+    lda MEGA65_ETH_MAC+4
+    sta ETH_TX_FRAME_PAYLOAD+12
+    lda MEGA65_ETH_MAC+5
+    sta ETH_TX_FRAME_PAYLOAD+13
+
+    lda LOCAL_IP+0                  ; SPA - src IP address
+    sta ETH_TX_FRAME_PAYLOAD+14
+    lda LOCAL_IP+1
+    sta ETH_TX_FRAME_PAYLOAD+15
+    lda LOCAL_IP+2
+    sta ETH_TX_FRAME_PAYLOAD+16
+    lda LOCAL_IP+3
+    sta ETH_TX_FRAME_PAYLOAD+17
+
+    lda #$00                        ; THA - target mac address (we dont know it yet!)
+    sta ETH_TX_FRAME_PAYLOAD+18
+    sta ETH_TX_FRAME_PAYLOAD+19
+    sta ETH_TX_FRAME_PAYLOAD+20
+    sta ETH_TX_FRAME_PAYLOAD+21
+    sta ETH_TX_FRAME_PAYLOAD+22
+    sta ETH_TX_FRAME_PAYLOAD+23
+
+
+    lda ARP_REQUEST_IP+0                 ; TPA - target IP address
+    sta ETH_TX_FRAME_PAYLOAD+24
+    lda ARP_REQUEST_IP+1
+    sta ETH_TX_FRAME_PAYLOAD+25
+    lda ARP_REQUEST_IP+2
+    sta ETH_TX_FRAME_PAYLOAD+26
+    lda ARP_REQUEST_IP+3
+    sta ETH_TX_FRAME_PAYLOAD+27
+
+    ldy #$00
+    lda #$00
+ -  sta ETH_TX_FRAME_PAYLOAD+28,y
+    iny
+    cpy #18
+    bne -
+
+
+    ; 14+28 = 42 + padding = 60 ($3c) byte total packet length
+    lda #$3c
+    sta ETH_TX_LEN_LSB
+    lda #$00
+    sta ETH_TX_LEN_MSB
+
+    lda #$01              ; ARP_WAITING
+    sta ETH_STATE
+    ;jsr ETH_PACKET_SEND
+    jsr DEFER_CURRENT_TX
+    jsr ETH_PROCESS_DEFERRED
+
+    ; start ARP resend driver
+    lda ARP_STATE
+    cmp #ARP_STATE_WAIT
+    beq _already_waiting          ; if we're already in a wait cycle, don't
+                                  ; reset the retry budget
+
+    lda #ARP_MAX_RETRIES
+    sta ARP_RETRY_LEFT
+_already_waiting:
+    lda #ARP_TIMEOUT_TICKS
+    sta ARP_RETRY_TICKS           ; (re)load the timeout for the next resend
+    jsr ARP_READ_RASTER
+    lda ARP_CUR_RASTER_LO
+    sta ARP_LAST_RASTER_LO
+    lda ARP_CUR_RASTER_HI
+    sta ARP_LAST_RASTER_HI
+    lda #ARP_STATE_WAIT
+    sta ARP_STATE
+
+    rts
+
+; This routine will send a reply to ARP requests made by other machines 
+; on the local network.
+
+ARP_REPLY:
+
+    lda ETH_RX_FRAME_PAYLOAD+6     ; OPER MSB
+    bne _not_ours
+    lda ETH_RX_FRAME_PAYLOAD+7     ; OPER LSB
+    cmp #$01                       ; REQUEST?
+    bne _not_ours
+
+    lda ETH_RX_FRAME_PAYLOAD+0
+    cmp #$00
+    bne _not_ours  ; HTYPE msb
+    lda ETH_RX_FRAME_PAYLOAD+1
+    cmp #$01
+    bne _not_ours  ; HTYPE=1
+    lda ETH_RX_FRAME_PAYLOAD+2
+    cmp #$08
+    bne _not_ours
+    lda ETH_RX_FRAME_PAYLOAD+3
+    cmp #$00
+    bne _not_ours  ; PTYPE=0x0800
+    lda ETH_RX_FRAME_PAYLOAD+4
+    cmp #$06
+    bne _not_ours  ; HLEN=6
+    lda ETH_RX_FRAME_PAYLOAD+5
+    cmp #$04
+    bne _not_ours  ; PLEN=4
+
+_check_target_ip:
+    ldx #$04                            ; count = 4
+_loop_compare2:
+    dex
+    lda LOCAL_IP,x                      ; local IP address byte
+    cmp ETH_RX_FRAME_PAYLOAD+24,x
+    bne _not_ours
+    cpx #$00
+    bne _loop_compare2
+    jmp _build_reply
+_not_ours:
+    rts
+
+_build_reply:
+    ; ---------------------------
+    ; Ethernet header (14 bytes)
+    ; dst = requester MAC
+    lda ETH_RX_FRAME_SRC_MAC+0
+    sta ARP_REPLY_PACKET+0
+    lda ETH_RX_FRAME_SRC_MAC+1
+    sta ARP_REPLY_PACKET+1
+    lda ETH_RX_FRAME_SRC_MAC+2
+    sta ARP_REPLY_PACKET+2
+    lda ETH_RX_FRAME_SRC_MAC+3
+    sta ARP_REPLY_PACKET+3
+    lda ETH_RX_FRAME_SRC_MAC+4
+    sta ARP_REPLY_PACKET+4
+    lda ETH_RX_FRAME_SRC_MAC+5
+    sta ARP_REPLY_PACKET+5
+
+    ; src = our MAC (read from controller regs, not TX buffer)
+    lda MEGA65_ETH_MAC+0
+    sta ARP_REPLY_PACKET+6
+    lda MEGA65_ETH_MAC+1
+    sta ARP_REPLY_PACKET+7
+    lda MEGA65_ETH_MAC+2
+    sta ARP_REPLY_PACKET+8
+    lda MEGA65_ETH_MAC+3
+    sta ARP_REPLY_PACKET+9
+    lda MEGA65_ETH_MAC+4
+    sta ARP_REPLY_PACKET+10
+    lda MEGA65_ETH_MAC+5
+    sta ARP_REPLY_PACKET+11
+
+    ; ethertype = 0x0806 (ARP)
+    lda #$08
+    sta ARP_REPLY_PACKET+12
+    lda #$06
+    sta ARP_REPLY_PACKET+13
+
+    ; ---------------------------
+    ; ARP payload (28 bytes) at +14
+
+    ; HTYPE = 0x0001 (Ethernet)
+    lda #$00
+    sta ARP_REPLY_PACKET+14
+    lda #$01
+    sta ARP_REPLY_PACKET+15
+
+    ; PTYPE = 0x0800 (IPv4)
+    lda #$08
+    sta ARP_REPLY_PACKET+16
+    lda #$00
+    sta ARP_REPLY_PACKET+17
+
+    ; HLEN = 6, PLEN = 4
+    lda #$06
+    sta ARP_REPLY_PACKET+18
+    lda #$04
+    sta ARP_REPLY_PACKET+19
+
+    ; OPER = 0x0002 (reply)
+    lda #$00
+    sta ARP_REPLY_PACKET+20
+    lda #$02
+    sta ARP_REPLY_PACKET+21
+
+    ; SHA = our MAC
+    lda MEGA65_ETH_MAC+0
+    sta ARP_REPLY_PACKET+22
+    lda MEGA65_ETH_MAC+1
+    sta ARP_REPLY_PACKET+23
+    lda MEGA65_ETH_MAC+2
+    sta ARP_REPLY_PACKET+24
+    lda MEGA65_ETH_MAC+3
+    sta ARP_REPLY_PACKET+25
+    lda MEGA65_ETH_MAC+4
+    sta ARP_REPLY_PACKET+26
+    lda MEGA65_ETH_MAC+5
+    sta ARP_REPLY_PACKET+27
+
+    ; SPA = our IP
+    lda LOCAL_IP+0
+    sta ARP_REPLY_PACKET+28
+    lda LOCAL_IP+1
+    sta ARP_REPLY_PACKET+29
+    lda LOCAL_IP+2
+    sta ARP_REPLY_PACKET+30
+    lda LOCAL_IP+3
+    sta ARP_REPLY_PACKET+31
+
+    ; THA = requester MAC
+    lda ETH_RX_FRAME_SRC_MAC+0
+    sta ARP_REPLY_PACKET+32
+    lda ETH_RX_FRAME_SRC_MAC+1
+    sta ARP_REPLY_PACKET+33
+    lda ETH_RX_FRAME_SRC_MAC+2
+    sta ARP_REPLY_PACKET+34
+    lda ETH_RX_FRAME_SRC_MAC+3
+    sta ARP_REPLY_PACKET+35
+    lda ETH_RX_FRAME_SRC_MAC+4
+    sta ARP_REPLY_PACKET+36
+    lda ETH_RX_FRAME_SRC_MAC+5
+    sta ARP_REPLY_PACKET+37
+
+    ; TPA = requester's SPA (from the ARP request payload)
+    lda ETH_RX_FRAME_PAYLOAD+14
+    sta ARP_REPLY_PACKET+38
+    lda ETH_RX_FRAME_PAYLOAD+15
+    sta ARP_REPLY_PACKET+39
+    lda ETH_RX_FRAME_PAYLOAD+16
+    sta ARP_REPLY_PACKET+40
+    lda ETH_RX_FRAME_PAYLOAD+17
+    sta ARP_REPLY_PACKET+41
+
+    ; Defer send to mainline
+    lda #$01
+    sta ARP_REPLY_PENDING
+
+    rts
+
+
+; This routine will update the ARP cache and flip ETH_STATE back to IDLE
+; This is when my machine does a WHO HAS IP 192.168.1.100?
+ARP_UPDATE_CACHE:
+
+    ; only drop WAITING if SPA == ARP_REQUEST_IP (reply to our who-has)
+    ldx #$04
+-   dex
+    lda ETH_RX_FRAME_PAYLOAD+14,x   ; sender protocol address (SPA)
+    cmp ARP_REQUEST_IP+0,x
+    bne _not_for_us
+    cpx #$00
+    bne -
+    jmp _do_update
+
+ _not_for_us
+    ; still update cache (helpful), but don't clear WAITING
+    jmp _update_cache
+
+_do_update
+
+    lda #ARP_STATE_IDLE
+    sta ARP_STATE
+    lda #$00
+    sta ETH_STATE
+
+_update_cache:
+    ; First replace an existing live entry for this IP.
+    ldx #$00
+_find_existing:
+    lda ARP_CACHE+0, x
+    beq _next_existing
+    lda ARP_CACHE+1, x
+    cmp ETH_RX_FRAME_PAYLOAD+14
+    bne _next_existing
+    lda ARP_CACHE+2, x
+    cmp ETH_RX_FRAME_PAYLOAD+15
+    bne _next_existing
+    lda ARP_CACHE+3, x
+    cmp ETH_RX_FRAME_PAYLOAD+16
+    bne _next_existing
+    lda ARP_CACHE+4, x
+    cmp ETH_RX_FRAME_PAYLOAD+17
+    beq _found_slot
+
+_next_existing:
+    txa
+    clc
+    adc #$0b
+    cmp #$58
+    bcs _find_available
+    tax
+    jmp _find_existing
+
+_find_available:
+    ; find available slot
+    ldx #$00
+_loop1
+    lda ARP_CACHE, x
+    beq _found_slot
+    txa
+    clc
+    adc #$0b                        ; jump 11 bytes ahead to ttl byte
+    cmp #$58                        ; > 8 entries... just use slot 0
+    bcs _use_slot_zero
+    tax
+    jmp _loop1
+    
+_use_slot_zero
+    ldx #$00                        ; slot 0 will be used
+
+_found_slot:
+    php
+    sei
+    lda #$ff                        ; set slot TTL
+    sta ARP_CACHE+0, x
+
+    ; save the IP address
+    lda ETH_RX_FRAME_PAYLOAD+14
+    sta ARP_CACHE+1, x
+    lda ETH_RX_FRAME_PAYLOAD+15
+    sta ARP_CACHE+2, x
+    lda ETH_RX_FRAME_PAYLOAD+16
+    sta ARP_CACHE+3, x
+    lda ETH_RX_FRAME_PAYLOAD+17
+    sta ARP_CACHE+4, x
+
+    ; save the mac address
+    lda ETH_RX_FRAME_PAYLOAD+8
+    sta ARP_CACHE+5, x
+    lda ETH_RX_FRAME_PAYLOAD+9
+    sta ARP_CACHE+6, x
+    lda ETH_RX_FRAME_PAYLOAD+10
+    sta ARP_CACHE+7, x
+    lda ETH_RX_FRAME_PAYLOAD+11
+    sta ARP_CACHE+8, x
+    lda ETH_RX_FRAME_PAYLOAD+12
+    sta ARP_CACHE+9, x
+    lda ETH_RX_FRAME_PAYLOAD+13
+    sta ARP_CACHE+10, x
+
+    plp
+    rts
+
+; This routine is called to query the cache for ARP_QUERY_IP address, 
+; and retrieve the mac address if its there.
+; It will place the mac in the TX MAC DEST fields and A=1
+; if not found, it will put zeros in TX MAC DEST fields and A=0
+
+ARP_QUERY_IP:
+    .byte $00, $00, $00, $00
+
+ARP_QUERY_CACHE:
+
+    ldx #$00
+_loop1
+    lda ARP_CACHE+0, x                  ; if this slot is empty or expired, skip it
+    beq _next_cache
+    lda ARP_CACHE+1, x
+    cmp ARP_QUERY_IP+0
+    bne _next_cache
+    lda ARP_CACHE+2, x
+    cmp ARP_QUERY_IP+1
+    bne _next_cache
+    lda ARP_CACHE+3, x
+    cmp ARP_QUERY_IP+2
+    bne _next_cache
+    lda ARP_CACHE+4, x
+    cmp ARP_QUERY_IP+3
+    bne _next_cache
+
+    ; IP address found.  Use associated MAC address
+    lda ARP_CACHE+5, x
+    sta ETH_TX_FRAME_DEST_MAC+0
+    lda ARP_CACHE+6, x
+    sta ETH_TX_FRAME_DEST_MAC+1
+    lda ARP_CACHE+7, x
+    sta ETH_TX_FRAME_DEST_MAC+2
+    lda ARP_CACHE+8, x
+    sta ETH_TX_FRAME_DEST_MAC+3
+    lda ARP_CACHE+9, x
+    sta ETH_TX_FRAME_DEST_MAC+4
+    lda ARP_CACHE+10, x
+    sta ETH_TX_FRAME_DEST_MAC+5
+
+    lda #$ff                        ; retain this cache entry
+    sta ARP_CACHE+0, x
+
+    lda #$01                        ; flag for hit
+    rts
+
+_next_cache:
+    txa
+    clc
+    adc #$0b                        ; jump 11 bytes ahead to ttl byte
+    cmp #$58                        ; have we gone out of bounds?
+    beq _cache_miss
+    bcs _cache_miss
+    tax
+    jmp _loop1
+
+_cache_miss:
+
+    ; IP address NOT found.  clear TX DEST MAC address in TX buffer
+    lda #$00
+    sta ETH_TX_FRAME_DEST_MAC+0
+    sta ETH_TX_FRAME_DEST_MAC+1
+    sta ETH_TX_FRAME_DEST_MAC+2
+    sta ETH_TX_FRAME_DEST_MAC+3
+    sta ETH_TX_FRAME_DEST_MAC+4
+    sta ETH_TX_FRAME_DEST_MAC+5
+
+    lda #$00                        ; flag for miss
+    rts
+
+ARP_PURGE_TICK:
+    .byte $00
+
+; routine called by irq to countdown the first byte of each cache record
+; a zero byte indicates its a free slot
+ARP_CACHE_PURGE:
+    
+    inc ARP_PURGE_TICK
+    lda ARP_PURGE_TICK
+    cmp #60
+    bne _done                       ; only purge once every 60 IRQs (~1 s)
+    lda #$00
+    sta ARP_PURGE_TICK
+
+    ldx #$00
+_loop1
+    lda ARP_CACHE+0, x
+    beq _next_cache                 ; this slot already expired.  skip it
+
+    sec
+    sbc #$01
+    sta ARP_CACHE+0, x
+
+_next_cache:
+    txa
+    clc
+    adc #$0b                        ; jump 11 bytes ahead to ttl byte
+    cmp #$58                        ; have we gone out of bounds?
+    beq _done
+    bcs _done
+    tax
+    jmp _loop1
+
+_done:
+    rts
+
+; Drive ARP retries while waiting for resolution.
+; - If cache hit arrives, stop.
+; - If timeout expires and retries remain, resend ARP and reload the timer.
+; - If out of retries, stop and (if connecting) latch a failure bit.
+
+ARP_READ_RASTER:
+    lda MEGA65_VICII_RSTR_CMP
+    sta ARP_CUR_RASTER_LO
+    lda MEGA65_VICII_CTRL1
+    and #$80
+    sta ARP_CUR_RASTER_HI
+    rts
+
+ARP_RETRY_TICK:
+    lda ARP_STATE
+    cmp #ARP_STATE_WAIT
+    beq _in_wait
+    rts
+
+_in_wait:
+    ; --- ensure we look up the original target ---
+    ldx #3
+_copy_req_to_query:
+    lda ARP_REQUEST_IP,x
+    sta ARP_QUERY_IP,x
+    dex
+    bpl _copy_req_to_query
+
+    ; Did cache fill? (hit -> nonzero)
+    jsr ARP_QUERY_CACHE
+    bne _got_it
+
+    ; Tick once per caller poll. BASIC is naturally slow, and ML samples poll
+    ; from their frame loop, so this is more reliable than sampling raster wrap.
+    lda ARP_RETRY_TICKS
+    beq _expired
+    dec ARP_RETRY_TICKS
+    rts
+
+_expired:
+    lda ARP_RETRY_LEFT
+    beq _give_up
+
+    dec ARP_RETRY_LEFT
+    lda #ARP_TIMEOUT_TICKS
+    sta ARP_RETRY_TICKS
+    jsr ARP_REQUEST           ; resend
+    rts
+
+_give_up:
+    lda #ARP_STATE_IDLE
+    sta ARP_STATE
+    lda #$00                  ; also release ARP_WAITING
+    sta ETH_STATE
+
+    ; if a non-blocking connect was in flight, surface the failure
+    lda CONNECT_ACTIVE
+    beq _ret
+    lda #$01
+    sta CONNECT_FAIL_LATCH
+    lda TCP_EVENT_FLAG
+    ora #EV_CONNECT_FAIL
+    sta TCP_EVENT_FLAG
+
+_ret:
+    rts
+
+_got_it:
+    lda #ARP_STATE_IDLE
+    sta ARP_STATE
+    lda #$00                ; ETH_STATE = IDLE
+    sta ETH_STATE
+    rts
+
+
+ARP_CACHE:
+    ;     ttl  ip                  mac
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+    
+
+
+; Deferred ARP reply frame (42 bytes)
+ARP_REPLY_PACKET:
+    .fill 60, $00
+
+ARP_REPLY_PENDING:
+    .byte $00
