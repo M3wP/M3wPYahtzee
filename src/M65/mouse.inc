@@ -228,8 +228,15 @@ MouseReadDelta:
 		RTS
 
 
+MOUSE_SPEED_SLOW	= 0
+MOUSE_SPEED_MEDIUM	= 1
+MOUSE_SPEED_FAST	= 2
+
 ;-------------------------------------------------------------------------------
-;	MouseAccelerate - ported from input.c's apply_acceleration().
+;	MouseAccelerate - ported from input.c's apply_acceleration(), with
+;	the two thresholds pulled from mouseAccelParams (indexed by
+;	mouseAccelSpeed) instead of hardcoded, so the PREFS page can change
+;	feel at runtime.
 ;
 ;	Entry/exit: A = signed delta, scaled up for larger movements so a
 ;	fast physical mouse move doesn't feel like it's dragging.
@@ -243,7 +250,14 @@ MouseAccelerate:
 		ADC	#$01
 
 @pos:
-		CMP	#$0B			; abs > 10 ?
+		STA	mouseAccelAbs
+
+		LDA	mouseAccelSpeed
+		ASL	A
+		TAY				;Y = speed * 2, indexes the pair
+
+		LDA	mouseAccelAbs
+		CMP	mouseAccelParams, Y		;high threshold
 		BCC	@tst5
 
 		LDA	mouseAccelTemp
@@ -252,7 +266,8 @@ MouseAccelerate:
 		RTS
 
 @tst5:
-		CMP	#$06			; abs > 5 ?
+		LDA	mouseAccelAbs
+		CMP	mouseAccelParams + 1, Y		;low threshold
 		BCC	@none
 
 		LDA	mouseAccelTemp
@@ -266,3 +281,16 @@ MouseAccelerate:
 
 mouseAccelTemp:
 		.byte	$00
+mouseAccelAbs:
+		.byte	$00
+
+;	0=slow, 1=medium, 2=fast - default medium
+mouseAccelSpeed:
+		.byte	MOUSE_SPEED_MEDIUM
+
+;	high, low threshold pair per speed - abs delta > high gets <<2,
+;	> low gets <<1, otherwise unscaled. Order must match MOUSE_SPEED_*.
+mouseAccelParams:
+		.byte	21, 16			;slow
+		.byte	16, 11			;medium
+		.byte	11, 6			;fast

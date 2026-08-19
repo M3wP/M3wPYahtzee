@@ -346,6 +346,7 @@ ML_STAGE_ARG_Z      = 5
 	.define KEY_C64_F4	$F4
 	.define KEY_C64_F6	$F6
 	.define KEY_C64_F8	$F8
+	.define	KEY_C64_F9 	$F9
 	.define KEY_C64_SHRET	$8D		;Not mapped
 	.define KEY_C64_CUP	$91
 	.define KEY_C64_CLEAR	$93
@@ -1125,916 +1126,12 @@ initUser:
 		RTS
 
 
-.res    $2000 - *, 0
-
-.incbin "eth.bin"
-
-
-;===============================================================================
-
-;===============================================================================
-;	.segment	"CODE"
-;===============================================================================
-;-------------------------------------------------------------------------------
-;Input driver variables
-;-------------------------------------------------------------------------------
-OldPotX:        
-	.byte    	0               	;Old hw counter values
-OldPotY:        
-	.byte    	0
-
-XPos:           
-	.word    	0               	;Current mouse position, X
-YPos:           
-	.word    	0               	;Current mouse position, Y
-XMin:           
-	.word    	0               	;X1 value of bounding box
-YMin:           
-	.word    	0               	;Y1 value of bounding box
-XMax:           
-	.word    	319               	;X2 value of bounding box
-YMax:           
-	.word    	199           		;Y2 value of bounding box
-	
-Buttons:        
-	.byte    	0               	;button status bits
-ButtonsOld:
-	.byte		0
-ButtonLClick:
-	.byte		0
-ButtonRClick:
-	.byte		0
-MouseUsed:
-	.byte		$00
-
-OldValue:       
-	.byte    	0               	;Temp for MoveCheck routine
-NewValue:       
-	.byte    	0               	;Temp for MoveCheck routine
-
-tempValue:	
-	.word		0
-
-mouseCheck:
-	.byte		$00
-mouseTemp0:
-	.word		$0000
-mouseXCol:
-	.byte		$00
-mouseYRow:
-	.byte		$00
-;mouseLastY:
-;	.word           $0000
-
-mouseCapture:
-			.byte	0
-mouseCapCtrl:
-			.word	$0000
-mouseCapMove:
-			.word	$0000
-mouseCapClick:
-			.word	$0000
-
-
-mousePanl:
-		.byte	$00
-
-mouseExtX:
-		.byte	$00
-mouseExtY:
-		.byte	$00
-	
-keyBuffer0:
-	.repeat	20, I
-		.byte	$00
-	.endrep
-keyBufferSize:
-		.byte	$00
-keyRepeatFlag:
-		.byte	$00
-keyRepeatSpeed:
-		.byte	$00
-keyRepeatDelay:
-		.byte	$00
-keyModifierFlag:
-		.byte	$00
-keyModifierLast:
-		.byte	$00
-
-pickBlinkDelay:
-		.byte	$00
-pickBlinkState:
-		.byte	$00
-
-
-
-	.export	userIRQInstall
-;-------------------------------------------------------------------------------
-userIRQInstall:
-;-------------------------------------------------------------------------------
-		LDA	#<userIRQ		;install our handler
-		STA	cpuIRQ
-		LDA	#>userIRQ
-		STA	cpuIRQ + 1
-
-		LDA	#<userNOP		;install our handler
-		STA	cpuRESET
-		LDA	#>userNOP
-		STA	cpuRESET + 1
-
-		LDA	#<userNOP		;install our handler
-		STA	cpuNMI
-		LDA	#>userNOP
-		STA	cpuNMI + 1
-
-
-		LDA	#%01111111		;We'll always want rasters
-		AND	vicCtrlReg		;    less than $0100
-		STA	vicCtrlReg
-		
-		LDA	#$19
-		STA	vicRstrVal
-		
-		LDA	#$01			;Enable raster irqs
-		STA	vicIRQMask
-		
-		RTS
-
-;-------------------------------------------------------------------------------
-userNOP:
-;-------------------------------------------------------------------------------
-		RTI
-
-
-	.export	userIRQ
-;-------------------------------------------------------------------------------
-userIRQ:
-;-------------------------------------------------------------------------------
-		PHP				;save the initial state
-		PHA
-		TXA				
-		PHA
-		TYA
-		PHA
-
-		CLD
-		
-;	Is the VIC-II needing service?
-		LDA	vicIRQFlgs
-		AND	#$01
-		BNE	@proc
-		
-;	Some other interrupt source??  Peculiar...  And a real problem!  How
-;	do I acknowledge it if its not a BRK when I don't know what it would be?
-		LDA	#$02
-		STA	vicBrdrClr
-		STA	vicBkgdClr
-
-		JMP 	@done
-		
-@proc:
-		ASL	vicIRQFlgs
-		
-		JSR	userIRQHandler
-
-@done:
-		PLA             
-		TAY             
-		PLA             
-		TAX             
-		PLA             
-		PLP
-
-		RTI
-
-
-;-------------------------------------------------------------------------------
-userIRQHandler:
-;-------------------------------------------------------------------------------
-	.if	DEBUG_RASTERTIME
-		LDA	#$00
-		STA	vicBrdrClr
-	.endif
-
-
-;	UI notify with flash?
-		LDA	uiflshcnt
-		BEQ	@flshfin
-		
-		LDA	uiflshdly
-		BEQ	@flash
-		
-		DEC	uiflshdly
-		JMP	@flshfin
-		
-@flash:
-		LDA	uiflshcnt
-		
-		AND	#$01
-		BNE	@flshoff
-		
-		LDA	#$01
-		STA	vicBrdrClr
-		
-		JMP	@flshdone
-		
-@flshoff:
-		LDA	current_clrs
-		STA	vicBrdrClr
-		
-		
-@flshdone:
-		LDA	#$08
-		STA	uiflshdly
-		
-		DEC	uiflshcnt
-
-@flshfin:
-		JSR	userProcessMouse	;Do mouse first so we can skip
-						;	expensive all lines
-						;	keyboard scan when mouse
-						;	used.
-
-	.if	DEBUG_RASTERTIME
-		LDA	#$05
-		STA	vicBrdrClr
-	.endif
-
-		JSR	userKeyScanKey
-		
-		LDA	ctrlsLock
-		BNE	@skipUpdate
-
-		LDA	ctrlsPrep
-		BNE	@skipUpdate
-
-	.if	DEBUG_RASTERTIME
-		LDA	#$01
-		STA	vicBrdrClr
-	.endif
-
-		JSR	userHandleMouse
-		
-		LDA	ButtonLClick
-		BEQ	@finish
-		
-		JSR	userHandleMouseClick
-		JMP	@finish
-	
-@skipUpdate:
-		LDY	pickBlinkDelay
-		BEQ	@finish
-
-		DEY
-		STY	pickBlinkDelay
-
-
-@finish:
-	.if	DEBUG_RASTERTIME
-		LDA	#$0E
-		STA	vicBrdrClr
-	.endif
-
-		LDA	#$19
-		STA	vicRstrVal
-		
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userDiscardKey:
-;-------------------------------------------------------------------------------
-		LDY	keyBuffer0		;copy kernal code for input key
-		LDX	#$00
-@loop:
-		LDA	keyBuffer0 + 2, X
-		STA	keyBuffer0, X
-		INX
-		
-		LDA	keyBuffer0 + 3, X
-		STA	keyBuffer0 + 1, X
-		INX
-
-		CPX	keyZPKeyCount
-		BNE	@loop
-		
-		DEC	keyZPKeyCount
-		DEC	keyZPKeyCount
-
-		TYA
-;		CLI				;NO!  Causes problem for IRQ
-		CLC
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userReadKey:
-;-------------------------------------------------------------------------------
-		LDX	#$00
-
-		STX	keyZPAbort
-
-		LDA	keyZPKeyCount
-		BEQ	@exit
-
-		LDA	keyBuffer0, X
-		PHA
-		INX
-		LDA	keyBuffer0, X
-		PHA
-
-		JSR	userDiscardKey
-
-		PLA
-		TAX
-		PLA
-
-@exit:
-		RTS
-	
-
-;-------------------------------------------------------------------------------
-userKeyScanKey:
-;-------------------------------------------------------------------------------
-		LDA	Buttons			;When button down, just leave 
-		BEQ	@begin			;	already
-
-		RTS
-
-@begin:
-    LDA $D610
-    BEQ @done
-
-    STA $D610
-
-    LDX keyZPKeyCount
-    CPX keyBufferSize
-    BCS @done
-
-    STA keyBuffer0, X
-    INX
-    LDA #$00
-    STA keyBuffer0, X
-    INX
-
-    STX keyZPKeyCount
-
-@done:
-    RTS
-
-;-------------------------------------------------------------------------------
-check_for_abort_key:
-;-------------------------------------------------------------------------------
-		LDA	keyZPAbort
-		BEQ	@nokey
-
-		SEC
-		RTS
-
-@nokey:
-		CLC
-		RTS
-
-
-	.export	userHandleMouse
-;-------------------------------------------------------------------------------
-userHandleMouse:
-;-------------------------------------------------------------------------------
-		LDA	mouseCheck
-		CMP	#$10
-		BCS	@proc
-			
-		LDA	ButtonLClick
-		BNE	@proc
-
-		LDA	mouseCapture
-		BEQ	@tstpick
-
-		RTS
-
-@tstpick:
-		LDA	pickCtrl + 1
-		BNE	@tstblink
-
-		RTS
-
-@tstblink:
-		CMP	downCtrl + 1
-		BNE	@blink
-
-		LDA	pickCtrl
-		CMP	downCtrl
-		BNE	@blink
-
-		RTS
-
-@blink:
-		JSR	userMousePickBlink
-		RTS
-
-@proc:
-		LDA	#$00
-		STA	mouseCheck
-
-		LDA	XPos
-		STA	mouseTemp0
-		LDA	XPos + 1
-		STA	mouseTemp0 + 1
-		
-		LDX	#$02
-@xDiv8Loop:
-		LSR
-		STA	mouseTemp0 + 1
-		LDA	mouseTemp0
-		ROR
-		STA	mouseTemp0
-		LDA	mouseTemp0 + 1
-		
-		DEX
-		BPL	@xDiv8Loop
-		
-		LDA	mouseTemp0
-		STA	mouseXCol
-		
-		LDA	YPos
-		STA	mouseTemp0
-		LDA	YPos + 1
-		STA	mouseTemp0 + 1
-		
-		LDX	#$02
-@yDiv8Loop:
-		LSR
-		STA	mouseTemp0 + 1
-		LDA	mouseTemp0
-		ROR
-		STA	mouseTemp0
-		LDA	mouseTemp0 + 1
-		
-		DEX
-		BPL	@yDiv8Loop
-		
-		LDA	mouseTemp0
-		STA	mouseYRow
-
-		LDA	mouseCapture
-		BEQ	@findctrl
-		
-		JMP	(mouseCapMove)
-
-;	Find last panel on page
-@findctrl:		
-		LDY	#PAGE::panels
-		LDA	(pageptr0), Y
-		STA	ctrlptr0
-		INY
-		LDA	(pageptr0), Y
-		STA	ctrlptr0 + 1
-
-		LDY	#PAGE::panlcnt
-		LDA	(pageptr0), Y
-		ASL
-		STA	ctrlvar_a
-		DEC	ctrlvar_a
-
-@panel0:
-;	for each panel on page rev
-		LDY	ctrlvar_a
-
-		LDA	(ctrlptr0), Y
-		STA	panlptr0 + 1
-		DEY
-		LDA	(ctrlptr0), Y
-		STA	panlptr0
-		DEY
-		
-		STY	ctrlvar_a
-
-		LDY	#ELEMENT::state
-		LDA	(panlptr0), Y
-		AND	#STATE_VISIBLE
-		BEQ	@panelnext
-
-		LDA	(panlptr0), Y
-		AND	#STATE_ENABLED
-		BEQ	@panelnext
-
-		LDY	#ELEMENT::options
-		LDA	(panlptr0), Y
-		AND	#OPT_NONAVIGATE
-		BNE	@panelnext
-
-;	find coord in panel
-
-		LDA	panlptr0
-		STA	elemptr0
-		LDA	panlptr0 + 1
-		STA	elemptr0 + 1
-
-		JSR	userMouseInCtrl
-		BCC	@panelnext
-
-;	for each elem in panel 
-
-		LDY	#PANEL::controls
-		LDA	(panlptr0), Y
-		STA	ctrlptr1
-		INY
-		LDA	(panlptr0), Y
-		STA	ctrlptr1 + 1
-
-		LDY	#$00
-		
-@elem0:
-		LDA	(ctrlptr1), Y
-		STA	elemptr0
-		INY
-		LDA	(ctrlptr1), Y
-		BEQ	@panelnext
-		
-		STA	elemptr0 + 1
-		INY
-		
-		STY	ctrlvar_b
-
-;	find coord in elem on panel
-		
-		LDY	#ELEMENT::state
-		LDA	(elemptr0), Y
-		AND	#STATE_VISIBLE
-		BEQ	@elemnext
-
-		LDA	(elemptr0), Y
-		AND	#STATE_ENABLED
-		BEQ	@elemnext
-
-		LDY	#ELEMENT::options
-		LDA	(elemptr0), Y
-		AND	#OPT_NONAVIGATE
-		BNE	@elemnext
-
-;	find coord in elem
-
-		JSR	userMouseInCtrl
-		BCC	@elemnext
-
-		LDA	elemptr0
-		CMP	pickCtrl
-		BNE	@newpick
-
-		LDA	elemptr0 + 1
-		CMP	pickCtrl + 1
-		BNE	@newpick
-
-		JSR	userMousePickBlink
-		RTS
-
-@newpick:
-		LDA	#$29
-		STA	pickBlinkDelay
-		LDA	#$01
-		STA	pickBlinkState
-
-		JSR	userMousePickCtrl
-		RTS
-		
-@elemnext:
-		LDY	ctrlvar_b
-		JMP	@elem0
-
-@panelnext:
-		LDY	ctrlvar_a
-		BMI	@unpick
-		
-		JMP	@panel0
-
-@unpick:
-		JSR	userMouseUnPickCtrl
-
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userHandleMouseClick:
-;-------------------------------------------------------------------------------
-		LDA	#$00			
-		STA	ButtonLClick
-
-		LDA	mouseCapture
-		BEQ	@norm
-		
-		JMP	(mouseCapClick)
-
-@norm:
-		LDA	pickCtrl + 1
-		BNE	@down
-
-		RTS
-
-@down:
-		STA	elemptr0 + 1
-		LDA	pickCtrl
-		STA	elemptr0 
-
-		JSR	ctrlsDownCtrl
-
-		RTS
-
-
-	.export	userMousePickBlink
-;-------------------------------------------------------------------------------
-userMousePickBlink:
-;-------------------------------------------------------------------------------
-		LDY	pickBlinkDelay
-		BEQ	@blink
-
-		DEY
-		STY	pickBlinkDelay
-		
-		RTS
-
-@blink:
-		LDY	#$29
-		STY	pickBlinkDelay
-
-		LDA	pickCtrl
-		STA	elemptr0
-		LDA	pickCtrl + 1
-		STA	elemptr0 + 1
-		
-		LDA	pickBlinkState
-		EOR	#$01
-		STA	pickBlinkState
-
-;		JSR 	ctrlsControlInvalidate
-
-		BEQ	@exclude
-	
-		LDA	#STATE_PICK
-		JSR	ctrlsIncludeState
-		RTS
-
-@exclude:
-		LDA	#STATE_PICK
-		JSR	ctrlsExcludeState
-
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userMouseUnPickCtrl:
-;-------------------------------------------------------------------------------
-		LDA	pickCtrl + 1
-		BEQ	@exit
-
-		LDY	#ELEMENT::state
-		LDA	(pickCtrl), Y
-
-		AND	#STATE_PICK
-		BEQ	@clear
-
-		LDA	pickCtrl
-		STA	elemptr0
-		LDA	pickCtrl + 1
-		STA	elemptr0 + 1
-
-		LDA	#STATE_PICK
-		JSR	ctrlsExcludeState
-		
-@clear:
-		LDA	#$00
-		STA	pickCtrl
-		STA	pickCtrl + 1
-
-@exit:
-		RTS
-
-
-	.export	userMousePickCtrl
-;-------------------------------------------------------------------------------
-userMousePickCtrl:
-;-------------------------------------------------------------------------------
-		LDA	elemptr0
-		CMP	pickCtrl
-		BNE	@update
-
-		LDA	elemptr0 + 1
-		CMP	pickCtrl + 1
-		BNE	@update
-
-		RTS
-
-@update:
-		LDA	elemptr0
-		STA	tempptr0
-		LDA	elemptr0 + 1
-		STA	tempptr0 + 1
-
-		JSR	userMouseUnPickCtrl
-
-		LDA	tempptr0
-		STA	pickCtrl
-		STA	elemptr0
-		LDA	tempptr0 + 1
-		STA	pickCtrl + 1
-		STA	elemptr0 + 1
-
-		LDA	#STATE_PICK
-		JSR	ctrlsIncludeState
-		
-		RTS
-
-
-	.export userMouseInCtrl
-;-------------------------------------------------------------------------------
-userMouseInCtrl:
-;-------------------------------------------------------------------------------
-		LDY	#ELEMENT::posy
-		LDA	(elemptr0), Y
-		STA	ctrlvar_c
-
-		LDA	mouseYRow
-		CMP	ctrlvar_c
-		BPL	@testh
-
-		JMP	@nomatch
-
-@testh:
-		LDY	#ELEMENT::height
-		LDA	(elemptr0), Y
-
-		CLC
-		ADC	ctrlvar_c
-		STA	ctrlvar_c
-
-		LDA	mouseYRow
-		CMP	ctrlvar_c
-		BPL	@nomatch
-
-		LDY	#ELEMENT::posx
-		LDA	(elemptr0), Y
-		STA	ctrlvar_c
-
-		LDA	mouseXCol
-		CMP	ctrlvar_c
-		BPL	@testw
-
-@nomatch:
-		CLC
-		RTS
-
-@testw:
-		LDY	#ELEMENT::width
-		LDA	(elemptr0), Y
-
-		CLC
-		ADC	ctrlvar_c
-		STA	ctrlvar_c
-
-		LDA	mouseXCol
-		CMP	ctrlvar_c
-		BPL	@nomatch
-
-		SEC
-		
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userCaptureMouse:
-;-------------------------------------------------------------------------------
-		SEI
-		
-		LDA	mouseCapture
-		BNE	@exit
-		
-		LDA	#$01
-		STA	mouseCapture
-		
-@exit:
-		CLI
-		
-		RTS
-
-
-;-------------------------------------------------------------------------------
-userReleaseMouse:
-;-------------------------------------------------------------------------------
-		SEI
-		
-		LDA	mouseCapture
-		BEQ	@exit
-		
-		LDA	#$00
-		STA	mouseCapture
-		
-@exit:
-		CLI
-		
-		RTS
-
-
-;-------------------------------------------------------------------------------
-;	userProcessMouse/MoveCheck moved to mouse.inc (proportional mouse
-;	with acceleration + joystick fire button). Original kept at
-;	src/backup/userProcessMouse_old.s.
-;-------------------------------------------------------------------------------
-	.include "mouse.inc"
-
-
-;-------------------------------------------------------------------------------
-ButtonCheck:
-;-------------------------------------------------------------------------------
-		LDA	Buttons			;Buttons still the same as last
-		CMP	ButtonsOld		;time?
-		BEQ	@done			;Yes - don't do anything here
-		
-;		PHA
-;		LDA	#$01
-;		STA	MouseUsed
-;		PLA
-		
-		AND	#buttonLeft		;No - Is left button down?
-		BNE	@testRight		;Yes - test right
-		
-		LDA	ButtonsOld		;No, but was it last time?
-		AND	#buttonLeft
-		BEQ	@testRight		;No - test right
-		
-		LDA	#$01			;Yes - flag have left click
-		STA	ButtonLClick
-		
-@testRight:
-		AND	#buttonRight		;Is right button down?
-		BNE	@done			;Yes - don't do anything here
-		
-		LDA	ButtonsOld		;No, but was it last time?
-		AND	#buttonRight
-		BEQ	@done			;No - don't do anything here
-		
-		LDA	#$01			;Yes - flag have right click
-		STA	ButtonRClick
-
-@done:
-		LDA	Buttons			;Store the current state
-		STA	ButtonsOld
-		RTS
-
-
-;-------------------------------------------------------------------------------
-CMOVEX:
-;-------------------------------------------------------------------------------
-		CLC
-		LDA	XPos
-		ADC	#offsX
-		STA	tempValue
-		LDA	XPos + 1
-		ADC	#$00
-		STA	tempValue + 1
-	
-		LDA	tempValue
-		STA	VICXPOS0
-		STA	VICXPOS1
-		STA	VICXPOS2
-		STA	VICXPOS3
-		
-		LDA	tempValue + 1
-		CMP	#$00
-		BEQ	@unset
-	
-		LDA	VICXPOSMSB
-		ORA	#$0F
-		STA	VICXPOSMSB
-		RTS
-	
-@unset:
-		LDA	VICXPOSMSB
-		AND	#$F0
-		STA	VICXPOSMSB
-		RTS
-	
-;-------------------------------------------------------------------------------
-CMOVEY:
-;-------------------------------------------------------------------------------
-		CLC
-		LDA	YPos
-		ADC	#offsY
-		STA	tempValue
-		LDA	YPos + 1
-		ADC	#$00
-		STA	tempValue + 1
-	
-		LDA	tempValue
-		STA	VICYPOS0
-		STA	VICYPOS1
-		STA	VICYPOS2
-		STA	VICYPOS3
-	
-		RTS
-
 
 ;===============================================================================
 ;USER INTERFACE DEFINITIONS
 ;===============================================================================
+
+.out .sprintf("UI control definitions start: * = $%04X", *)
 
 	.export	page_splsh
 ;-------------------------------------------------------------------------------
@@ -2344,13 +1441,14 @@ tab_main:
 			.byte	$00		;tag	.byte
 			.word	$0000
 			.word	tab_main_ctrls	;controls .word
-			.byte	$06
+			.byte	$07
 			.word	$0000		;page	.word
 			
 tab_main_ctrls:
 			.word	tlabel_main_begin
 			.word	tlabel_main_chat
 			.word	tlabel_main_play
+			.word	tlabel_main_prefs
 			.word	hlabel_main_page
 			.word 	button_main_back
 			.word 	button_main_next
@@ -2418,7 +1516,28 @@ tlabel_main_play:
 			.byte	$01		;teXtaccel .byte
 			.byte	KEY_C64_F5		;accelchar .byte
 			.word	$0000		;actvctrl .word
-		
+
+tlabel_main_prefs:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	clientMainPrefsChng	;changed .word
+			.word	$0000		;keypress .word
+;			.byte	TYPE_LABEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NODOWNACTV | OPT_TEXTACCEL2X
+			.byte	CLR_FACE	;colour	.byte
+			.byte	$1B		;posx	.byte
+			.byte	$00		;posy	.byte
+			.byte	$09		;width	.byte
+			.byte	$02		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	tab_main	;panel	.word
+			.word	text_main_prefs ;textptr	.word
+			.byte	$01		;textoffx .byte
+			.byte	$01		;textaccel .byte
+			.byte	KEY_C64_F9		;accelchar .byte
+			.word	$0000		;actvctrl .word
+
 hlabel_main_page:
 ;			.word	$0000		;prepare
 			.word	$0000		;present	.word
@@ -2477,6 +1596,244 @@ button_main_next:
 			.byte	$00		;textoffx .byte
 			.byte	$01		;textaccel .byte
 			.byte	KEY_C64_F7	;accelchar .byte
+
+
+page_config:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	$0000		;changed .word
+			.word	$0000		;keypress .word
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00 		;options	.byte
+			.byte	CLR_INSET	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$28		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	$0000		;nxtpage
+			.word	$0000		;bakpage
+			.word	text_page_config;textptr	.word
+			.byte	$10		;textoffx .byte
+			.word	page_config_pnls;panels	.word
+			.byte	$03
+
+page_config_pnls:
+			.word	tab_main
+			.word	panel_config_mouse
+			.word	panel_config_theme
+			.word	$0000
+
+panel_config_mouse:
+;			.word	$0000		;prepare
+			.word	ctrlsPanelDefPresent	;present	.word
+			.word	ctrlsPanelDefChanged	;changed .word
+			.word	$0000		;keypress .word
+;			.byte	TYPE_PANEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00	 	;options	.byte
+			.byte	CLR_INSET	;colour	.byte
+			.byte	$00		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$14		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	page_config
+			.word	panel_config_mouse_ctrls;controls .word
+			.byte	$04
+
+panel_config_mouse_ctrls:
+			.word	label_config_mouse
+			.word	checkbx_config_mouse_slow
+			.word	checkbx_config_mouse_medium
+			.word	checkbx_config_mouse_fast
+			.word	$0000
+
+label_config_mouse:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	ctrlsLabelDefChanged	;changed
+			.word	$0000		;keypress .word
+;			.byte	TYPE_LABEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	.byte
+			.byte	$01		;posx	.byte
+			.byte	$04		;posy	.byte
+			.byte	$12		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_mouse	;panel	.word
+			.word	text_config_mouse;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
+			.byte	$00		;accelchar .byte
+			.word	$0000		;actvctrl .word
+
+checkbx_config_mouse_slow:
+;			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	clientConfigSpeedSlowChng	;changed
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour
+			.byte	$02			;posx
+			.byte	$06			;posy
+			.byte	$10			;width
+			.byte	$01			;height
+			.byte	$00			;tag	- unchecked
+			.word	panel_config_mouse	;panel
+			.word	text_config_mouse_slow	;textptr
+			.byte	$00			;textoffx
+			.byte	$00			;textaccel
+			.byte	$00			;accelchar
+
+checkbx_config_mouse_medium:
+;			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	clientConfigSpeedMediumChng	;changed
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour
+			.byte	$02			;posx
+			.byte	$08			;posy
+			.byte	$10			;width
+			.byte	$01			;height
+			.byte	$01			;tag	- checked (default speed)
+			.word	panel_config_mouse	;panel
+			.word	text_config_mouse_medium	;textptr
+			.byte	$00			;textoffx
+			.byte	$00			;textaccel
+			.byte	$00			;accelchar
+
+checkbx_config_mouse_fast:
+;			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	clientConfigSpeedFastChng	;changed
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour
+			.byte	$02			;posx
+			.byte	$0A			;posy
+			.byte	$10			;width
+			.byte	$01			;height
+			.byte	$00			;tag	- unchecked
+			.word	panel_config_mouse	;panel
+			.word	text_config_mouse_fast	;textptr
+			.byte	$00			;textoffx
+			.byte	$00			;textaccel
+			.byte	$00			;accelchar
+
+
+panel_config_theme:
+;			.word	$0000		;prepare
+			.word	ctrlsPanelDefPresent	;present	.word
+			.word	ctrlsPanelDefChanged	;changed .word
+			.word	$0000		;keypress .word
+;			.byte	TYPE_PANEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00	 	;options	.byte
+			.byte	CLR_INSET	;colour	.byte
+			.byte	$14		;posx	.byte
+			.byte	$03		;posy	.byte
+			.byte	$14		;width	.byte
+			.byte	$16		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	page_config
+			.word	panel_config_theme_ctrls;controls .word
+			.byte	$04
+
+panel_config_theme_ctrls:
+			.word	label_config_theme
+			.word	button_config_theme_prv
+			.word	button_config_theme_nxt
+			.word	label_config_theme_name
+			.word	$0000
+
+label_config_theme:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	ctrlsLabelDefChanged	;changed
+			.word	$0000		;keypress .word
+;			.byte	TYPE_LABEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	.byte
+			.byte	$15		;posx	.byte
+			.byte	$04		;posy	.byte
+			.byte	$12		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_theme	;panel	.word
+			.word	text_config_theme;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
+			.byte	$00		;accelchar .byte
+			.word	$0000		;actvctrl .word
+
+button_config_theme_prv:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	clientConfigThemePrvChng	;changed .word
+			.word	$0000		;keypress .word
+;			.byte	TYPE_CONTROL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00		;options	.byte
+			.byte	CLR_FACE	;colour	.byte
+			.byte	$16		;posx	.byte
+			.byte	$06		;posy	.byte
+			.byte	$07		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_theme	;panel	.word
+			.word	text_config_theme_prv	;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$02		;textaccel .byte
+			.byte	$00		;accelchar .byte
+
+button_config_theme_nxt:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	clientConfigThemeNxtChng	;changed .word
+			.word	$0000		;keypress .word
+;			.byte	TYPE_CONTROL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	$00		;options	.byte
+			.byte	CLR_FACE	;colour	.byte
+			.byte	$1F		;posx	.byte
+			.byte	$06		;posy	.byte
+			.byte	$07		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_theme	;panel	.word
+			.word	text_config_theme_nxt	;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$00		;textaccel .byte
+			.byte	$00		;accelchar .byte
+
+label_config_theme_name:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	ctrlsLabelDefChanged	;changed
+			.word	$0000		;keypress .word
+;			.byte	TYPE_LABEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_TEXT	;colour	.byte
+			.byte	$16		;posx	.byte
+			.byte	$08		;posy	.byte
+			.byte	$10		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_theme	;panel	.word
+			.word	name_clrschme0	;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
+			.byte	$00		;accelchar .byte
+			.word	$0000		;actvctrl .word
 
 
 page_connect:
@@ -2928,8 +2285,8 @@ edit_room_room_buf:
 
 button_room_list:
 ;			.word	$0000			;prepare
-			.word	$0000			;present	
-			.word	$0000
+			.word	$0000			;present
+			.word	clientRoomListChng
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00			;options	.byte
@@ -3165,7 +2522,7 @@ page_play:
 page_play_pnls:
 			.word	tab_main
 			.word	panel_play_more
-			.word	panel_play_log
+			.word	lpanel_play_log
 			.word	panel_play_data
 			.word 	panel_play_less
 			.word	$0000
@@ -3286,8 +2643,8 @@ edit_play_game_buf:
 
 button_play_list:
 ;			.word	$0000			;prepare
-			.word	$0000			;present	
-			.word	$0000
+			.word	$0000			;present
+			.word	clientPlayListChng
 			.word	$0000			;keypress 
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	$00			;options	.byte
@@ -3406,11 +2763,12 @@ button_play_less:
 			.byte	$08			;textaccel .byte
 			.byte	'<'			;accelchar .byte			
 
-panel_play_log:
+lpanel_play_log:
 ;			.word	$0000			;prepare
-			.word	ctrlsPanelDefPresent	;present
-			.word	ctrlsPanelDefChanged	;changed 
-			.word	$0000			;keypress 
+			.word	ctrlsLPanelDefPresent	;present
+			.word	ctrlsPanelDefChanged	;changed
+			.word	$0000			;keypress
+;			.byte	TYPE_PANEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
 			.byte	CLR_TEXT	;colour	.byte
@@ -3422,8 +2780,29 @@ panel_play_log:
 			.word	page_play
 			.word	panel_play_log_ctrls	;controls .word
 			.byte	$00
+			.word	lpanel_play_log_lines
+			.byte	$11
+			.byte	$10
+			.byte	$04			;offsy
 
-;!!TODO - Make this a log panel
+lpanel_play_log_lines:
+			.word	play_log_line0
+			.word	play_log_line1
+			.word	play_log_line2
+			.word	play_log_line3
+			.word	play_log_line4
+			.word	play_log_line5
+			.word	play_log_line6
+			.word	play_log_line7
+			.word	play_log_line8
+			.word	play_log_line9
+			.word	play_log_lineA
+			.word	play_log_lineB
+			.word	play_log_lineC
+			.word	play_log_lineD
+			.word	play_log_lineE
+			.word	play_log_lineF
+			.word	play_log_line10
 
 panel_play_log_ctrls:
 			.word	$0000
@@ -4637,6 +4016,920 @@ spanel_detail_sheet:
 
 spanel_detail_sheet_ctrls:
 			.word	$0000
+
+.out .sprintf("UI control definitions end: * = $%04X", *)
+
+.out .sprintf("Before eth.bin pad: * = $%04X, room until $2000 = %d bytes", *, $2000 - *)
+
+.res    $2000 - *, 0
+
+.assert * = $2000, error, "eth.bin must load at $2000 - mega-ip's own jump table (MIP_INIT etc.) is hardcoded to that address, layout above no longer adds up"
+
+.incbin "eth.bin"
+
+
+;===============================================================================
+
+;===============================================================================
+;	.segment	"CODE"
+;===============================================================================
+;-------------------------------------------------------------------------------
+;Input driver variables
+;-------------------------------------------------------------------------------
+OldPotX:        
+	.byte    	0               	;Old hw counter values
+OldPotY:        
+	.byte    	0
+
+XPos:           
+	.word    	0               	;Current mouse position, X
+YPos:           
+	.word    	0               	;Current mouse position, Y
+XMin:           
+	.word    	0               	;X1 value of bounding box
+YMin:           
+	.word    	0               	;Y1 value of bounding box
+XMax:           
+	.word    	319               	;X2 value of bounding box
+YMax:           
+	.word    	199           		;Y2 value of bounding box
+	
+Buttons:        
+	.byte    	0               	;button status bits
+ButtonsOld:
+	.byte		0
+ButtonLClick:
+	.byte		0
+ButtonRClick:
+	.byte		0
+MouseUsed:
+	.byte		$00
+
+OldValue:       
+	.byte    	0               	;Temp for MoveCheck routine
+NewValue:       
+	.byte    	0               	;Temp for MoveCheck routine
+
+tempValue:	
+	.word		0
+
+mouseCheck:
+	.byte		$00
+mouseTemp0:
+	.word		$0000
+mouseXCol:
+	.byte		$00
+mouseYRow:
+	.byte		$00
+;mouseLastY:
+;	.word           $0000
+
+mouseCapture:
+			.byte	0
+mouseCapCtrl:
+			.word	$0000
+mouseCapMove:
+			.word	$0000
+mouseCapClick:
+			.word	$0000
+
+
+mousePanl:
+		.byte	$00
+
+mouseExtX:
+		.byte	$00
+mouseExtY:
+		.byte	$00
+	
+keyBuffer0:
+	.repeat	20, I
+		.byte	$00
+	.endrep
+keyBufferSize:
+		.byte	$00
+keyRepeatFlag:
+		.byte	$00
+keyRepeatSpeed:
+		.byte	$00
+keyRepeatDelay:
+		.byte	$00
+keyModifierFlag:
+		.byte	$00
+keyModifierLast:
+		.byte	$00
+
+pickBlinkDelay:
+		.byte	$00
+pickBlinkState:
+		.byte	$00
+
+
+
+	.export	userIRQInstall
+;-------------------------------------------------------------------------------
+userIRQInstall:
+;-------------------------------------------------------------------------------
+		LDA	#<userIRQ		;install our handler
+		STA	cpuIRQ
+		LDA	#>userIRQ
+		STA	cpuIRQ + 1
+
+		LDA	#<userNOP		;install our handler
+		STA	cpuRESET
+		LDA	#>userNOP
+		STA	cpuRESET + 1
+
+		LDA	#<userNOP		;install our handler
+		STA	cpuNMI
+		LDA	#>userNOP
+		STA	cpuNMI + 1
+
+
+		LDA	#%01111111		;We'll always want rasters
+		AND	vicCtrlReg		;    less than $0100
+		STA	vicCtrlReg
+		
+		LDA	#$19
+		STA	vicRstrVal
+		
+		LDA	#$01			;Enable raster irqs
+		STA	vicIRQMask
+		
+		RTS
+
+;-------------------------------------------------------------------------------
+userNOP:
+;-------------------------------------------------------------------------------
+		RTI
+
+
+	.export	userIRQ
+;-------------------------------------------------------------------------------
+userIRQ:
+;-------------------------------------------------------------------------------
+		PHP				;save the initial state
+		PHA
+		TXA				
+		PHA
+		TYA
+		PHA
+
+		CLD
+		
+;	Is the VIC-II needing service?
+		LDA	vicIRQFlgs
+		AND	#$01
+		BNE	@proc
+		
+;	Some other interrupt source??  Peculiar...  And a real problem!  How
+;	do I acknowledge it if its not a BRK when I don't know what it would be?
+		LDA	#$02
+		STA	vicBrdrClr
+		STA	vicBkgdClr
+
+		JMP 	@done
+		
+@proc:
+		ASL	vicIRQFlgs
+		
+		JSR	userIRQHandler
+
+@done:
+		PLA             
+		TAY             
+		PLA             
+		TAX             
+		PLA             
+		PLP
+
+		RTI
+
+
+;-------------------------------------------------------------------------------
+userIRQHandler:
+;-------------------------------------------------------------------------------
+	.if	DEBUG_RASTERTIME
+		LDA	#$00
+		STA	vicBrdrClr
+	.endif
+
+
+;	UI notify with flash?
+		LDA	uiflshcnt
+		BEQ	@flshfin
+		
+		LDA	uiflshdly
+		BEQ	@flash
+		
+		DEC	uiflshdly
+		JMP	@flshfin
+		
+@flash:
+		LDA	uiflshcnt
+		
+		AND	#$01
+		BNE	@flshoff
+		
+		LDA	#$01
+		STA	vicBrdrClr
+		
+		JMP	@flshdone
+		
+@flshoff:
+		LDA	current_clrs
+		STA	vicBrdrClr
+		
+		
+@flshdone:
+		LDA	#$08
+		STA	uiflshdly
+		
+		DEC	uiflshcnt
+
+@flshfin:
+		JSR	userProcessMouse	;Do mouse first so we can skip
+						;	expensive all lines
+						;	keyboard scan when mouse
+						;	used.
+
+	.if	DEBUG_RASTERTIME
+		LDA	#$05
+		STA	vicBrdrClr
+	.endif
+
+		JSR	userKeyScanKey
+		
+		LDA	ctrlsLock
+		BNE	@skipUpdate
+
+		LDA	ctrlsPrep
+		BNE	@skipUpdate
+
+	.if	DEBUG_RASTERTIME
+		LDA	#$01
+		STA	vicBrdrClr
+	.endif
+
+		JSR	userHandleMouse
+		
+		LDA	ButtonLClick
+		BEQ	@finish
+		
+		JSR	userHandleMouseClick
+		JMP	@finish
+	
+@skipUpdate:
+		LDY	pickBlinkDelay
+		BEQ	@finish
+
+		DEY
+		STY	pickBlinkDelay
+
+
+@finish:
+	.if	DEBUG_RASTERTIME
+		LDA	#$0E
+		STA	vicBrdrClr
+	.endif
+
+		LDA	#$19
+		STA	vicRstrVal
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userDiscardKey:
+;-------------------------------------------------------------------------------
+		LDY	keyBuffer0		;copy kernal code for input key
+		LDX	#$00
+@loop:
+		LDA	keyBuffer0 + 2, X
+		STA	keyBuffer0, X
+		INX
+		
+		LDA	keyBuffer0 + 3, X
+		STA	keyBuffer0 + 1, X
+		INX
+
+		CPX	keyZPKeyCount
+		BNE	@loop
+		
+		DEC	keyZPKeyCount
+		DEC	keyZPKeyCount
+
+		TYA
+;		CLI				;NO!  Causes problem for IRQ
+		CLC
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userReadKey:
+;-------------------------------------------------------------------------------
+		LDX	#$00
+
+		STX	keyZPAbort
+
+		LDA	keyZPKeyCount
+		BEQ	@exit
+
+		LDA	keyBuffer0, X
+		PHA
+		INX
+		LDA	keyBuffer0, X
+		PHA
+
+		JSR	userDiscardKey
+
+		PLA
+		TAX
+		PLA
+
+@exit:
+		RTS
+	
+
+;-------------------------------------------------------------------------------
+userKeyScanKey:
+;-------------------------------------------------------------------------------
+		LDA	Buttons			;When button down, just leave 
+		BEQ	@begin			;	already
+
+		RTS
+
+@begin:
+    LDA $D610
+    BEQ @done
+
+    STA $D610
+
+    LDX keyZPKeyCount
+    CPX keyBufferSize
+    BCS @done
+
+    STA keyBuffer0, X
+    INX
+    LDA #$00
+    STA keyBuffer0, X
+    INX
+
+    STX keyZPKeyCount
+
+@done:
+    RTS
+
+;-------------------------------------------------------------------------------
+check_for_abort_key:
+;-------------------------------------------------------------------------------
+		LDA	keyZPAbort
+		BEQ	@nokey
+
+		SEC
+		RTS
+
+@nokey:
+		CLC
+		RTS
+
+
+	.export	userHandleMouse
+;-------------------------------------------------------------------------------
+userHandleMouse:
+;-------------------------------------------------------------------------------
+		LDA	mouseCheck
+		CMP	#$10
+		BCS	@proc
+			
+		LDA	ButtonLClick
+		BNE	@proc
+
+		LDA	mouseCapture
+		BEQ	@tstpick
+
+		RTS
+
+@tstpick:
+		LDA	pickCtrl + 1
+		BNE	@tstblink
+
+		RTS
+
+@tstblink:
+		CMP	downCtrl + 1
+		BNE	@blink
+
+		LDA	pickCtrl
+		CMP	downCtrl
+		BNE	@blink
+
+		RTS
+
+@blink:
+		JSR	userMousePickBlink
+		RTS
+
+@proc:
+		LDA	#$00
+		STA	mouseCheck
+
+		LDA	XPos
+		STA	mouseTemp0
+		LDA	XPos + 1
+		STA	mouseTemp0 + 1
+		
+		LDX	#$02
+@xDiv8Loop:
+		LSR
+		STA	mouseTemp0 + 1
+		LDA	mouseTemp0
+		ROR
+		STA	mouseTemp0
+		LDA	mouseTemp0 + 1
+		
+		DEX
+		BPL	@xDiv8Loop
+		
+		LDA	mouseTemp0
+		STA	mouseXCol
+		
+		LDA	YPos
+		STA	mouseTemp0
+		LDA	YPos + 1
+		STA	mouseTemp0 + 1
+		
+		LDX	#$02
+@yDiv8Loop:
+		LSR
+		STA	mouseTemp0 + 1
+		LDA	mouseTemp0
+		ROR
+		STA	mouseTemp0
+		LDA	mouseTemp0 + 1
+		
+		DEX
+		BPL	@yDiv8Loop
+		
+		LDA	mouseTemp0
+		STA	mouseYRow
+
+		LDA	mouseCapture
+		BEQ	@findctrl
+		
+		JMP	(mouseCapMove)
+
+;	Find last panel on page
+@findctrl:		
+		LDY	#PAGE::panels
+		LDA	(pageptr0), Y
+		STA	ctrlptr0
+		INY
+		LDA	(pageptr0), Y
+		STA	ctrlptr0 + 1
+
+		LDY	#PAGE::panlcnt
+		LDA	(pageptr0), Y
+		ASL
+		STA	ctrlvar_a
+		DEC	ctrlvar_a
+
+@panel0:
+;	for each panel on page rev
+		LDY	ctrlvar_a
+
+		LDA	(ctrlptr0), Y
+		STA	panlptr0 + 1
+		DEY
+		LDA	(ctrlptr0), Y
+		STA	panlptr0
+		DEY
+		
+		STY	ctrlvar_a
+
+		LDY	#ELEMENT::state
+		LDA	(panlptr0), Y
+		AND	#STATE_VISIBLE
+		BEQ	@panelnext
+
+		LDA	(panlptr0), Y
+		AND	#STATE_ENABLED
+		BEQ	@panelnext
+
+		LDY	#ELEMENT::options
+		LDA	(panlptr0), Y
+		AND	#OPT_NONAVIGATE
+		BNE	@panelnext
+
+;	find coord in panel
+
+		LDA	panlptr0
+		STA	elemptr0
+		LDA	panlptr0 + 1
+		STA	elemptr0 + 1
+
+		JSR	userMouseInCtrl
+		BCC	@panelnext
+
+;	for each elem in panel 
+
+		LDY	#PANEL::controls
+		LDA	(panlptr0), Y
+		STA	ctrlptr1
+		INY
+		LDA	(panlptr0), Y
+		STA	ctrlptr1 + 1
+
+		LDY	#$00
+		
+@elem0:
+		LDA	(ctrlptr1), Y
+		STA	elemptr0
+		INY
+		LDA	(ctrlptr1), Y
+		BEQ	@panelnext
+		
+		STA	elemptr0 + 1
+		INY
+		
+		STY	ctrlvar_b
+
+;	find coord in elem on panel
+		
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		AND	#STATE_VISIBLE
+		BEQ	@elemnext
+
+		LDA	(elemptr0), Y
+		AND	#STATE_ENABLED
+		BEQ	@elemnext
+
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#OPT_NONAVIGATE
+		BNE	@elemnext
+
+;	find coord in elem
+
+		JSR	userMouseInCtrl
+		BCC	@elemnext
+
+		LDA	elemptr0
+		CMP	pickCtrl
+		BNE	@newpick
+
+		LDA	elemptr0 + 1
+		CMP	pickCtrl + 1
+		BNE	@newpick
+
+		JSR	userMousePickBlink
+		RTS
+
+@newpick:
+		LDA	#$29
+		STA	pickBlinkDelay
+		LDA	#$01
+		STA	pickBlinkState
+
+		JSR	userMousePickCtrl
+		RTS
+		
+@elemnext:
+		LDY	ctrlvar_b
+		JMP	@elem0
+
+@panelnext:
+		LDY	ctrlvar_a
+		BMI	@unpick
+		
+		JMP	@panel0
+
+@unpick:
+		JSR	userMouseUnPickCtrl
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userHandleMouseClick:
+;-------------------------------------------------------------------------------
+		LDA	#$00			
+		STA	ButtonLClick
+
+		LDA	mouseCapture
+		BEQ	@norm
+		
+		JMP	(mouseCapClick)
+
+@norm:
+		LDA	pickCtrl + 1
+		BNE	@down
+
+		RTS
+
+@down:
+		STA	elemptr0 + 1
+		LDA	pickCtrl
+		STA	elemptr0 
+
+		JSR	ctrlsDownCtrl
+
+		RTS
+
+
+	.export	userMousePickBlink
+;-------------------------------------------------------------------------------
+userMousePickBlink:
+;-------------------------------------------------------------------------------
+		LDY	pickBlinkDelay
+		BEQ	@blink
+
+		DEY
+		STY	pickBlinkDelay
+		
+		RTS
+
+@blink:
+		LDY	#$29
+		STY	pickBlinkDelay
+
+		LDA	pickCtrl
+		STA	elemptr0
+		LDA	pickCtrl + 1
+		STA	elemptr0 + 1
+		
+		LDA	pickBlinkState
+		EOR	#$01
+		STA	pickBlinkState
+
+;		JSR 	ctrlsControlInvalidate
+
+		BEQ	@exclude
+	
+		LDA	#STATE_PICK
+		JSR	ctrlsIncludeState
+		RTS
+
+@exclude:
+		LDA	#STATE_PICK
+		JSR	ctrlsExcludeState
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userMouseUnPickCtrl:
+;-------------------------------------------------------------------------------
+		LDA	pickCtrl + 1
+		BEQ	@exit
+
+		LDY	#ELEMENT::state
+		LDA	(pickCtrl), Y
+
+		AND	#STATE_PICK
+		BEQ	@clear
+
+		LDA	pickCtrl
+		STA	elemptr0
+		LDA	pickCtrl + 1
+		STA	elemptr0 + 1
+
+		LDA	#STATE_PICK
+		JSR	ctrlsExcludeState
+		
+@clear:
+		LDA	#$00
+		STA	pickCtrl
+		STA	pickCtrl + 1
+
+@exit:
+		RTS
+
+
+	.export	userMousePickCtrl
+;-------------------------------------------------------------------------------
+userMousePickCtrl:
+;-------------------------------------------------------------------------------
+		LDA	elemptr0
+		CMP	pickCtrl
+		BNE	@update
+
+		LDA	elemptr0 + 1
+		CMP	pickCtrl + 1
+		BNE	@update
+
+		RTS
+
+@update:
+		LDA	elemptr0
+		STA	tempptr0
+		LDA	elemptr0 + 1
+		STA	tempptr0 + 1
+
+		JSR	userMouseUnPickCtrl
+
+		LDA	tempptr0
+		STA	pickCtrl
+		STA	elemptr0
+		LDA	tempptr0 + 1
+		STA	pickCtrl + 1
+		STA	elemptr0 + 1
+
+		LDA	#STATE_PICK
+		JSR	ctrlsIncludeState
+		
+		RTS
+
+
+	.export userMouseInCtrl
+;-------------------------------------------------------------------------------
+userMouseInCtrl:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::posy
+		LDA	(elemptr0), Y
+		STA	ctrlvar_c
+
+		LDA	mouseYRow
+		CMP	ctrlvar_c
+		BPL	@testh
+
+		JMP	@nomatch
+
+@testh:
+		LDY	#ELEMENT::height
+		LDA	(elemptr0), Y
+
+		CLC
+		ADC	ctrlvar_c
+		STA	ctrlvar_c
+
+		LDA	mouseYRow
+		CMP	ctrlvar_c
+		BPL	@nomatch
+
+		LDY	#ELEMENT::posx
+		LDA	(elemptr0), Y
+		STA	ctrlvar_c
+
+		LDA	mouseXCol
+		CMP	ctrlvar_c
+		BPL	@testw
+
+@nomatch:
+		CLC
+		RTS
+
+@testw:
+		LDY	#ELEMENT::width
+		LDA	(elemptr0), Y
+
+		CLC
+		ADC	ctrlvar_c
+		STA	ctrlvar_c
+
+		LDA	mouseXCol
+		CMP	ctrlvar_c
+		BPL	@nomatch
+
+		SEC
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userCaptureMouse:
+;-------------------------------------------------------------------------------
+		SEI
+		
+		LDA	mouseCapture
+		BNE	@exit
+		
+		LDA	#$01
+		STA	mouseCapture
+		
+@exit:
+		CLI
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+userReleaseMouse:
+;-------------------------------------------------------------------------------
+		SEI
+		
+		LDA	mouseCapture
+		BEQ	@exit
+		
+		LDA	#$00
+		STA	mouseCapture
+		
+@exit:
+		CLI
+		
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	userProcessMouse/MoveCheck moved to mouse.inc (proportional mouse
+;	with acceleration + joystick fire button). Original kept at
+;	src/backup/userProcessMouse_old.s.
+;-------------------------------------------------------------------------------
+	.include "mouse.inc"
+
+
+;-------------------------------------------------------------------------------
+ButtonCheck:
+;-------------------------------------------------------------------------------
+		LDA	Buttons			;Buttons still the same as last
+		CMP	ButtonsOld		;time?
+		BEQ	@done			;Yes - don't do anything here
+		
+;		PHA
+;		LDA	#$01
+;		STA	MouseUsed
+;		PLA
+		
+		AND	#buttonLeft		;No - Is left button down?
+		BNE	@testRight		;Yes - test right
+		
+		LDA	ButtonsOld		;No, but was it last time?
+		AND	#buttonLeft
+		BEQ	@testRight		;No - test right
+		
+		LDA	#$01			;Yes - flag have left click
+		STA	ButtonLClick
+		
+@testRight:
+		AND	#buttonRight		;Is right button down?
+		BNE	@done			;Yes - don't do anything here
+		
+		LDA	ButtonsOld		;No, but was it last time?
+		AND	#buttonRight
+		BEQ	@done			;No - don't do anything here
+		
+		LDA	#$01			;Yes - flag have right click
+		STA	ButtonRClick
+
+@done:
+		LDA	Buttons			;Store the current state
+		STA	ButtonsOld
+		RTS
+
+
+;-------------------------------------------------------------------------------
+CMOVEX:
+;-------------------------------------------------------------------------------
+		CLC
+		LDA	XPos
+		ADC	#offsX
+		STA	tempValue
+		LDA	XPos + 1
+		ADC	#$00
+		STA	tempValue + 1
+	
+		LDA	tempValue
+		STA	VICXPOS0
+		STA	VICXPOS1
+		STA	VICXPOS2
+		STA	VICXPOS3
+		
+		LDA	tempValue + 1
+		CMP	#$00
+		BEQ	@unset
+	
+		LDA	VICXPOSMSB
+		ORA	#$0F
+		STA	VICXPOSMSB
+		RTS
+	
+@unset:
+		LDA	VICXPOSMSB
+		AND	#$F0
+		STA	VICXPOSMSB
+		RTS
+	
+;-------------------------------------------------------------------------------
+CMOVEY:
+;-------------------------------------------------------------------------------
+		CLC
+		LDA	YPos
+		ADC	#offsY
+		STA	tempValue
+		LDA	YPos + 1
+		ADC	#$00
+		STA	tempValue + 1
+	
+		LDA	tempValue
+		STA	VICYPOS0
+		STA	VICYPOS1
+		STA	VICYPOS2
+		STA	VICYPOS3
+	
+		RTS
+
+
 
 
 ;===============================================================================
@@ -6076,20 +6369,128 @@ clientSendPlayPart:
 
 
 ;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+clientRoomListChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		JSR	clientSendRoomListNames
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientPlayListChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		JSR	clientSendPlayListGames
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientSendRoomListNames:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+
+		BCC	@failed
+
+		LDA	#MSG_CATG_LOBY
+		ORA	#$03
+
+		JSR	strsAppendChar
+
+;	Only ask for a specific room's player list if we're actually in one
+;	(Part button visible) - otherwise send no room name, which asks the
+;	server for the list of all public rooms instead.
+		LDA	button_room_part + ELEMENT::state
+		AND	#STATE_VISIBLE
+		BEQ	@send
+
+		LDAX	#edit_room_room_buf
+		JSR	strsAppendString
+
+@send:
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+@failed:
+		LDA	#INET_PROC_DISC
+		STA	inetproc
+
+		JSR	clientNotifyFail
+
+		RTS
+
+
+;	Unlike the room list, the play list is only ever "list all games" -
+;	players in a game are already visible on the overview page, so this
+;	never asks for a specific game's player list. clientSendPlayListNames
+;	below is separate and still does that, for the join-confirmation flow.
+clientSendPlayListGames:
+;-------------------------------------------------------------------------------
+		JSR	inetGetNextSend
+
+		BCC	@failed
+
+		LDA	#MSG_CATG_PLAY
+		ORA	#$03
+
+		JSR	strsAppendChar
+
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+@failed:
+		LDA	#INET_PROC_DISC
+		STA	inetproc
+
+		JSR	clientNotifyFail
+
+		RTS
+
+
 clientSendPlayListNames:
 ;-------------------------------------------------------------------------------
 		JSR	inetGetNextSend
-		
+
 		BCC	@failed
-		
+
 		LDA	#MSG_CATG_PLAY
 		ORA	#$03
-		
+
 		JSR	strsAppendChar
-		
+
 		LDAX	#edit_play_game_buf
 		JSR	strsAppendString
-		
+
 		DEC	tempdat0
 		LDA	tempdat0
 		LDY	#$00
@@ -6582,9 +6983,20 @@ clientProcTextMsgBegin:
 		JMP	@output
 
 @play:
+		LDA	#<lpanel_play_log
+		STA	tempptr2
+		LDA	#>lpanel_play_log
+		STA	tempptr2 + 1
+
+		JMP	@output
+
 @lobby:
-;!!TODO:	Load log panel pointer for appropriate log panel
-		JMP	@exit
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1
+
+		JMP	@output
 
 @output:
 		JSR	ctrlsLogPanelGetNextLine
@@ -6702,12 +7114,20 @@ clientProcTextMsgData:
 		JMP	clientProcTextMsgPlaySlts
 
 @playlst:
-;!!TODO:	Logic for output list data to play log
-		JMP	@exit
+		LDA	#<lpanel_play_log
+		STA	tempptr2
+		LDA	#>lpanel_play_log
+		STA	tempptr2 + 1
+
+		JMP	@output
 
 @lobby:
-;!!TODO:	Logic for output list data to lobby log
-		JMP	@exit
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1
+
+		JMP	@output
 
 @output:
 		JSR	ctrlsLogPanelGetNextLine
@@ -9395,7 +9815,7 @@ clientCnctDCntChng:
 ;-------------------------------------------------------------------------------
 clientMainUnsetTabs:
 ;-------------------------------------------------------------------------------
-		LDX	#$05
+		LDX	#$07
 @loop:
 		LDA	tab_main_ctrls, X
 		STA	tempptr0 + 1
@@ -9803,6 +10223,253 @@ clientMainPlayChng:
 
 
 ;-------------------------------------------------------------------------------
+clientMainPrefsChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDY	#ELEMENT::options
+		LDA	tlabel_main_prefs, Y
+		AND	#OPT_NONAVIGATE
+		BNE	@exit
+
+		JSR	clientMainUnsetTabs
+
+		LDY	#ELEMENT::colour
+		LDA	#CLR_FOCUS
+		STA	tlabel_main_prefs, Y
+
+		LDY	#ELEMENT::options
+		LDA	#(OPT_NODOWNACTV | OPT_NONAVIGATE | OPT_TEXTACCEL2X)
+		STA	tlabel_main_prefs, Y
+
+		SEI
+		LDA	#<page_config
+		STA	elemptr0
+		LDA	#>page_config
+		STA	elemptr0 + 1
+		JSR	ctrlsPageSelect
+@exit:
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientConfigThemeNxtChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	clrschme_idx
+		CMP	#(clrschme_cnt - 1)
+		BCS	@exit			;already at the last scheme
+
+		INC	clrschme_idx
+
+		JSR	clientConfigThemeApply
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientConfigThemePrvChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	clrschme_idx
+		BEQ	@exit			;already at the first scheme
+
+		DEC	clrschme_idx
+
+		JSR	clientConfigThemeApply
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	clientConfigThemeApply - point label_config_theme_name at the name
+;	for clrschme_idx, apply that scheme's colours, then re-select
+;	page_config (via the same pageptr0 short-circuit as before) so the
+;	panels redraw with the new colours and label text.
+;-------------------------------------------------------------------------------
+clientConfigThemeApply:
+		LDA	#<clrschme_lst
+		STA	tempptr0
+		LDA	#>clrschme_lst
+		STA	tempptr0 + 1
+
+		LDA	clrschme_idx
+		ASL
+		ASL
+		CLC
+		ADC	#$02			;skip the scheme-data word, land
+		TAY				;	on the name-pointer word
+
+		LDA	(tempptr0), Y
+		STA	label_config_theme_name + CONTROL::textptr
+		INY
+		LDA	(tempptr0), Y
+		STA	label_config_theme_name + CONTROL::textptr + 1
+
+		LDA	clrschme_idx
+		JSR	colourSchemeSelect
+
+		LDA	#$00
+		STA	pageptr0 + 1
+
+		LDA	#<page_config
+		STA	elemptr0
+		LDA	#>page_config
+		STA	elemptr0 + 1
+		JSR	ctrlsPageSelect
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	The three speed checkboxes below are coerced into acting like a
+;	radio group: each one is a normal OPT_AUTOCHECK checkbox (so
+;	ctrlsControlDefChanged still handles its own tag toggle + redraw),
+;	but its changed handler also forces the other two back to
+;	unchecked. Not a real radio button control - clicking the already-
+;	checked box still toggles it off like any other checkbox - that's
+;	fine for now per the "don't need proper radio buttons yet" plan.
+;-------------------------------------------------------------------------------
+clientConfigSpeedSlowChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	#<checkbx_config_mouse_medium
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_medium
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#<checkbx_config_mouse_fast
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_fast
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#MOUSE_SPEED_SLOW
+		STA	mouseAccelSpeed
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientConfigSpeedMediumChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	#<checkbx_config_mouse_slow
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_slow
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#<checkbx_config_mouse_fast
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_fast
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#MOUSE_SPEED_MEDIUM
+		STA	mouseAccelSpeed
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+clientConfigSpeedFastChng:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::state
+		LDA	(elemptr0), Y
+		STA	tempdat0
+
+		JSR	ctrlsControlDefChanged
+
+		LDA	tempdat0
+		AND	#STATE_DOWN
+		BEQ	@exit
+
+		LDA	#<checkbx_config_mouse_slow
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_slow
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#<checkbx_config_mouse_medium
+		STA	elemptr0
+		LDA	#>checkbx_config_mouse_medium
+		STA	elemptr0 + 1
+		JSR	clientConfigSpeedUncheck
+
+		LDA	#MOUSE_SPEED_FAST
+		STA	mouseAccelSpeed
+
+@exit:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	clientConfigSpeedUncheck - force the checkbox pointed to by elemptr0
+;	back to unchecked (tag = 0) and redraw it.
+;-------------------------------------------------------------------------------
+clientConfigSpeedUncheck:
+;-------------------------------------------------------------------------------
+		LDY	#ELEMENT::tag
+		LDA	#$00
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 clientPlayMoreChng:
 ;-------------------------------------------------------------------------------
 		LDY	#ELEMENT::state
@@ -9859,13 +10526,13 @@ clientPlayMoreChng:
 		
 		JSR	ctrlsActivateCtrl
 
-		LDA	#<panel_play_log
+		LDA	#<lpanel_play_log
 		STA	elemptr0
-		LDA	#>panel_play_log
+		LDA	#>lpanel_play_log
 		STA	elemptr0 + 1
-				
+
 ;!!TODO: Change an offset parameter to hide/show top lines
-		
+
 		LDY	#ELEMENT::posy
 		LDA	#$0A
 		STA	(elemptr0), Y
@@ -9950,11 +10617,11 @@ clientPlayLessChng:
 		
 		JSR	ctrlsActivateCtrl
 
-		LDA	#<panel_play_log
+		LDA	#<lpanel_play_log
 		STA	elemptr0
-		LDA	#>panel_play_log
+		LDA	#>lpanel_play_log
 		STA	elemptr0 + 1
-		
+
 ;!!TODO: Change an offset parameter to hide/show top lines
 
 		LDY	#ELEMENT::posy
@@ -13007,7 +13674,7 @@ ctrlsPageKeyPress:
 		JMP	@isdownctrl
 
 @fkey0:
-		CMP	#(KEY_C64_F8 + 1)
+		CMP	#(KEY_C64_F9 + 1)
 		BCC	@findaccel
 
 @isdownctrl:
@@ -15497,6 +16164,41 @@ room_log_lineF:
 			.res	41
 room_log_line10:
 			.res	41
+
+play_log_line0:
+			.res	41
+play_log_line1:
+			.res	41
+play_log_line2:
+			.res	41
+play_log_line3:
+			.res	41
+play_log_line4:
+			.res	41
+play_log_line5:
+			.res	41
+play_log_line6:
+			.res	41
+play_log_line7:
+			.res	41
+play_log_line8:
+			.res	41
+play_log_line9:
+			.res	41
+play_log_lineA:
+			.res	41
+play_log_lineB:
+			.res	41
+play_log_lineC:
+			.res	41
+play_log_lineD:
+			.res	41
+play_log_lineE:
+			.res	41
+play_log_lineF:
+			.res	41
+play_log_line10:
+			.res	41
 			
 room_haveblank:
 			.res 	1
@@ -15664,6 +16366,8 @@ text_main_chat:
 			.asciiz	"F3-CHAT"
 text_main_play:
 			.asciiz	"F5-PLAY"
+text_main_prefs:
+			.asciiz	"F9-PREFS"
 			
 text_main_back:
 			.asciiz	"[F8 <-BAK]"
@@ -15673,6 +16377,22 @@ text_main_next:
 			
 text_page_connect:
 			.asciiz	"CONNECT"
+text_page_config:
+			.asciiz	"CONFIGURE"
+text_config_mouse:
+			.asciiz	"MOUSE SETTINGS"
+text_config_mouse_slow:
+			.asciiz	"SLOW"
+text_config_mouse_medium:
+			.asciiz	"MEDIUM"
+text_config_mouse_fast:
+			.asciiz	"FAST"
+text_config_theme:
+			.asciiz	"THEME SETTINGS"
+text_config_theme_prv:
+			.asciiz	"< PRV"
+text_config_theme_nxt:
+			.asciiz	"NXT >"
 text_cnct_host:
 			.asciiz "HOST NAME:"
 text_cnct_user:
@@ -15989,14 +16709,59 @@ healthclrs:
 			.byte	$0D, $05, $05, $07, $07, $0A, $02, $02, $02
 
 			
-clrschme_cnt	=	$01
+clrschme_idx:
+			.byte	$00
+clrschme_cnt	=	$06
 clrschme_lst:
 			.word	clrschme0
 			.word	name_clrschme0
+			.word	clrschme1
+			.word	name_clrschme1
+			.word	clrschme2
+			.word	name_clrschme2
+			.word	clrschme3
+			.word	name_clrschme3
+			.word	clrschme4
+			.word	name_clrschme4
+			.word	clrschme5
+			.word	name_clrschme5
 			.word	$0000
 			
 name_clrschme0:
-			.asciiz	"FAMILIAR"
+			.asciiz	"CORPORATE"
 clrschme0:
+			.byte	$06, $02, $0E, $01, $06, $04, $0C, $0F, $03, $01
+name_clrschme1:
+			.asciiz	"FAMILIAR"
+clrschme1:
 			.byte	$0E, $0A, $01, $01, $0E, $04, $0C, $0F, $03, $01
+name_clrschme2:
+      .asciiz "POSTCARD"
+clrschme2:
+			.byte	$08, $09, $07, $01, $08, $0A, $0C, $0F, $03, $01
+name_clrschme3:
+      .asciiz "DESTINY"
+clrschme3:
+			.byte	$05, $0D, $0D, $01, $05, $07, $0C, $0F, $03, $01
+name_clrschme4:
+      .asciiz "BERRY"
+clrschme4:
+			.byte	$02, $0A, $0A, $01, $02, $04, $0C, $0F, $03, $01
+name_clrschme5:
+      .asciiz "PROWL'N"
+clrschme5:
+			.byte	$0B, $0F, $0F, $01, $0B, $0D, $0C, $0F, $03, $01
 ;===============================================================================
+
+
+;CLR_BACK	$FD		;System - always black
+;CLR_EMPTY	$FE		;Border on C64
+;CLR_CURSOR	$FF		
+;CLR_TEXT	$00
+;CLR_FOCUS	$01
+;CLR_INSET	$02
+;CLR_FACE	$03
+;CLR_SHADOW	$04
+;CLR_PAPER	$05
+;CLR_MONEY	$06
+;CLR_DIE		$07

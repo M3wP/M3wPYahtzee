@@ -24,6 +24,7 @@ ETHSRC   := mega-ip/eth.asm
 ETHSRCS  := $(wildcard mega-ip/*.asm)
 ETHBIN   := eth.bin
 ETHLST   := eth.lst
+INCSRCS  := $(wildcard *.inc)
 
 .PHONY: all run dist clean
 
@@ -36,7 +37,9 @@ all: $(PRG)
 $(ETHBIN): $(ETHSRCS)
 	"$(TASS)" $(ETHSRC) --nostart -L $(ETHLST) -o $(ETHBIN)
 
-$(OBJ): $(SRC) $(ETHBIN)
+# test.s pulls in mouse.inc/common.inc/net.inc/error.inc etc. via
+# .include, so any of them changing should trigger a rebuild too.
+$(OBJ): $(SRC) $(ETHBIN) $(INCSRCS)
 	"$(CA65)" $(SRC) -o $(OBJ)
 
 $(PRG): $(OBJ) $(CONFIG)
