@@ -165,6 +165,8 @@ const
 procedure AddLogMessage(const AKind: TLogKind; const AMessage: string);
 
 var
+    FilterLogKinds: set of TLogKind = [slkError, slkWarning, slkInfo];
+
 	LogMessages: TLogMessages;
 
 
@@ -190,12 +192,15 @@ procedure AddLogMessage(const AKind: TLogKind; const AMessage: string);
     lm: TLogMessage;
 
     begin
-    lm:= TLogMessage.Create;
-    lm.Kind:= AKind;
-    lm.Message:= FormatDateTime('hh:nn:ss.zzz ', Now) + AMessage;
-    UniqueString(lm.Message);
+    if  AKind in FilterLogKinds then
+        begin
+        lm:= TLogMessage.Create;
+        lm.Kind:= AKind;
+        lm.Message:= FormatDateTime('hh:nn:ss.zzz ', Now) + AMessage;
+        UniqueString(lm.Message);
 
-    LogMessages.Add(lm);
+        LogMessages.Add(lm);
+        end;
     end;
 
 function  DieSetToByte(ADieSet: TDieSet): Byte;

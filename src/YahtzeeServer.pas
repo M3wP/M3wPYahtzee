@@ -629,6 +629,9 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 							APlayer.AddSendMessage(m);
 
 							APlayer.Name:= n;
+
+							AddLogMessage(slkInfo, '"' + APlayer.Ticket +
+									'" set username to "' + string(n) + '".');
 							end
 						else
 							APlayer.SendServerError(LIT_ERR_CONNCTID);
