@@ -280,7 +280,7 @@ var
 
 
 const
-	LIT_SYS_VERNAME: AnsiString = 'alpha';
+	LIT_SYS_VERNAME: AnsiString = 'beta';
 {$IFDEF ANDROID}
 	LIT_SYS_PLATFRM: AnsiString = 'android';
 {$ELSE}
@@ -294,7 +294,7 @@ const
 	LIT_SYS_PLATFRM: AnsiString = 'mswindows';
 	{$ENDIF}
 {$ENDIF}
-	LIT_SYS_VERSION: AnsiString = '0.00.82A';
+	LIT_SYS_VERSION: AnsiString = '0.00.98B';
 
 
 implementation
@@ -306,7 +306,7 @@ const
 	ARR_LIT_SYS_INFO: array[0..4] of AnsiString = (
 			'Yahtzee development system',
 			'--------------------------',
-			'Early alpha stage',
+			'Beta stage',
 			'By Daniel England',
 			'For Ecclestial Solutions');
 
@@ -649,6 +649,17 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 	and (AMessage.Method = 2) then
 		begin
 		APlayer.KeepAliveReset;
+
+		// Client's keepalive otherwise gets no application-level reply,
+		// so its TCP ACK has nothing to piggyback on and can sit behind
+		// the peer's delayed-ACK timer for hundreds of ms. The client's
+		// dispatch for mcClient is a no-op regardless of method, so this
+		// is purely to give the ACK something to ride along with.
+		m:= TBaseMessage.Create;
+		m.Category:= mcClient;
+		m.Method:= 2;
+		APlayer.AddSendMessage(m);
+
 		AHandled:= True;
 		end;
 	end;
@@ -1340,12 +1351,12 @@ procedure TServerDispatcher.Execute;
 	begin
 	while not Terminated do
 		try
-		Sleep(100);
+		Sleep(20);
 
 		// Drain a bounded batch of queued messages per tick rather than
-		// exactly one - a fixed one-per-100ms rate caps the whole server
-		// at 10 messages/sec regardless of player count. The cap keeps
-		// this loop responsive to Terminated under a sustained flood.
+		// exactly one - one-per-tick would cap the whole server's message
+		// throughput regardless of player count. The cap keeps this loop
+		// responsive to Terminated under a sustained flood.
 		batchcount:= 0;
 
 		while batchcount < 200 do

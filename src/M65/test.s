@@ -4830,6 +4830,12 @@ main:
 ;-------------------------------------------------------------------------------
 ;	Initialise the screen
 
+;	Bit 7 of $D06F is set on an NTSC machine, clear on PAL. It can change
+;	dynamically, but we only care about it once at startup for now.
+		LDA	$D06F
+		AND	#$80
+		STA	sys_ntsc_flag
+
 		LDA	#$00
 		JSR	colourSchemeSelect
 		
@@ -5763,16 +5769,69 @@ clientDispInetHealth:
 ;-------------------------------------------------------------------------------
 		LDA	inetproc
 		CMP	#INET_PROC_EXEC
-		BNE	@exit	
-		
-		SEC
-		LDA	#$04
-		SBC	tcp_loop_count
-		CLC
-		ADC	tcp_packet_sent_count
+		BNE	@exit
+
+;	Temporary diagnostic: log inet_last_rtt/inet_last_retries to the
+;	connect log panel whenever either one actually changes, so we can
+;	see the raw numbers behind the bar instead of guessing.
+;	Disabled for now - remove this BRA to bring it back.
+		BRA	@dbgdone
+
+		LDA	inet_last_rtt
+		CMP	dbg_last_rtt_logged
+		BNE	@dbglog
+		LDA	inet_last_retries
+		CMP	dbg_last_retries_logged
+		BEQ	@dbgdone
+
+@dbglog:
+		LDA	inet_last_rtt
+		STA	dbg_last_rtt_logged
+		LDA	inet_last_retries
+		STA	dbg_last_retries_logged
+
+		LDA	#<lpanel_cnct_log
+		STA	tempptr2
+		LDA	#>lpanel_cnct_log
+		STA	tempptr2 + 1
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_debug_rtt
+		JSR	strsAppendString
+
+		LDA	inet_last_rtt
+		LDX	#$00
+		JSR	strsAppendHex
+
+		LDAX	#text_debug_retry
+		JSR	strsAppendString
+
+		LDA	inet_last_retries
+		LDX	#$00
+		JSR	strsAppendHex
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelUpdate
+
+@dbgdone:
+;	healthbars/healthclrs run best(0) to worst(8); inet_last_rtt is in
+;	~20ms frame-ticks. With the keepalive-reply/Nagle fixes, steady-state
+;	is now ~18 ticks (~360ms), so >>3 spreads a ~0-1.3s range across the
+;	bar (18 ticks lands around index 2, still green) instead of pinning
+;	every normal reading at worst.
+		LDA	inet_last_rtt
 		LSR
+		LSR
+		LSR
+		CMP	#$08
+		BCC	:+
+		LDA	#$08
+:
 		TAX
-		
+
 		LDA	screenRowsLo
 		STA	inetcalc
 		LDA	screenRowsHi
@@ -15022,6 +15081,8 @@ ip65_process:
 
 TERMINAL_POLL_STATUS:
     JSR MIP_STATUS_POLL
+    STX inet_last_rtt
+    STY inet_last_retries
     CMP #0
     BEQ @_terminal_poll_done
     ORA TERMINAL_EVENT
@@ -15075,6 +15136,28 @@ RECV_DATA:
 ;    RTS
 
 TERMINAL_EVENT:
+    .byte $00
+
+; Last measured send-to-ack round trip, in frame-ticks (~20ms PAL each),
+; returned via X from MIP_STATUS_POLL. Drives clientDispInetHealth.
+inet_last_rtt:
+    .byte $00
+
+; Retries the most recently completed segment actually needed (0 = acked
+; clean), returned via Y from MIP_STATUS_POLL. Diagnostic only for now.
+inet_last_retries:
+    .byte $00
+
+; Last values written to the connect log by clientDispInetHealth's
+; temporary diagnostic - lets it only log on a real change.
+dbg_last_rtt_logged:
+    .byte $00
+dbg_last_retries_logged:
+    .byte $00
+
+; Non-zero (bit 7 set) on an NTSC machine, 0 on PAL. Read once at startup
+; from $D06F; ~16.7ms/tick on NTSC vs ~20ms/tick on PAL.
+sys_ntsc_flag:
     .byte $00
 
 DHCP_STATE_BOUND    = $04
@@ -16040,6 +16123,11 @@ text_trace_cnct:
 			.asciiz	"# CONNECTING..."
 text_trace_unkmsg:
 			.asciiz "- UNKNOWN MESSAGE IDENT"
+
+text_debug_rtt:
+			.asciiz "RTT $"
+text_debug_retry:
+			.asciiz " RETRY $"
 
 text_syserr_pref:
 			.asciiz	"!!"

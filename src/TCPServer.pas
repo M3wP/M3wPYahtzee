@@ -587,7 +587,7 @@ procedure TTCPWorker.Execute;
 	begin
 	while not Terminated do
 		try
-	        Sleep(100);
+	        Sleep(20);
 
 	        with FExpired.LockList do
 				try
@@ -768,6 +768,9 @@ constructor TTCPConnection.Create;
 	end;
 
 constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
+	var
+	x: Integer;
+
 	begin
     if  CreateGUID(Ident) <> 0 then
 		raise Exception.Create('Unable to create connection ident!');
@@ -779,6 +782,14 @@ constructor TTCPConnection.Create(AListener: TTCPBlockSocket);
 	if  AListener.LastError <> 0 then
 		raise Exception.Create('Unable to accept connection (' +
 				AListener.GetErrorDescEx + ')!');
+
+	// Disable Nagle so our small game messages go out immediately instead
+	// of waiting to see if more data shows up to batch with - otherwise
+	// Nagle on our side can compound with delayed-ACK on the peer's side
+	// and stall small exchanges by a couple hundred ms for no reason.
+	x:= 1;
+	synsock.SetSockOpt(Socket.Socket, integer(IPPROTO_TCP), integer(TCP_NODELAY),
+			@x, SizeOf(x));
 
 	SendMessages:= TIdentMessages.Create;
 

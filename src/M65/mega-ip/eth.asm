@@ -72,7 +72,7 @@ BANK1_WORKSPACE_LOW_HI      = $20          ; bank-1 offset $2000 -> physical $12
 BANK1_COLOR_SHADOW_HI       = $f8          ; bank-1 offset $f800 -> physical $1f800
 CONNECT_SYN_RETRY_TICKS     = 60
 CONNECT_SYN_MAX_RETRIES     = 4
-TCP_TX_RETRY_TICKS          = 45
+TCP_TX_RETRY_TICKS          = 10
 TCP_TX_BUSY_RETRY_TICKS     = 5
 TCP_TX_MAX_RETRIES          = 6
 TIME_WAIT_TICK_FRAMES       = 6
@@ -270,6 +270,21 @@ TX_UNACK_RETRY_TICKS:   .byte 0
 TX_UNACK_RETRY_LEFT:    .byte 0
 TCP_TX_LAST_RASTER_LO:  .byte 0
 TCP_TX_LAST_RASTER_HI:  .byte 0
+
+; Free-running frame-tick clock (advances roughly once per video frame,
+; independent of any one connection) plus the per-segment RTT stopwatch
+; built on top of it: TX_SEND_TICK is stamped when a segment first goes
+; out, and TCP_LAST_RTT is the elapsed tick count when its ACK lands
+; (clamped to 255 ticks).
+NET_TICK_LO:             .byte 0
+NET_TICK_HI:              .byte 0
+NET_TICK_LAST_RASTER_LO:  .byte 0
+NET_TICK_LAST_RASTER_HI:  .byte 0
+TX_SEND_TICK_LO:          .byte 0
+TX_SEND_TICK_HI:          .byte 0
+TCP_LAST_RTT:             .byte 0
+TCP_LAST_RETRIES_USED:    .byte 0
+
 TX_UNACK_SEQ:           .byte 0,0,0,0
 TX_UNACK_EXPECT_ACK:    .byte 0,0,0,0
 TX_SAVE_LOCAL_ISN:      .byte 0,0,0,0
@@ -3473,6 +3488,44 @@ TCP_EVENT_FLAG
     .byte $00
 
 ;=============================================================================
+; Advance NET_TICK once per elapsed video frame, detected the same way
+; TCP_TX_FRAME_WRAP_TICK detects a frame boundary (the raster line value
+; having wrapped since we last looked), but unconditionally on every poll
+; rather than only while a segment is unacked - this is the free-running
+; clock TX_SEND_TICK/TCP_LAST_RTT are measured against.
+;=============================================================================
+NET_TICK_UPDATE:
+    jsr ARP_READ_RASTER
+
+    lda ARP_CUR_RASTER_HI
+    cmp NET_TICK_LAST_RASTER_HI
+    bcc _tick_elapsed
+    bne _tick_no_elapse
+
+    lda ARP_CUR_RASTER_LO
+    cmp NET_TICK_LAST_RASTER_LO
+    bcc _tick_elapsed
+
+_tick_no_elapse:
+    lda ARP_CUR_RASTER_LO
+    sta NET_TICK_LAST_RASTER_LO
+    lda ARP_CUR_RASTER_HI
+    sta NET_TICK_LAST_RASTER_HI
+    rts
+
+_tick_elapsed:
+    lda ARP_CUR_RASTER_LO
+    sta NET_TICK_LAST_RASTER_LO
+    lda ARP_CUR_RASTER_HI
+    sta NET_TICK_LAST_RASTER_HI
+
+    inc NET_TICK_LO
+    bne _tick_done
+    inc NET_TICK_HI
+_tick_done:
+    rts
+
+;=============================================================================
 ; ETH_STATUS_POLL
 ; - Flush deferred TX (ACK/ARP) so IRQ never has to send
 ; - If we previously advertised a 0 window and we've freed space,
@@ -3480,8 +3533,15 @@ TCP_EVENT_FLAG
 ; - Advance TIME_WAIT
 ; - If any events are latched, return them (and clear)
 ; - Otherwise return 0=connected/ok, 1=disconnected
+; - X returns TCP_LAST_RTT (frame-ticks of the last measured send-to-ack
+;   round trip, clamped to 255) on every return path
+; - Y returns TCP_LAST_RETRIES_USED (how many retries the most recently
+;   *completed* segment actually needed, snapshotted before the ack
+;   cleanup zeroes the live retry counter - 0 means it was acked clean)
 ;=============================================================================
 ETH_STATUS_POLL:
+    jsr NET_TICK_UPDATE
+
     ; Drain a small burst of pending RX frames per poll.  One frame per poll
     ; throttles streaming clients even when the application can consume data.
     lda #ETH_RCV_BURST_MAX
@@ -3541,6 +3601,8 @@ _check_events:
     lda #$00
     sta TCP_EVENT_FLAG        ; clear sticky bits after read
     pla
+    ldx TCP_LAST_RTT
+    ldy TCP_LAST_RETRIES_USED
     rts
 
 _check_state:
@@ -3554,14 +3616,20 @@ _check_state:
 
     ; transitional states -> treat as "ok" (0) for the poller
     lda #$00
+    ldx TCP_LAST_RTT
+    ldy TCP_LAST_RETRIES_USED
     rts
 
 _connected:
     lda #$00
+    ldx TCP_LAST_RTT
+    ldy TCP_LAST_RETRIES_USED
     rts
 
 _disconnected:
     lda #$01
+    ldx TCP_LAST_RTT
+    ldy TCP_LAST_RETRIES_USED
     rts
 
 ;=============================================================================

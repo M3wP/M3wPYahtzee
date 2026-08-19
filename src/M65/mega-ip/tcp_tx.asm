@@ -16,6 +16,10 @@ TCP_TX_RESET:
     sta TX_UNACK_RETRY_LEFT
     sta TCP_TX_LAST_RASTER_LO
     sta TCP_TX_LAST_RASTER_HI
+    sta TX_SEND_TICK_LO
+    sta TX_SEND_TICK_HI
+    sta TCP_LAST_RTT
+    sta TCP_LAST_RETRIES_USED
     sta TCP_PEER_MAC_VALID
     rts
 
@@ -84,6 +88,27 @@ _ack_not_future:
     bmi _ret
 
 _acked:
+    ; TCP_LAST_RTT = NET_TICK - TX_SEND_TICK, clamped to 255 ticks.
+    sec
+    lda NET_TICK_LO
+    sbc TX_SEND_TICK_LO
+    sta TCP_LAST_RTT
+    lda NET_TICK_HI
+    sbc TX_SEND_TICK_HI
+    beq _rtt_in_range
+
+    lda #$FF
+    sta TCP_LAST_RTT
+
+_rtt_in_range:
+    ; Snapshot retries actually consumed before the cleanup below wipes
+    ; TX_UNACK_RETRY_LEFT back to 0 - otherwise a poll sampling it after
+    ; this point can never tell a retried segment from a clean one.
+    sec
+    lda #TCP_TX_MAX_RETRIES
+    sbc TX_UNACK_RETRY_LEFT
+    sta TCP_LAST_RETRIES_USED
+
     lda #$00
     sta TX_UNACK_PENDING
     sta TX_UNACK_RETRY_TICKS
@@ -273,6 +298,11 @@ _payload_saved:
     lda #TCP_TX_MAX_RETRIES
     sta TX_UNACK_RETRY_LEFT
     jsr TCP_TX_TIMER_STAMP
+
+    lda NET_TICK_LO
+    sta TX_SEND_TICK_LO
+    lda NET_TICK_HI
+    sta TX_SEND_TICK_HI
 
     jsr CALC_LOCAL_ISN
     jsr CLEAR_TCP_PAYLOAD
