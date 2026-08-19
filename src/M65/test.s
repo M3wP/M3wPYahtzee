@@ -338,14 +338,14 @@ ML_STAGE_ARG_Z      = 5
 	.define KEY_C64_ARRUP	$5E
 	.define KEY_C64_ARRLEFT	$5F
 	.define KEY_C64_SHSTOP	$83
-	.define	KEY_C64_F1 	$85
-	.define	KEY_C64_F3 	$86
-	.define	KEY_C64_F5 	$87
-	.define	KEY_C64_F7 	$88
-	.define KEY_C64_F2	$89
-	.define KEY_C64_F4	$8A
-	.define KEY_C64_F6	$8B
-	.define KEY_C64_F8	$8C
+	.define	KEY_C64_F1 	$F1
+	.define	KEY_C64_F3 	$F3
+	.define	KEY_C64_F5 	$F5
+	.define	KEY_C64_F7 	$F7
+	.define KEY_C64_F2	$F2
+	.define KEY_C64_F4	$F4
+	.define KEY_C64_F6	$F6
+	.define KEY_C64_F8	$F8
 	.define KEY_C64_SHRET	$8D		;Not mapped
 	.define KEY_C64_CUP	$91
 	.define KEY_C64_CLEAR	$93
@@ -2754,13 +2754,13 @@ edit_cnct_host:
 			.byte	$00		;textoffx .byte
 			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
-			.byte	$11		;textsiz
+			.byte	$0D		;textsiz
 			.byte	$3C		;textmaxsz
 			
 
 edit_cnct_host_buf:
 			.asciiz "192.168.137.1"
-	.repeat	47	
+	.repeat	48	
 			.byte	$00
 	.endrep
 
