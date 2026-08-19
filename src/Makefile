@@ -9,7 +9,11 @@
 # If lazbuild isn't on your PATH, override LAZBUILD, e.g.:
 #   make LAZBUILD=/usr/lib/lazarus/lazbuild
 
+ifeq ($(OS),Windows_NT)
+LAZBUILD ?= G:/lazarus/lazbuild.exe
+else
 LAZBUILD ?= lazbuild
+endif
 PROJECT  := M3wPYahtzeeCLIServer.lpi
 TARGET   := M3wPYahtzeeCLIServer
 

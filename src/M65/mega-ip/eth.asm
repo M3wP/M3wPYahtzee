@@ -61,6 +61,7 @@ EV_LOCAL_CLOSE              = %00000100     ; our FIN exchange completed
 EV_TIMEWAIT_DONE            = %00001000     ; TIME_WAIT expired - CLOSED
 EV_CONNECT_FAIL             = %00010000     ; SYN handshake failed / timeout
 EV_TX_TIMEOUT               = %00100000     ; data retransmit retries exhausted
+EV_BAD_SYNACK                = %01000000     ; SYN-SENT: got a SYN+ACK but its ACK didn't match CONNECT_EXPECT_ACK - dropped, not a true no-reply
 
 TCP_PAYLOAD_MAX             = 235
 TCP_PAYLOAD_PADDED_SIZE     = TCP_PAYLOAD_MAX + 1
@@ -70,8 +71,15 @@ DNS_HOST_BUFFER_SIZE        = 128
 DNS_HOST_MAX                = DNS_HOST_BUFFER_SIZE - 1
 BANK1_WORKSPACE_LOW_HI      = $20          ; bank-1 offset $2000 -> physical $12000
 BANK1_COLOR_SHADOW_HI       = $f8          ; bank-1 offset $f800 -> physical $1f800
+;	Ticks here are real video frames (CONNECT_FRAME_WRAP_TICK), not
+;	seconds, so this budget is TV-standard dependent: 60 ticks is
+;	~1.2s/retry on PAL (50Hz) but only ~1.0s on NTSC (60Hz), so the old
+;	4-retry budget was ~4.8s on PAL vs just ~4.0s on NTSC - too tight
+;	a margin for the server to accept/process a connection arriving
+;	right after the previous one from the same client just closed.
+;	Bumped retries (not ticks) so it stays generous on both standards.
 CONNECT_SYN_RETRY_TICKS     = 60
-CONNECT_SYN_MAX_RETRIES     = 4
+CONNECT_SYN_MAX_RETRIES     = 10
 TCP_TX_RETRY_TICKS          = 10
 TCP_TX_BUSY_RETRY_TICKS     = 5
 TCP_TX_MAX_RETRIES          = 6
@@ -548,6 +556,16 @@ ETH_TCP_CONNECT_START:
     jsr TCP_OOO_CLEAR
 
     jsr TCP_SEED_LOCAL_ISN
+
+    ; A fresh attempt should never inherit a leftover TCP_STATE from
+    ; whatever the socket was doing before (e.g. still TIME_WAIT for up
+    ; to 60s after our own prior disconnect - ETH_TCP_CONNECT_START only
+    ; ever checked for ESTABLISHED here, never forced a clean CLOSED
+    ; baseline otherwise). CONNECT_SEND_SYN overwrites this to SYN_SENT
+    ; once it actually sends, but until then (e.g. while ARP is still
+    ; resolving) polls were running with a stale state in place.
+    lda #TCP_STATE_CLOSED
+    sta TCP_STATE
 
     lda #$00
     sta ETH_RX_TCP_FLAGS
@@ -1594,6 +1612,8 @@ _peer_fin_active_close:
     sta CONNECT_RETRY_LEFT
     lda #TCP_STATE_TIME_WAIT
     sta TCP_STATE
+    lda #$00
+    sta CONNECT_ACTIVE
     lda TCP_EVENT_FLAG
     ora #EV_LOCAL_CLOSE
     sta TCP_EVENT_FLAG
@@ -1698,6 +1718,9 @@ _set_local_after_syn:
     rts
 
 _synack_bad_ack:
+    lda TCP_EVENT_FLAG
+    ora #EV_BAD_SYNACK
+    sta TCP_EVENT_FLAG
     jmp _done
 
     ;---------------------------------------------------------------------------
@@ -1779,6 +1802,8 @@ _got_FIN_ACK:
     lda #TCP_STATE_TIME_WAIT
     sta TCP_STATE
 
+    lda #$00
+    sta CONNECT_ACTIVE
     lda TCP_EVENT_FLAG
     ora #EV_LOCAL_CLOSE
     sta TCP_EVENT_FLAG
@@ -2230,6 +2255,8 @@ TCP_OOO_PEER_FIN_ACTIVE_CLOSE:
     sta CONNECT_RETRY_LEFT
     lda #TCP_STATE_TIME_WAIT
     sta TCP_STATE
+    lda #$00
+    sta CONNECT_ACTIVE
     lda TCP_EVENT_FLAG
     ora #EV_LOCAL_CLOSE
     sta TCP_EVENT_FLAG
@@ -5332,6 +5359,8 @@ _fin_retry_timeout:
     sta CONNECT_RETRY_LEFT
     lda #TCP_STATE_CLOSED
     sta TCP_STATE
+    lda #$00
+    sta CONNECT_ACTIVE
     lda TCP_EVENT_FLAG
     ora #EV_LOCAL_CLOSE
     sta TCP_EVENT_FLAG

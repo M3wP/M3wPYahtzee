@@ -517,6 +517,22 @@ function TTCPWorker.ProcessConnection(AConnection: TTCPConnection): Boolean;
 
 	i:= AConnection.Socket.WaitingData;
 
+	// FIONREAD (WaitingData) can't tell "no data yet" from "peer sent FIN,
+	// nothing more coming" - both read as 0 - so a gracefully-closed
+	// connection was never being noticed here at all. Without this, only
+	// an actual socket error (above) or a later failed write to the
+	// already-dead socket would ever mark it for removal, leaving the
+	// TPlayer in FPlayers indefinitely and letting a quick reconnect
+	// under the same name collide with its own stale prior session.
+	if  (i = 0) and AConnection.Socket.CanRead(0) then
+		begin
+		Result:= False;
+		AddLogMessage(slkInfo, '"' + AConnection.Ticket +
+				'" closed connection gracefully.');
+
+		Exit;
+		end;
+
   	if  i > 0 then
 		begin
 		SetLength(buf, i);

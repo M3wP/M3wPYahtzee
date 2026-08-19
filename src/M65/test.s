@@ -851,14 +851,159 @@ _basNext:
 		.byte	%00000000, %00000000, %00000000
 		.byte	$00
 
+
+  ; 16-colour sprite pointer data for busy
+  ; 1 = FG
+  ; 2 = black
+  ; 3 = grey
+  ; 4 = white
+		;.byte		$00, $03, $33, $33, $33, $33, $00, $00
+		;.byte		$00, $32, $22, $22, $22, $23, $30, $00
+		;.byte		$03, $24, $44, $44, $44, $42, $23, $00
+		;.byte		$32, $33, $11, $11, $11, $14, $23, $00
+		;.byte		$32, $31, $11, $11, $11, $14, $23, $00
+		;.byte		$32, $31, $11, $11, $11, $14, $23, $00
+		;.byte		$32, $31, $11, $11, $11, $14, $23, $00
+		;.byte		$32, $33, $11, $11, $11, $42, $33, $00
+		;.byte		$03, $23, $32, $34, $44, $22, $30, $00
+		;.byte		$00, $32, $23, $31, $11, $42, $30, $00
+		;.byte		$03, $24, $43, $11, $14, $23, $00, $00
+		;.byte		$32, $31, $14, $23, $32, $30, $00, $00
+		;.byte		$32, $33, $32, $32, $23, $00, $00, $00
+		;.byte		$03, $22, $23, $33, $30, $00, $00, $00
+		;.byte		$00, $33, $30, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+		;.byte		$00, $00, $00, $00, $00, $00, $00, $00
+
+  ; Mono colour black (2)
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00011111, %11100000, %00000000
+		.byte	%00100000, %00011000, %00000000
+		.byte	%01000000, %00001000, %00000000
+		.byte	%01000000, %00001000, %00000000
+		.byte	%01000000, %00001000, %00000000
+		.byte	%01000000, %00001000, %00000000
+		.byte	%01000000, %00010000, %00000000
+		.byte	%00100100, %00110000, %00000000
+		.byte	%00011000, %00010000, %00000000
+		.byte	%00100000, %00100000, %00000000
+		.byte	%01000010, %01000000, %00000000
+		.byte	%01000101, %10000000, %00000000
+		.byte	%00111000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	$00
+
+  ; White (4)
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00011111, %11100000, %00000000
+		.byte	%00000000, %00010000, %00000000
+		.byte	%00000000, %00010000, %00000000
+		.byte	%00000000, %00010000, %00000000
+		.byte	%00000000, %00010000, %00000000
+		.byte	%00000000, %00100000, %00000000
+		.byte	%00000001, %11000000, %00000000
+		.byte	%00000000, %00100000, %00000000
+		.byte	%00011000, %01000000, %00000000
+		.byte	%00000100, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	$00
+
+  ; Grey (3)
+		.byte	%00011111, %11110000, %00000000
+		.byte	%00100000, %00011000, %00000000
+		.byte	%01000000, %00000100, %00000000
+		.byte	%10110000, %00000100, %00000000
+		.byte	%10100000, %00000100, %00000000
+		.byte	%10100000, %00000100, %00000000
+		.byte	%10100000, %00000100, %00000000
+		.byte	%10110000, %00001100, %00000000
+		.byte	%01011010, %00001000, %00000000
+		.byte	%00100110, %00001000, %00000000
+		.byte	%01000100, %00010000, %00000000
+		.byte	%10100001, %10100000, %00000000
+		.byte	%10111010, %01000000, %00000000
+		.byte	%01000111, %10000000, %00000000
+		.byte	%00111000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	$00
+
+  ; FG (1)
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00001111, %11100000, %00000000
+		.byte	%00011111, %11100000, %00000000
+		.byte	%00011111, %11100000, %00000000
+		.byte	%00011111, %11100000, %00000000
+		.byte	%00001111, %11000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000001, %11000000, %00000000
+		.byte	%00000011, %10000000, %00000000
+		.byte	%00011000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	%00000000, %00000000, %00000000
+		.byte	$00
+
 init:
-		LDA	#$8E			;go to uppercase characters
-		JSR	krnlOutChr
-		LDA	#$08			;disable change character case
-		JSR	krnlOutChr
+		;LDA	#$8E			;go to uppercase characters
+		;JSR	krnlOutChr
+		;LDA	#$08			;disable change character case
+		;JSR	krnlOutChr
 	
 		SEI
 		CLD
+
+		LDA	#$00
+		STA	$00
+		LDA	#$37
+		STA	$01
+
+		LDA	#$00
+		LDX	#$0F
+		LDY	#$00
+		LDZ	#$0F
+		MAP
+
+		LDA	#0
+		TAX
+		TAY
+		TAZ
+		MAP
+		EOM
+
+		LDA	#$00
+		STA	$D02F
 
 		LDA	#$7F			;disable standard CIA irqs
 		STA	cia1IRQCtl
@@ -1063,7 +1208,9 @@ initGameData:
 initCore:
 ;-------------------------------------------------------------------------------
 		;JSR	initMem
-		JSR	initSprites
+		
+    JSR initScreen
+    JSR	initSprites
 		
 		JSR	initGameData
 		
@@ -1081,13 +1228,147 @@ initCore:
 		RTS
 		
 
+;-------------------------------------------------------------------------------
+initScreen:
+;-------------------------------------------------------------------------------
+;	D018 charset nibble = 2 ($1000) - lowercase/symbol charset
+		LDA	#$24
+		STA	$D018
+
+;	D054 = $80 (FCLRHI only) - clears the 40.5MHz-fast bit that
+;	initM65IOFast just set via TSB; overwritten again further down anyway
+		LDA	#$80
+		STA	$D054
+
+;	Clears D05D bit 7 - exact documented meaning not confirmed, verify
+;	before trusting the old "prevent VIC-II compatibility changes" claim
+		LDA	#$80
+		TRB	$D05D
+
+		LDA	#$00
+		STA	$D020		;border colour
+		LDA	#$00
+		STA	$D021		;background colour
+
+;	32-bit screen RAM address (D060-D063) = $00000400
+		LDA	#<$0400
+		STA	$D060
+		LDA	#>$0400
+		STA	$D061
+		LDA	#$00
+		STA	$D062
+		STA	$D063
+
+;	D030 bit 2 set - use palette RAM entries for colours 0-15
+		LDA	$D030
+		ORA	#$04
+		STA	$D030
+
+;	D031 = $40 (FAST bit only - H640/V400/BPM/ATTR all clear, so this is
+;	still classic 40-column addressing, not 80-column)
+		LDA	#$40
+		STA	$D031
+
+;	D058/D059 = 40 - text row stride in bytes (one byte per character,
+;	40 columns, NOT the 160/80-column figure the old comment claimed)
+		LDA #<$28
+		STA $D058
+		LDA #>$28
+		STA $D059
+
+;	D05E = 40 - characters per row (again 40, not 80)
+		LDA	#$28
+		STA	$D05E
+
+;	D054 = $40 (FAST bit only, FCLRHI cleared) - overwrites the $80
+;	written above; net effect of the two D054 writes is just FAST set
+		LDA	#$40
+		STA	$D054
+
+;	D064/D065 - documented meaning not confirmed
+		LDA	#$00
+		STA	$D064
+		LDA	#$00
+		STA	$D065
+
+;	Clears D051 bit 7 - exact documented meaning not confirmed, verify
+;	before trusting the old "FCM double-buffering" claim
+		LDA #$00
+		TRB $D051
+
+;	D04C (text X position) = $50
+		LDA	#$50
+		STA	$D04C
+
+;	Clears the low nibble of D04D, leaves the high nibble untouched
+		LDA	$D04D
+		AND	#$F0
+		STA	$D04D
+
+    RTS
+
 
 
 ;-------------------------------------------------------------------------------
 initSprites:
 ;-------------------------------------------------------------------------------
-;	Init sprite RAM locations
+;	Init location of sprite pointers
+    LDA #<spritePtr0
+    STA $D06C
+    LDA #>spritePtr0
+    STA $D06D
 
+; Init y position offset
+    LDA #$18
+    STA $D072
+
+;	Init sprite RAM locations - busy sprite by default, via the push/pop
+;	mechanism below so it plays nicely with anything else that pushes.
+		JSR	userCursorPushBusy
+
+;	Turn off MCM and expansion
+
+		LDA	#$00			;MCM none
+		STA	vicSprCMod
+		STA	vicSprExpX
+		STA	vicSprExpY
+
+;	Enable all of the sprites required
+
+		LDA	#$0F			;sprites
+		STA	vicSprEnab
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	Cursor busy/pointer sprite switching, nested via cursorBusyCnt so
+;	several overlapping "this will take a while" operations don't let
+;	one finishing early flip back to the pointer while another is still
+;	in flight - only the pop that brings the counter back to 0 actually
+;	restores the pointer sprite.
+;-------------------------------------------------------------------------------
+
+	.export	userCursorSetBusy
+;-------------------------------------------------------------------------------
+userCursorSetBusy:
+;-------------------------------------------------------------------------------
+		LDA	#$24
+		STA	spritePtr0
+		LDA	#$25
+		STA	spritePtr1
+		LDA	#$26
+		STA	spritePtr2
+		LDA	#$27
+		STA	spritePtr3
+
+		RTS
+
+
+	.export	userCursorSetPointer
+;-------------------------------------------------------------------------------
+userCursorSetPointer:
+;-------------------------------------------------------------------------------
 		LDA	#$20
 		STA	spritePtr0
 		LDA	#$21
@@ -1097,19 +1378,43 @@ initSprites:
 		LDA	#$23
 		STA	spritePtr3
 
-;	Turn off MCM and expansion
+		RTS
 
-		LDA	#$00			;MCM none
-		STA	vicSprCMod
-		STA	vicSprExpX		
-		STA	vicSprExpY
 
-;	Enable all of the sprites required
+	.export	userCursorPushBusy
+;-------------------------------------------------------------------------------
+userCursorPushBusy:
+;-------------------------------------------------------------------------------
+		LDA	cursorBusyCnt
+		BNE	@nested
 
-		LDA	#$0F			;sprites
-		STA	vicSprEnab
+		JSR	userCursorSetBusy
+
+@nested:
+		INC	cursorBusyCnt
 
 		RTS
+
+
+	.export	userCursorPopBusy
+;-------------------------------------------------------------------------------
+userCursorPopBusy:
+;-------------------------------------------------------------------------------
+		LDA	cursorBusyCnt
+		BEQ	@exit			;already at rest - underflow guard
+
+		DEC	cursorBusyCnt
+		BNE	@exit
+
+		JSR	userCursorSetPointer
+
+@exit:
+		RTS
+
+
+cursorBusyCnt:
+		.byte	$00
+
 
 ;-------------------------------------------------------------------------------
 initUser:
@@ -1996,7 +2301,9 @@ button_cnct_upd:
 			.word	clientCnctUpdChng	;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
-			.byte	STATE_VISIBLE
+;	Hidden - no update functionality behind it yet, so it either errors
+;	or does nothing depending on state; not worth showing users.
+			.byte	$00
 			.byte	$00		;options	.byte
 			.byte	CLR_FACE	;colour	.byte
 			.byte	$1E		;posx	.byte
@@ -5018,11 +5325,14 @@ main:
 		JMP	@lock
 
 @connect:
+		JSR	userCursorPushBusy
 		JSR	inetConnect
+		JSR	userCursorPopBusy
 		JMP	@lock
 
 @inetinit:
 		JSR	inetInitialise
+		JSR	userCursorPopBusy
 
 
 @lock:						;We need to lock here for reads...
@@ -5200,48 +5510,67 @@ inetConnect:
 
 		LDAX 	#edit_cnct_host_buf
 		JSR 	dns_set_hostname
-		
+
 		BCC 	:+
 
-@haveerror:		
+;	ip65_error is dead (never written anywhere), so it was always $00
+;	here regardless of which of the 3 stages below actually failed -
+;	every connect failure looked identical. Each stage now sets
+;	ineterrc to its own code before jumping here instead.
+		LDA	#$01
+		STA	ineterrc
+		JMP	@haveerror
+
+@haveerror:
 		LDA	#INET_ERR_INTRN
 		STA	ineterrk
-		LDA	ip65_error
-		STA	ineterrc
-		
+
 		JSR	clientOutputInetError
 		RTS
 
 ; 	resolve host name
-: 
+:
 		LDA 	dns_hostname_is_dotted_quad
 		BNE 	:+
-		
+
 		JSR 	dns_resolve
 		BCC 	:+
-		
+
+		LDA	#$02
+		STA	ineterrc
 		JMP	@haveerror
-		
-: 
+
+:
 		LDAX 	#7632
 		STAX 	inet_port
 
 ; 	connect
 		LDAX 	#inet_callback
 		STAX 	tcp_callback
-	
+
 		LDX 	#3
-: 
+:
 		LDA 	dns_ip, X
 		STA 	tcp_connect_ip, X
-		
+
 		DEX
 		BPL 	:-
-		
+
 		LDAX 	inet_port
 		JSR 	tcp_connect
 		BCC 	:+
-	
+
+		LDA	#$03
+		LDX	TCP_CONNECT_FAIL_WAS_RST
+		BEQ 	@tcpfail_chk_synack
+		LDA	#$05		;peer actively refused (RST) rather than a plain timeout
+		JMP	@tcpfail_have_code
+@tcpfail_chk_synack:
+		LDX	TCP_CONNECT_FAIL_BAD_SYNACK
+		BEQ 	@tcpfail_have_code
+		LDA	#$06		;a SYN+ACK arrived but got dropped (ACK mismatch)
+@tcpfail_have_code:
+		STA	ineterrc
 		JMP	@haveerror
 
 ; 	connected
@@ -5331,7 +5660,35 @@ inetConnect:
 ;-------------------------------------------------------------------------------
 inetDisconnect:
 ;-------------------------------------------------------------------------------
+;	tcp_close only sends the FIN; the retry/ack handshake behind it is
+;	driven entirely by continued ETH_STATUS_POLL calls, which we stop
+;	making the instant inetproc leaves INET_PROC_EXEC. Wait here (with
+;	the busy cursor up) until the close actually completes or a
+;	generous timeout elapses, instead of abandoning it mid-handshake.
+		JSR	userCursorPushBusy
+
 		JSR 	tcp_close
+
+		LDA	#<DISCONNECT_TIMEOUT_FRAMES
+		STA	TIMEOUT_LO
+		LDA	#>DISCONNECT_TIMEOUT_FRAMES
+		STA	TIMEOUT_HI
+		JSR	RESET_TIMEOUT_FRAME
+
+@wait:
+		LDA	#$00
+		STA	TERMINAL_EVENT
+
+		JSR	TERMINAL_POLL_STATUS
+
+		LDA	TERMINAL_EVENT
+		BNE	@waitdone		;server acked the close (or reset)
+
+		JSR	DEC_TIMEOUT_FRAME
+		BCC	@wait			;still within budget, keep polling
+
+@waitdone:
+		JSR	userCursorPopBusy
 
 		LDA	#INET_PROC_DSCD
 		STA	inetproc
@@ -6967,7 +7324,13 @@ clientProcTextMsgBegin:
 
 		CMP	#$FF
 		BEQ	@exit
-	
+
+;	A real list is starting (matching pop is in clientProcTextMsgMore,
+;	once the "0 remaining" completion notice comes in for it). Reload
+;	tempvar_z after the call since it clobbers A.
+		JSR	userCursorPushBusy
+		LDA	tempvar_z
+
 		CMP	#$14
 		BEQ	@play
 		
@@ -7021,6 +7384,8 @@ clientProcTextMsgMore:
 		JSR	clientProcTextMsgFind
 		TAY
 		JSR	clientProcTextMsgClear
+
+		JSR	userCursorPopBusy
 
 		RTS
 
@@ -15655,6 +16020,20 @@ DNS_STATE_FAIL      = $03
 
 DHCP_TIMEOUT_FRAMES = 3600
 DNS_TIMEOUT_FRAMES  = 3600
+;	mega-ip's own FIN retry budget (TCP_TX_MAX_RETRIES x TCP_TX_RETRY_TICKS)
+;	force-closes locally within ~1.2s worst case even with zero replies,
+;	so 300 frames (~6s) is a generous safety margin above that, not the
+;	thing actually expected to fire in normal operation.
+DISCONNECT_TIMEOUT_FRAMES = 300
+
+;	Same budget as DHCP/DNS. tcp_connect's own wait loop needs this -
+;	it never used to reset the shared timeout itself, just inherited
+;	whatever DHCP/DNS (or, now, inetDisconnect) left behind. That was
+;	fine by accident on a cold boot (DHCP/DNS leave a huge budget
+;	behind) but after a disconnect burns most of its own 300-frame
+;	budget, tcp_connect would inherit an already-exhausted countdown
+;	and fail almost instantly on the very next connect attempt.
+CONNECT_TIMEOUT_FRAMES = 3600
 
 ARG_A_VAR:              
     .byte 0
@@ -15808,11 +16187,33 @@ tcp_callback:
 
 ;	.import tcp_close
 tcp_close:
+;	Was a no-op - clicking Disconnect only reset local client state,
+;	never told the server anything, so the connection sat fully
+;	ESTABLISHED on the wire until the server's own (very slow) TCP
+;	timeout eventually noticed and released it. Send a real FIN so the
+;	server sees the close immediately.
+    JSR MIP_DISCONNECT
     RTS
 
 
 CONN_CONNECTED      = %00000001
 CONN_FAILED         = %00000010
+
+;	mirror eth.asm's EV_* bits in TCP_EVENT_FLAG - not otherwise exposed
+;	to test.s, so re-declared here for tcp_connect's use only.
+EV_RST              = %00000001
+EV_BAD_SYNACK       = %01000000
+
+;	non-zero after a failed tcp_connect if the failure was an active
+;	peer RST (connection refused) rather than a plain SYN timeout.
+TCP_CONNECT_FAIL_WAS_RST:
+    .byte $00
+
+;	non-zero after a failed tcp_connect if a SYN+ACK actually arrived
+;	but was silently dropped because its ACK didn't match what we
+;	expected - a real reply that got rejected, not true silence.
+TCP_CONNECT_FAIL_BAD_SYNACK:
+    .byte $00
 
 
 ;	.import tcp_connect
@@ -15838,10 +16239,24 @@ tcp_connect:
 
     JSR MIP_SET_LOCAL_PORT
 
+    LDA #<CONNECT_TIMEOUT_FRAMES
+    STA TIMEOUT_LO
+    LDA #>CONNECT_TIMEOUT_FRAMES
+    STA TIMEOUT_HI
+    JSR RESET_TIMEOUT_FRAME
+
+;	Accumulate TCP_EVENT_FLAG bits (via TERMINAL_POLL_STATUS, same
+;	sticky-OR pattern inetDisconnect uses) across the whole attempt, so
+;	that if it fails we can tell an active refusal (peer RST, EV_RST)
+;	apart from nobody answering the SYN at all (plain timeout) - the
+;	two have different causes and previously looked identical.
+    LDA #$00
+    STA TERMINAL_EVENT
+
     JSR MIP_CONNECT_START
 
 @CONNECT_LOOP:
-    JSR MIP_STATUS_POLL
+    JSR TERMINAL_POLL_STATUS
 
     JSR MIP_CONNECT_POLL
 
@@ -15859,6 +16274,12 @@ tcp_connect:
     BCC @CONNECT_LOOP
 
 @CONNECT_FAILED:
+    LDA TERMINAL_EVENT
+    AND #EV_RST
+    STA TCP_CONNECT_FAIL_WAS_RST
+    LDA TERMINAL_EVENT
+    AND #EV_BAD_SYNACK
+    STA TCP_CONNECT_FAIL_BAD_SYNACK
     SEC
     RTS
 
@@ -16340,7 +16761,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"M65"
 text_ident_verlbl:
-			.asciiz	"0.00.79B"
+			.asciiz	"0.00.84B"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -16352,7 +16773,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.79B"
+			.asciiz	"VERSION:  0.00.84B"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
