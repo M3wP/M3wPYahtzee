@@ -28,7 +28,12 @@
 
 ;	Debugging - log each RECV_DATA poll's byte count to the connect log
 	.define	DEBUG_RXSIZE	0
-	
+
+;	Debugging - log every keypress's raw ASCIIKEY ($D610) and MODKEY
+;	($D60A[0:6]) byte to the connect log, to nail down real MEGA65
+;	keyboard-manual values by hand
+	.define	DEBUG_KEYSCAN	0
+
 ;	Debugging - sleep when internet is idle
 	.define DEBUG_INETDOSLEEP	1
 
@@ -77,10 +82,17 @@ SID     	= 	$D400         		; SID REGISTERS
 SID_ADConv1    	= 	SID + $19
 SID_ADConv2    	= 	SID + $1A
 
+;	Matches $D60A[0:6] (MODKEY) exactly, so the byte read there can be
+;	used as-is - bit 7 (KEYQUEUE, queue-non-empty) is masked off
+;	before storage, see userKeyScanKey.
 keyModNone	=	$00
-keyModShift	=	$01
-keyModSystem	=	$02
+keyModShiftL	=	$01
+keyModShiftR	=	$02
 keyModControl	=	$04
+keyModSystem	=	$08		;MEGA key
+keyModAlt	=	$10
+keyModNoScroll	=	$20
+keyModCapsLock	=	$40
 
 buttonLeft	=	$10
 buttonRight	=	$01
@@ -328,6 +340,17 @@ ML_STAGE_ARG_Z      = 5
 	.define KEY_C64_F6	$F6
 	.define KEY_C64_F8	$F8
 	.define	KEY_C64_F9 	$F9
+;	F10/F12/F14 aren't separate physical keys - they're MEGA65's own
+;	continuation of the C64 odd/even F-key convention (odd = key
+;	pressed alone, even = same key + shift or MEGA - confirmed on
+;	real hardware that MEGA and shift report the same code here,
+;	e.g. F7 alone $F7, F7+shift or F7+MEGA both $F8).
+	.define	KEY_C64_F10	$FA
+	.define	KEY_C64_F11	$FB
+	.define	KEY_C64_F12	$FC
+	.define	KEY_C64_F13	$FD
+	.define	KEY_C64_F14	$FE
+	.define	KEY_C64_HELP	$1F
 	.define KEY_C64_SHRET	$8D		;Not mapped
 	.define KEY_C64_CUP	$91
 	.define KEY_C64_CLEAR	$93
@@ -2002,7 +2025,7 @@ checkbx_config_mouse_slow:
 			.word	text_config_mouse_slow	;textptr
 			.byte	$00			;textoffx
 			.byte	$00			;textaccel
-			.byte	$00			;accelchar
+			.byte	KEY_ASC_L_S	;accelchar
 
 checkbx_config_mouse_medium:
 ;			.word	$0000			;prepare
@@ -2021,7 +2044,7 @@ checkbx_config_mouse_medium:
 			.word	text_config_mouse_medium	;textptr
 			.byte	$00			;textoffx
 			.byte	$00			;textaccel
-			.byte	$00			;accelchar
+			.byte	KEY_ASC_L_M			;accelchar
 
 checkbx_config_mouse_fast:
 ;			.word	$0000			;prepare
@@ -2040,7 +2063,7 @@ checkbx_config_mouse_fast:
 			.word	text_config_mouse_fast	;textptr
 			.byte	$00			;textoffx
 			.byte	$00			;textaccel
-			.byte	$00			;accelchar
+			.byte	KEY_ASC_L_F		;accelchar
 
 
 panel_config_theme:
@@ -2109,7 +2132,7 @@ button_config_theme_prv:
 			.word	text_config_theme_prv	;textptr	.word
 			.byte	$00		;textoffx .byte
 			.byte	$02		;textaccel .byte
-			.byte	$00		;accelchar .byte
+			.byte	KEY_ASC_L_P		;accelchar .byte
 
 button_config_theme_nxt:
 ;			.word	$0000		;prepare
@@ -2129,7 +2152,7 @@ button_config_theme_nxt:
 			.word	text_config_theme_nxt	;textptr	.word
 			.byte	$00		;textoffx .byte
 			.byte	$00		;textaccel .byte
-			.byte	$00		;accelchar .byte
+			.byte	KEY_ASC_L_N		;accelchar .byte
 
 label_config_theme_name:
 ;			.word	$0000		;prepare
@@ -2189,8 +2212,8 @@ checkbx_config_flashchat:
 			.word	panel_config_theme	;panel
 			.word	text_config_flashchat	;textptr
 			.byte	$00			;textoffx
-			.byte	$00			;textaccel
-			.byte	$00			;accelchar
+			.byte	$04			;textaccel
+			.byte	KEY_ASC_L_H			;accelchar
 
 
 page_connect:
@@ -3046,7 +3069,7 @@ label_play_pwd:
 			.byte	$00			;textoffx 
 			.byte	$02			;textaccel
 			.byte	's'			;accelchar
-			.word	edit_room_pwd		;actvctrl 
+			.word	edit_play_pwd		;actvctrl 
 
 edit_play_pwd:
 ;			.word	$0000			;prepare
@@ -4781,6 +4804,15 @@ userKeyScanKey:
 		RTS
 
 @begin:
+;	MODKEY ($D60A[0:6]) for the event currently at the head of the
+;	queue - read before popping ASCIIKEY below, so it can't end up
+;	describing a different (later) keypress. Bit 7 (KEYQUEUE) is
+;	masked off; the remaining 7 bits match the keyMod* defines above
+;	exactly, so no translation is needed.
+    LDA $D60A
+    AND #$7F
+    TAY
+
     LDA $D610
     BEQ @done
 
@@ -4792,7 +4824,7 @@ userKeyScanKey:
 
     STA keyBuffer0, X
     INX
-    LDA #$00
+    TYA
     STA keyBuffer0, X
     INX
 
@@ -6101,10 +6133,12 @@ inetSendData:
 		LDA 	ip65_error
 		CMP 	#IP65_ERROR_CONNECTION_CLOSED
 		BNE 	@errother
-		
+
+		JSR	inetRecordDiscEvent
+
 		LDA 	#1
 		STA 	connection_closed
-		
+
 		JMP	@exit
 
 @errother:
@@ -6137,6 +6171,23 @@ inetSendData:
 ; back-to-back sends don't pile up unsent (or get silently coalesced together
 ; whenever the queue finally does flush).
 ;-------------------------------------------------------------------------------
+;	Stashes TERMINAL_EVENT (TCP_EVENT_FLAG's sticky-OR'd EV_* bits, see
+;	the mirrored defines near tcp_connect) into discEventFlags, so
+;	clientOutputInetError can show *why* a connection ended instead of
+;	just that it did. Call right before setting connection_closed - not
+;	after, since some callers (tcp_send, tcp_send_keep_alive,
+;	ETH_PROCESS_DEFERRED) reset TERMINAL_EVENT again on their own next
+;	poll.
+;-------------------------------------------------------------------------------
+inetRecordDiscEvent:
+;-------------------------------------------------------------------------------
+		LDA	TERMINAL_EVENT
+		STA	discEventFlags
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 inetWaitTxIdle:
 ;-------------------------------------------------------------------------------
 		LDA	#$00
@@ -6154,6 +6205,8 @@ inetWaitTxIdle:
 		RTS
 
 @closed:
+		JSR	inetRecordDiscEvent
+
 		LDA	#$01
 		STA	connection_close_requested
 		STA	connection_closed
@@ -6179,7 +6232,13 @@ inet_callback:
 		LDX 	tcp_inbound_data_length + 1
 		CPX 	#$FF
 		BNE 	@begin
-		
+
+;	Not a TCP_EVENT_FLAG signal - this is MIP_ML_RECV_BYTE's own
+;	inbound-EOF sentinel, so there's nothing meaningful to show beyond
+;	"unknown" ($00 - see discEventFlags).
+		LDX	#$00
+		STX	discEventFlags
+
 		STA 	connection_closed
 		JMP	@exit
 		
@@ -9885,6 +9944,19 @@ clientOutputInetError:
 @tstnxt1:
 		LDAX	#text_err_disc
 		JSR	strsAppendString
+
+;	discEventFlags - TCP_EVENT_FLAG's EV_* bits at the moment the
+;	disconnect was noticed (see inetRecordDiscEvent): bit0 RST,
+;	bit1 peer FIN, bit2 our FIN completed, bit3 TIME_WAIT done,
+;	bit4 connect failed, bit5 TX retries exhausted, bit6 bad SYN+ACK.
+;	$00 means it was detected via the inbound-EOF sentinel instead,
+;	with no TCP_EVENT_FLAG bits available.
+		LDAX	#text_err_disc_evt
+		JSR	strsAppendString
+
+		LDA	discEventFlags
+		JSR	strsAppendHex
+
 		JMP	@exit
 
 @none:
@@ -14640,6 +14712,66 @@ ctrlsMoveActiveControl:
 		JMP	@downtest
 
 
+;-------------------------------------------------------------------------------
+;	Hand-catalogued from the MEGA65 keyboard manual plus live
+;	DEBUG_KEYSCAN testing on real hardware (several manual entries
+;	turned out wrong, e.g. MEGA+up-arrow is $FF not the manual's $00,
+;	and MEGA+0/MEGA+1 both genuinely report $81, not distinct codes).
+;	Paired tables covering only the letters/digits controls actually
+;	use as accelerators: keyMegaAccelTbl[i] is the raw ASCIIKEY byte
+;	reported with MEGA held; keyMegaAccelBase[i] is that same key's
+;	plain (no-modifier) character - what's stored in accelchar. Uses
+;	the KEY_ASC_* defines rather than quoted char literals, since
+;	ca65's own charmap (not necessarily plain ASCII) applies to those.
+;-------------------------------------------------------------------------------
+keyMegaAccelTbl:
+		.byte	$C1, $C2, $C3, $C4, $C5, $C6, $C7, $C8, $C9, $CA	;a-j
+		.byte	$CB, $CC, $CD, $CE, $CF, $D0, $D1, $D2, $D3, $D4	;k-t
+		.byte	$D5, $D6, $D7, $D8, $D9, $DA				;u-z
+		.byte	$81, $95, $96, $97, $98, $99, $9A, $9B, $92		;1-9 (0 shares 1's $81 - no control uses '0')
+keyMegaAccelTblEnd:
+
+keyMegaAccelBase:
+		.byte	KEY_ASC_L_A, KEY_ASC_L_B, KEY_ASC_L_C, KEY_ASC_L_D, KEY_ASC_L_E
+		.byte	KEY_ASC_L_F, KEY_ASC_L_G, KEY_ASC_L_H, KEY_ASC_L_I, KEY_ASC_L_J
+		.byte	KEY_ASC_L_K, KEY_ASC_L_L, KEY_ASC_L_M, KEY_ASC_L_N, KEY_ASC_L_O
+		.byte	KEY_ASC_L_P, KEY_ASC_L_Q, KEY_ASC_L_R, KEY_ASC_L_S, KEY_ASC_L_T
+		.byte	KEY_ASC_L_U, KEY_ASC_L_V, KEY_ASC_L_W, KEY_ASC_L_X, KEY_ASC_L_Y
+		.byte	KEY_ASC_L_Z
+		.byte	KEY_ASC_1, KEY_ASC_2, KEY_ASC_3, KEY_ASC_4, KEY_ASC_5
+		.byte	KEY_ASC_6, KEY_ASC_7, KEY_ASC_8, KEY_ASC_9
+
+
+;-------------------------------------------------------------------------------
+;	Translates a MEGA-modified ASCIIKEY byte back to the plain
+;	character the same key reports alone, via keyMegaAccelTbl/
+;	keyMegaAccelBase above, so it can be matched against accelchar.
+;	IN	.A		raw ASCIIKEY byte (MEGA held)
+;	OUT	.A		base character, or $00 if no accelerator uses that key
+;	USED	.X
+;-------------------------------------------------------------------------------
+keyMegaToBase:
+;-------------------------------------------------------------------------------
+		LDX	#$00
+@loop:
+		CPX	#(keyMegaAccelTblEnd - keyMegaAccelTbl)
+		BCS	@notfound
+
+		CMP	keyMegaAccelTbl, X
+		BEQ	@found
+
+		INX
+		JMP	@loop
+
+@found:
+		LDA	keyMegaAccelBase, X
+		RTS
+
+@notfound:
+		LDA	#$00
+		RTS
+
+
 	.export	ctrlsPageKeyPress
 ;-------------------------------------------------------------------------------
 ctrlsPageKeyPress:
@@ -14647,19 +14779,50 @@ ctrlsPageKeyPress:
 		STA	msgsdat0
 		STX	msgsdat1
 
-		TXA
+	.if	DEBUG_KEYSCAN
+		LDA	#<lpanel_cnct_log
+		STA	tempptr2
+		LDA	#>lpanel_cnct_log
+		STA	tempptr2 + 1
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_dbg_key_pref
+		JSR	strsAppendString
+
+		LDA	msgsdat0
+		JSR	strsAppendHex
+
+		LDAX	#text_dbg_key_mid
+		JSR	strsAppendString
+
+		LDA	msgsdat1
+		JSR	strsAppendHex
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelUpdate
+	.endif
+
+;	msgsdat1 rather than TXA - X may not have survived the DEBUG_KEYSCAN
+;	block above (strsAppendString/ctrlsLogPanelUpdate use X/Y freely)
+		LDA	msgsdat1
 		AND	#keyModSystem
 		BNE	@findaccel
 
 		LDA	msgsdat0
 
+		CMP	#KEY_C64_HELP
+		BEQ	@findaccel
+
 		CMP	#KEY_C64_F1
 		BCS	@fkey0
-			
+
 		JMP	@isdownctrl
 
 @fkey0:
-		CMP	#(KEY_C64_F9 + 1)
+		CMP	#(KEY_C64_F14 + 1)
 		BCC	@findaccel
 
 @isdownctrl:
@@ -14719,6 +14882,19 @@ ctrlsPageKeyPress:
 		RTS
 
 @findaccel:
+;	Reached two ways: MEGA held (any key - msgsdat0 is a MEGA-modified
+;	code and needs translating back to what accelchar stores), or an
+;	F1-F9 key regardless of modifier (msgsdat0 already matches
+;	accelchar's KEY_C64_F* values directly - leave it alone).
+		LDA	msgsdat1
+		AND	#keyModSystem
+		BEQ	@noxlat
+
+		LDA	msgsdat0
+		JSR	keyMegaToBase
+		STA	msgsdat0
+
+@noxlat:
 		LDY	#PAGE::panels
 		LDA	(pageptr0), Y
 		STA	ctrlptr0
@@ -14727,7 +14903,7 @@ ctrlsPageKeyPress:
 		STA	ctrlptr0 + 1
 
 		LDY	#$00
-		
+
 @looppanl:
 		LDA	(ctrlptr0), Y
 		STA	panlptr0
@@ -16706,6 +16882,8 @@ ip65_process:
     RTS
 
 @TERMINAL_HANDLE_EVENT:
+    JSR inetRecordDiscEvent
+
     LDA #$01
     STA connection_close_requested
     STA connection_closed
@@ -17007,9 +17185,17 @@ CONN_CONNECTED      = %00000001
 CONN_FAILED         = %00000010
 
 ;	mirror eth.asm's EV_* bits in TCP_EVENT_FLAG - not otherwise exposed
-;	to test.s, so re-declared here for tcp_connect's use only.
-EV_RST              = %00000001
-EV_BAD_SYNACK       = %01000000
+;	to test.s, so re-declared here. Also used by inetRecordDiscEvent
+;	below to decode discEventFlags for clientOutputInetError.
+EV_RST              = %00000001	;hard reset seen (peer RST)
+EV_PEER_FIN         = %00000010	;peer initiated close (we saw FIN)
+EV_LOCAL_CLOSE       = %00000100	;our FIN exchange completed
+EV_TIMEWAIT_DONE    = %00001000	;TIME_WAIT expired - CLOSED
+EV_CONNECT_FAIL     = %00010000	;SYN handshake failed/timeout
+EV_TX_TIMEOUT       = %00100000	;data retransmit retries exhausted
+EV_BAD_SYNACK       = %01000000	;SYN-SENT: SYN+ACK arrived but its
+					;ACK didn't match - dropped, not a
+					;true no-reply
 
 ;	non-zero after a failed tcp_connect if the failure was an active
 ;	peer RST (connection refused) rather than a plain SYN timeout.
@@ -17129,6 +17315,8 @@ tcp_send:
     RTS
 
 @TERMINAL_HANDLE_EVENT:
+    JSR inetRecordDiscEvent
+
     LDA #$01
     STA connection_close_requested
     STA connection_closed
@@ -17152,6 +17340,8 @@ tcp_send_keep_alive:
     RTS
 
 @TERMINAL_HANDLE_EVENT:
+    JSR inetRecordDiscEvent
+
     LDA #$01
     STA connection_close_requested
     STA connection_closed
@@ -17300,10 +17490,19 @@ inet_timeout:
 			.res	1
 connection_close_requested:     
 			.res 	1
-connection_closed:              
+connection_closed:
 			.res 	1
-data_received:                  
+data_received:
 			.res 	1
+
+;	Snapshot of TERMINAL_EVENT (TCP_EVENT_FLAG's sticky-OR'd EV_* bits,
+;	see above) taken by inetRecordDiscEvent right before connection_closed
+;	is set, so clientOutputInetError can show *why* the connection
+;	ended instead of just that it did. $00 means connection_closed was
+;	set via inet_callback's inbound-EOF sentinel instead (no
+;	TCP_EVENT_FLAG bits involved there).
+discEventFlags:
+			.res	1
 
 sendmsgscnt:
 			.res 	1
@@ -17846,6 +18045,10 @@ text_wrap_pref:
 			.asciiz "/ "
 text_dbg_rx_pref:
 			.asciiz "RX $"
+text_dbg_key_pref:
+			.asciiz "KEY $"
+text_dbg_key_mid:
+			.asciiz " MOD $"
 
 
 text_err_init:
@@ -17860,6 +18063,8 @@ text_err_other:
 			.asciiz	"! ERROR - SYSTEM ERROR $"
 text_err_disc:
 			.asciiz "! DISCONNECTED"
+text_err_disc_evt:
+			.asciiz " $"
 text_err_okay:
 			.asciiz	"= OKAY"
 
