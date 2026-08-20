@@ -1,20 +1,16 @@
 ;	TODO:
-;		- Cursor when editing text
-;
-;		- Optimise log panel presentation
-;		- Optimise 1 height controls presentation?
-;
-;		- "Lower" bonuses (yahtzee bonuses) both display and preview
-;
-;		- Fix part detection in rooms
 ;
 ;	LIMITATIONS:
 ;		- Making controls invisible requires some effort to redisplay 
 ;		  properly
 ;		- Beware overlapping controls
 ;
-;
 ;	BUGS:
+;		- Edit controls with a captured (down) blinking cursor get
+;		  "picked" and change presentation if the mouse moves over
+;		  them while typing - probably the mouse hover/pick logic
+;		  not checking downCtrl before restyling. Minor, not fixed
+;		  yet.
 ;
 
 	.setcpu		"4510"
@@ -2430,7 +2426,7 @@ label_cnct_info:
 ;			.byte	TYPE_LABEL
 			.byte	STATE_VISIBLE | STATE_ENABLED
 			.byte	OPT_NONAVIGATE
-			.byte	CLR_FACE	;colour	.byte
+			.byte	CLR_PAPER	;colour	.byte
 			.byte	$00		;posx	.byte
 			.byte	$0A		;posy	.byte
 			.byte	$0B		;width	.byte
@@ -2439,8 +2435,8 @@ label_cnct_info:
 			.word	panel_cnct_data	;panel	.word
 			.word	text_cnct_info  ;textptr	.word
 			.byte	$00		;textoffx .byte
-			.byte	$05		;textaccel .byte
-			.byte	'i'		;accelchar .byte
+			.byte	$FF		;textaccel .byte
+			.byte	$00		;accelchar .byte
 			.word	edit_cnct_info	;actvctrl .word
 
 
@@ -2451,7 +2447,7 @@ edit_cnct_info:
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	$00		;options	.byte
+			.byte	OPT_NONAVIGATE		;options	.byte
 			.byte	CLR_TEXT	;colour	.byte
 			.byte	$0B		;posx	.byte
 			.byte	$0A		;posy	.byte
@@ -4579,6 +4575,25 @@ userIRQ:
 
 
 ;-------------------------------------------------------------------------------
+;	Cursor blink delay, in frames - 10 on NTSC, 8 on PAL, so the
+;	blink period comes out close to the same wall-clock time on both
+;	(NTSC's ~16.7ms/frame vs PAL's ~20ms/frame).
+;	OUT	.A		frame delay
+;-------------------------------------------------------------------------------
+crsrBlinkDelay:
+;-------------------------------------------------------------------------------
+		LDA	sys_ntsc_flag
+		BEQ	@pal
+
+		LDA	#10
+		RTS
+
+@pal:
+		LDA	#8
+		RTS
+
+
+;-------------------------------------------------------------------------------
 userIRQHandler:
 ;-------------------------------------------------------------------------------
 	.if	DEBUG_RASTERTIME
@@ -4620,10 +4635,11 @@ userIRQHandler:
 		DEC	uiflshcnt
 
 @flshfin:
-;	Blinking text-entry cursor - every 6 frames, XOR $80 (reverse
-;	video) into whatever character is currently at crsr_col/crsr_row.
-;	crsr_on tracks which phase we're in so ctrlsUnDownCtrl knows
-;	whether a matching XOR is needed to restore the cell on release.
+;	Blinking text-entry cursor - every crsrBlinkDelay frames (10 on
+;	NTSC, 8 on PAL), XOR $80 (reverse video) into whatever character
+;	is currently at crsr_col/crsr_row. crsr_on tracks which phase
+;	we're in so ctrlsUnDownCtrl knows whether a matching XOR is
+;	needed to restore the cell on release.
 		LDA	crsr_active
 		BEQ	@crsrfin
 
@@ -4649,7 +4665,7 @@ userIRQHandler:
 		EOR	#$80
 		STA	(tempptr1), Y
 
-		LDA	#$06
+		JSR	crsrBlinkDelay
 		STA	crsr_dly
 
 @crsrfin:
@@ -12235,6 +12251,97 @@ clientDetConfirmChng:
 
 
 ;-------------------------------------------------------------------------------
+;	Fills dmaCnt bytes of screen/colour RAM starting at dmaDst with the
+;	byte in .A, via an inline enhanced DMA job (same 12-byte layout
+;	proven working in initHiVars - just the count/value/dst fields
+;	self-modified per call instead of being link-time constants)
+;	rather than a per-byte CPU loop. Used for row fills only (dmaCnt
+;	is a single byte, so max 255 bytes/call), by ctrlsEraseBkg and
+;	screenRectSetColour.
+;	IN	.A		fill byte
+;	IN	dmaDst		destination address
+;	IN	dmaDstBank	destination bank (bits 16-23 of a 24-bit
+;				address - $00 for screen/chip RAM, $01 for
+;				colour RAM's real physical address $01F800,
+;				see colourRowsHiPhys)
+;	IN	dmaCnt		byte count (1-255)
+;	USED	.A
+;-------------------------------------------------------------------------------
+dmaFillRow:
+;-------------------------------------------------------------------------------
+		STA	@val
+
+		LDA	dmaCnt
+		STA	@cnt
+		LDA	dmaDst
+		STA	@dst
+		LDA	dmaDst + 1
+		STA	@dst + 1
+		LDA	dmaDstBank
+		STA	@dstbank
+
+		STA	$D707
+		.byte	$00		;end of job options
+		.byte	$03		;fill
+@cnt:		
+    .byte	$00
+		.byte	$00		;count hi (row fills are always < 256 bytes)
+@val:		
+    .byte	$00
+		.byte	$00		;value hi (unused - fill byte is the low byte)
+		.byte	$00		;src bank
+@dst:		
+    .word	$0000
+@dstbank:	
+    .byte	$00		;dst bank
+		.byte	$00		;cmd hi
+		.word	$0000		;modulo/ignored
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	Copies dmaCnt bytes from dmaSrc to dmaDst via an inline enhanced
+;	DMA job - same layout as dmaFillRow, but cmd $00 (copy) instead of
+;	$03 (fill), so the word field after the command bytes is read as
+;	a source address instead of a fill value.
+;	IN	dmaSrc		source address
+;	IN	dmaDst		destination address
+;	IN	dmaCnt		byte count (1-255)
+;	USED	.A
+;-------------------------------------------------------------------------------
+dmaCopyRow:
+;-------------------------------------------------------------------------------
+		LDA	dmaCnt
+		STA	@cnt
+		LDA	dmaSrc
+		STA	@src
+		LDA	dmaSrc + 1
+		STA	@src + 1
+		LDA	dmaDst
+		STA	@dst
+		LDA	dmaDst + 1
+		STA	@dst + 1
+
+		STA	$D707
+		.byte	$00		;end of job options
+		.byte	$00		;copy
+@cnt:		
+    .byte	$00
+		.byte	$00		;count hi (row copies are always < 256 bytes)
+@src:		
+    .word	$0000
+		.byte	$00		;src bank
+@dst:		
+    .word	$0000
+		.byte	$00		;dst bank
+		.byte	$00		;cmd hi
+		.word	$0000		;modulo/ignored
+
+		RTS
+
+
+;-------------------------------------------------------------------------------
 screenRectSetColour:
 ;	IN	.A		Colour ident
 ;	IN	tempvar_a	x pos
@@ -12253,36 +12360,27 @@ screenRectSetColour:
 @looph:
 		LDX	tempvar_b
 		LDA	screenRowsLo, X
-		
-;		STA	tempptr0
-		
-		STA	tempptr1		;colour ptr
-		LDA	colourRowsHi, X
-		STA	tempptr1 + 1
-	
-;		LDA	screenRowsHi, X
-;		STA	tempptr0 + 1
-	
-		LDY	tempvar_a
-		LDX	tempvar_c
-		DEX
-		
-@loopw:
-;		LDA	#$A0
-;		STA	(tempptr0), Y
+		CLC
+		ADC	tempvar_a
+		STA	dmaDst
+		LDA	colourRowsHiPhys, X
+		ADC	#$00
+		STA	dmaDst + 1
+
+		LDA	#$01			;colour RAM's real physical
+		STA	dmaDstBank		;address is $01F800, not $D800
+
+		LDA	tempvar_c
+		STA	dmaCnt
 
 		LDA	tempvar_e		;colour to colour ram
-		STA	(tempptr1), Y
-		
-		INY
-		DEX
-		BPL	@loopw
-		
+		JSR	dmaFillRow
+
 		INC	tempvar_b
 		DEC	tempvar_d
 		LDA	tempvar_d
 		BNE	@looph
-		
+
 		RTS
 
 
@@ -12538,23 +12636,49 @@ strsAppendMessage:
 		CPY	#LOGLINE_MAX
 		BCS	@done
 
-@loop:
-		LDY	tempdat1
-		LDA 	readmsg0, Y
-		INY
-		STY	tempdat1
+;	count = min(bytes of room left in the destination line,
+;	bytes remaining unread in readmsg0) - both are >= 1 here, so the
+;	DMA job below never runs with a zero count.
+		LDA	readmsglen
+		SEC
+		SBC	tempdat1
+		STA	dmaCnt
 
-		LDY	tempdat0
-		STA	(tempptr0), Y
-		INY
-		STY	tempdat0
+		LDA	#LOGLINE_MAX
+		SEC
+		SBC	tempdat0
+		CMP	dmaCnt
+		BCS	@havecnt
 
-		CPY	#LOGLINE_MAX
-		BCS	@done
+		STA	dmaCnt
 
-		LDY	tempdat1
-		CPY	readmsglen
-		BCC	@loop
+@havecnt:
+		LDA	tempptr0
+		CLC
+		ADC	tempdat0
+		STA	dmaDst
+		LDA	tempptr0 + 1
+		ADC	#$00
+		STA	dmaDst + 1
+
+		LDA	#<readmsg0
+		CLC
+		ADC	tempdat1
+		STA	dmaSrc
+		LDA	#>readmsg0
+		ADC	#$00
+		STA	dmaSrc + 1
+
+		JSR	dmaCopyRow
+
+		LDA	dmaCnt
+		CLC
+		ADC	tempdat0
+		STA	tempdat0
+		LDA	dmaCnt
+		CLC
+		ADC	tempdat1
+		STA	tempdat1
 
 @done:
 		RTS
@@ -13232,35 +13356,47 @@ ctrlsEraseBkg:
 @looph:
 		LDX	tempvar_b
 		LDA	screenRowsLo, X
-		STA	tempptr0		;screen ptr
-		STA	tempptr1		;colour ptr
+		STA	tempvar_g		;low byte shared by screen & colour rows
+		CLC
+		ADC	tempvar_a
+		STA	dmaDst
 		LDA	screenRowsHi, X
-		STA	tempptr0 + 1
-		LDA	colourRowsHi, X
-		STA	tempptr1 + 1
-	
-		LDY	tempvar_a
-		LDX	tempvar_c
-		DEX
-		
-@loopw:
+		ADC	#$00
+		STA	dmaDst + 1
+
+		LDA	#$00
+		STA	dmaDstBank
+
+		LDA	tempvar_c
+		STA	dmaCnt
+
 		LDA	tempvar_f		;char to screen ram
-		STA	(tempptr0), Y
-		
+		JSR	dmaFillRow
+
+		LDA	tempvar_g
+		CLC
+		ADC	tempvar_a
+		STA	dmaDst
+		LDA	colourRowsHiPhys, X
+		ADC	#$00
+		STA	dmaDst + 1
+
+		LDA	#$01			;colour RAM's real physical
+		STA	dmaDstBank		;address is $01F800, not $D800
+
+		LDA	tempvar_c
+		STA	dmaCnt
+
 		LDA	tempvar_e		;colour to colour ram
-		STA	(tempptr1), Y
-		
-		INY
-		DEX
-		BPL	@loopw
-		
+		JSR	dmaFillRow
+
 		INC	tempvar_b
 		DEC	tempvar_d
 		LDA	tempvar_d
 		BNE	@looph
-		
+
 		RTS
-		
+
 
 ;-------------------------------------------------------------------------------
 ctrlsDrawText:
@@ -16044,7 +16180,7 @@ ctrlsEditDefPresent:
 		LDA	#$00
 		STA	crsr_on
 
-		LDA	#$06
+		JSR	crsrBlinkDelay
 		STA	crsr_dly
 
 @exit:
@@ -17074,7 +17210,20 @@ tempvar_y:
 			.res	1
 tempvar_z:
 			.res	1
-			
+
+;	dmaFillRow/dmaCopyRow's parameters (see below) - a dedicated set
+;	rather than reusing tempptr/tempvar since these are called from
+;	inside other routines' own tempvar-heavy loops (ctrlsEraseBkg,
+;	screenRectSetColour, strsAppendMessage).
+dmaSrc:
+			.res	2
+dmaDst:
+			.res	2
+dmaDstBank:
+			.res	1
+dmaCnt:
+			.res	1
+
 uiflshcnt:
 			.res 	1
 uiflshdly:
@@ -17085,10 +17234,11 @@ room_log_notify_cnt:
 
 ;	Blinking text-entry cursor (OPT_CAPTURECRSR) - crsr_col/crsr_row
 ;	are the screen position userIRQHandler XORs $80 (reverse video)
-;	into every 6 frames; crsr_on is the toggle (0=normal, 1=reversed)
-;	so ctrlsUnDownCtrl knows whether one more XOR is needed to restore
-;	the cell on release; crsr_active gates all of it off when no
-;	captured control wants a cursor.
+;	into every crsrBlinkDelay frames (see there); crsr_on is the
+;	toggle (0=normal, 1=reversed) so ctrlsUnDownCtrl knows whether
+;	one more XOR is needed to restore the cell on release;
+;	crsr_active gates all of it off when no captured control wants a
+;	cursor.
 crsr_col:
 			.res	1
 crsr_row:
@@ -17305,6 +17455,18 @@ colourRowsHi:
 			.byte 	>$D990, >$D9B8, >$D9E0, >$DA08, >$DA30
 			.byte	>$DA58, >$DA80, >$DAA8, >$DAD0, >$DAF8
 			.byte	>$DB20, >$DB48, >$DB70, >$DB98, >$DBC0
+
+;	DMA bypasses the CPU's $D800 colour-RAM I/O alias entirely and
+;	needs colour RAM's real physical address instead - $01F800
+;	(bank $01, addr word high byte per row below). Low byte still
+;	matches screenRowsLo row for row, same as colourRowsHi above,
+;	since $F800's low byte is $00 just like $0400's and $D800's.
+colourRowsHiPhys:
+			.byte	>$F800, >$F828, >$F850, >$F878, >$F8A0
+			.byte	>$F8C8, >$F8F0, >$F918, >$F940, >$F968
+			.byte	>$F990, >$F9B8, >$F9E0, >$FA08, >$FA30
+			.byte	>$FA58, >$FA80, >$FAA8, >$FAD0, >$FAF8
+			.byte	>$FB20, >$FB48, >$FB70, >$FB98, >$FBC0
 
 screenASCIIXLAT:
 	.byte	KEY_ASC_BSLASH, KEY_ASC_CARET, KEY_ASC_USCORE, KEY_ASC_BQUOTE

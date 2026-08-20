@@ -1,0 +1,10 @@
+*
+!Dockerfile
+!M3wPYahtzeeCLIServer.lpr
+!YahtzeeClasses.pas
+!YahtzeeServer.pas
+!TCPServer.pas
+!synalist-code
+!synalist-code/**
+!motd
+!motd/**

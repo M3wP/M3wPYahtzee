@@ -1,0 +1,9 @@
+services:
+  yahtzee-server:
+    build: .
+    image: m3wp-yahtzee-server
+    ports:
+      - "7632:7632"
+    restart: unless-stopped
+    # Extra server args, e.g. max connections:
+    # command: ["-m", "50"]
