@@ -1,3 +1,6 @@
+# docker compose up -d      build (if needed) and run detached
+# docker compose logs -f    follow server output
+# docker compose down       stop and remove
 services:
   yahtzee-server:
     build: .

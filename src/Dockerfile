@@ -1,11 +1,21 @@
 # Builds and runs the M3wP Yahtzee! CLI server.
 #
 #   docker build -t m3wp-yahtzee-server .
-#   docker run -d -p 7632:7632 --name yahtzee m3wp-yahtzee-server
+#   docker run -d --restart unless-stopped -p 7632:7632 --name yahtzee m3wp-yahtzee-server
+#
+# -d detaches so it keeps running after you close the SSH session;
+# --restart unless-stopped brings it back after a crash or host reboot
+# too. Same effect either way with docker-compose.yml: docker compose
+# up -d.
 #
 # Extra server args (-m <max conns>, -s silent, -d debug log) can be
 # appended after the image name, e.g.:
-#   docker run -d -p 7632:7632 m3wp-yahtzee-server -m 50
+#   docker run -d --restart unless-stopped -p 7632:7632 --name yahtzee m3wp-yahtzee-server -m 50
+#
+# Management once it's running detached:
+#   docker logs -f yahtzee      follow server output
+#   docker stop yahtzee         stop it (won't auto-restart after this)
+#   docker restart yahtzee      restart it
 
 FROM debian:bookworm-slim AS build
 
