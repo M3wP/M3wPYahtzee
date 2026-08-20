@@ -300,15 +300,19 @@ const
 implementation
 
 uses
-	SysUtils;
+	SysUtils, IniFiles;
 
 const
-	ARR_LIT_SYS_INFO: array[0..4] of AnsiString = (
+	MOTD_DIR = 'motd';
+
+	ARR_LIT_SYS_INFO: array[0..6] of AnsiString = (
+			'----------------------------',
+			'~{_/*\_/*\_/*\_/*\_/*\_/*\}~',
 			'Yahtzee development system',
-			'--------------------------',
-			'Beta stage',
-			'By Daniel England',
-			'For Ecclestial Solutions');
+			'----------------------------',
+			'M3wP /Ecclestial Solutions',
+			'~{_/*\_/*\_/*\_/*\_/*\_/*\}~',
+			'----------------------------');
 
 	LIT_ERR_CLIENTID: AnsiString = 'Invalid client ident';
 	LIT_ERR_CONNCTID: AnsiString = 'Invalid connect ident';
@@ -510,6 +514,62 @@ procedure TSystemZone.PlayersKeepAliveExpire;
 		end;
 	end;
 
+// Appends a short (up to 8 line) public-domain poem verse after the sys-info
+// banner - picked at random from motd/1.txt, motd/2.txt etc, with the count
+// to pick from read from motd/index.ini. Missing/misconfigured motd files
+// are a real deployment possibility (directory not copied, index.ini typo),
+// so this fails quietly (just logs) rather than breaking the connect
+// handshake over a missing poem.
+procedure AppendMOTDPoem(AQueue: TQueue<AnsiString>);
+	var
+	dir: string;
+	fname: string;
+	ini: TIniFile;
+	count: Integer;
+	lines: TStringList;
+	i: Integer;
+
+	begin
+	dir:= IncludeTrailingPathDelimiter(
+			IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + MOTD_DIR);
+
+	try
+		if  not DirectoryExists(dir) then
+			Exit;
+
+		ini:= TIniFile.Create(dir + 'index.ini');
+		try
+			count:= ini.ReadInteger('motd', 'count', 0);
+
+			finally
+			ini.Free;
+			end;
+
+		if  count < 1 then
+			Exit;
+
+		fname:= dir + IntToStr(Random(count) + 1) + '.txt';
+
+		if  not FileExists(fname) then
+			Exit;
+
+		lines:= TStringList.Create;
+		try
+			lines.LoadFromFile(fname);
+
+			for i:= 0 to lines.Count - 1 do
+				AQueue.Enqueue(AnsiString(lines[i]));
+
+			finally
+			lines.Free;
+			end;
+
+		except
+		on E: Exception do
+			AddLogMessage(slkError, 'Failed to load MOTD poem: ' + E.Message);
+		end;
+	end;
+
 procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
         AMessage: TBaseMessage; var AHandled: Boolean);
 	var
@@ -527,6 +587,8 @@ procedure TSystemZone.ProcessPlayerMessage(APlayer: TPlayer;
 
 		for i:= 0 to High(ARR_LIT_SYS_INFO) do
 			ml.Data.Enqueue(ARR_LIT_SYS_INFO[i]);
+
+		AppendMOTDPoem(ml.Data);
 
 		m:= TBaseMessage.Create;
 		m.Category:= mcText;

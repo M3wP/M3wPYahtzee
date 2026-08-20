@@ -1,26 +1,12 @@
 ;	TODO:
 ;		- Cursor when editing text
 ;
-;		- Update user name button functionality
-;
 ;		- Optimise log panel presentation
 ;		- Optimise 1 height controls presentation?
 ;
-;		- Log panel for Room
-;
-;		- Log panel for Game
-;
 ;		- "Lower" bonuses (yahtzee bonuses) both display and preview
 ;
-;		- Chat functionality lists
 ;		- Fix part detection in rooms
-;
-;		- Display server ident strings in list control
-;
-;		- List games
-;
-;		- Settings page
-;
 ;
 ;	LIMITATIONS:
 ;		- Making controls invisible requires some effort to redisplay 
@@ -29,10 +15,6 @@
 ;
 ;
 ;	BUGS:
-;		- In VICE, doing a reset while successfully connected results 
-;		  in a zombie client (the socket is not closed).  I believe the
-;		  problem is in VICE.
-;
 ;
 
 	.setcpu		"4510"
@@ -47,6 +29,9 @@
 	
 ;	Debugging - check message limits and panic if borked
 	.define	DEBUG_MSGSPUSHSZ	1
+
+;	Debugging - log each RECV_DATA poll's byte count to the connect log
+	.define	DEBUG_RXSIZE	0
 	
 ;	Debugging - sleep when internet is idle
 	.define DEBUG_INETDOSLEEP	1
@@ -1092,6 +1077,7 @@ initMem:
 		STA	keyZPDecodePtr + 1
 		
 		STA	uiflshcnt
+		STA	room_log_notify_cnt
 
 ;	Initialise logs
 
@@ -2309,9 +2295,9 @@ button_cnct_upd:
 			.word	clientCnctUpdChng	;changed .word
 			.word	$0000		;keypress .word
 ;			.byte	TYPE_CONTROL
-;	Starts hidden (matches button_cnct_dcnt) - shown + enabled once
-;	connected, disabled again once the server accepts our username
-;	(it only accepts one clientSendUser per connection).
+;	Always visible (looked wrong toggling with the connect state) -
+;	enabled once connected, disabled again once the server accepts
+;	our username (it only accepts one clientSendUser per connection).
 			.byte	STATE_VISIBLE
 			.byte	$00		;options	.byte
 			.byte	CLR_FACE	;colour	.byte
@@ -5661,8 +5647,6 @@ inetConnect:
 		LDA	#>button_cnct_upd
 		STA	elemptr0 + 1
 
-		LDA	#STATE_VISIBLE
-		JSR	ctrlsIncludeState
 		LDA	#STATE_ENABLED
 		JSR	ctrlsIncludeState
 
@@ -5787,8 +5771,6 @@ inetDisconnected:
 		LDA	#>button_cnct_upd
 		STA	elemptr0 + 1
 
-		LDA	#STATE_VISIBLE
-		JSR	ctrlsExcludeState
 		LDA	#STATE_ENABLED
 		JSR	ctrlsExcludeState
 
@@ -6148,9 +6130,17 @@ inet_callback:
 
 		JSR	clientHandleReadMsg
 
+;	Advance by readbufidx (bytes of THIS batch actually consumed),
+;	not readmsglen (the message's full size) - they're only the same
+;	when a message is entirely contained in one batch. For a message
+;	that started in a PREVIOUS batch and only finishes here, inetread
+;	was reset to this batch's own base (not the message's true start),
+;	so advancing by the full message size overshoots by however many
+;	bytes came from the earlier batch, landing partway into the next
+;	message and desyncing everything after it in this batch.
 		CLC
 		LDA	inetread
-		ADC	readmsglen
+		ADC	readbufidx
 		STA	inetread
 		LDA	inetread + 1
 		ADC	#$00
@@ -6245,18 +6235,70 @@ clientNotifyFail:
 		
 		LDA	current_clrs
 		STA	vicBrdrClr
-		
+
 		CLI
-		
+
 		RTS
-		
+
+
+	.export	roomLogNotifyUpdate
+;-------------------------------------------------------------------------------
+;	Drop-in replacement for ctrlsLogPanelUpdate - identical for any
+;	other panel, but if tempptr2 is the room/chat log and the Room
+;	page isn't the active one (pageptr0), counts the update and
+;	flashes the border every 5th one so an idle player notices new
+;	chat. Counter resets whenever an update lands while the page IS
+;	active, so counting restarts fresh after the player's caught up.
+roomLogNotifyUpdate:
+;-------------------------------------------------------------------------------
+		JSR	ctrlsLogPanelUpdate
+
+		LDA	tempptr2
+		CMP	#<lpanel_room_log
+		BNE	@exit
+		LDA	tempptr2 + 1
+		CMP	#>lpanel_room_log
+		BNE	@exit
+
+		LDA	pageptr0
+		CMP	#<page_room
+		BNE	@away
+		LDA	pageptr0 + 1
+		CMP	#>page_room
+		BNE	@away
+
+		LDA	#$00
+		STA	room_log_notify_cnt
+
+@exit:
+		RTS
+
+@away:
+		INC	room_log_notify_cnt
+		LDA	room_log_notify_cnt
+		CMP	#$05
+		BCC	@exit
+
+		LDA	#$00
+		STA	room_log_notify_cnt
+
+		SEI
+		LDA	#$06
+		STA	uiflshcnt
+		LDA	#$08
+		STA	uiflshdly
+		LDA	current_clrs
+		STA	vicBrdrClr
+		CLI
+
+		RTS
 
 ;-------------------------------------------------------------------------------
 clientDispInetHealth:
 ;-------------------------------------------------------------------------------
 		LDA	inetproc
 		CMP	#INET_PROC_EXEC
-		BNE	@exit
+		LBNE	@exit
 
 ;	Temporary diagnostic: log inet_last_rtt/inet_last_retries to the
 ;	connect log panel whenever either one actually changes, so we can
@@ -6312,12 +6354,14 @@ clientDispInetHealth:
 		LDA	inet_last_rtt
 		LSR
 		LSR
-		LSR
-		CMP	#$08
+		;LSR
+		CMP	#$12
 		BCC	:+
-		LDA	#$08
+		LDA	#$12
 :
-		TAX
+    PHA
+		ASL
+    TAX
 
 		LDA	screenRowsLo
 		STA	inetcalc
@@ -6325,13 +6369,21 @@ clientDispInetHealth:
 		STA	inetcalc + 1
 		
 		LDY	#$27
-		
 		LDA	healthbars, X
 		STA	(inetcalc), Y
-		
+    INX
+		LDY	#$4F
+		LDA	healthbars, X
+		STA	(inetcalc), Y
+
 		LDA	colourRowsHi
 		STA	inetcalc + 1
 		
+    PLX
+		LDY	#$27
+		LDA	healthclrs, X
+		STA	(inetcalc), Y
+		LDY	#$4F
 		LDA	healthclrs, X
 		STA	(inetcalc), Y
 		
@@ -7383,7 +7435,7 @@ clientProcTextMsgBegin:
 		LDA	#$00
 		JSR	strsAppendChar
 
-		JSR	ctrlsLogPanelUpdate
+		JSR	roomLogNotifyUpdate
 
 @exit:
 		RTS
@@ -7406,7 +7458,35 @@ clientProcTextMsgMore:
 		RTS
 
 @more:
-;!!TODO:	Output more message in appropriate log
+;	List isn't finished - echo the list name back as our own method 2
+;	so the server's ProcessPlayerMessage sets ml.Process:=True and
+;	sends the next batch (TMessageList.ProcessList caps each batch at
+;	15 entries; without this request, anything past the first batch
+;	was silently dropped).
+		JSR	inetGetNextSend
+
+		BCC	@sendfail
+
+		LDA	#MSG_CATG_TEXT
+		ORA	#$02
+
+		JSR	strsAppendChar
+
+		LDA	readparm0
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		DEC	tempdat0
+		LDA	tempdat0
+		LDY	#$00
+		STA	(tempptr0), Y
+
+		RTS
+
+@sendfail:
+		JSR	clientNotifyFail
 
 		RTS
 
@@ -7523,9 +7603,9 @@ clientProcTextMsgData:
 
 		LDA	#$00
 		JSR	strsAppendChar
-		
-		JSR	ctrlsLogPanelUpdate
-				
+
+		JSR	roomLogNotifyUpdate
+
 @exit:
 		RTS
 
@@ -7566,8 +7646,83 @@ clientProcTextMsg:
 		JMP	clientProcTextMsgData
 
 @whisper:
-;!!TODO:	
-;	Add message to chat log with whisper notification
+;	Private "whisper" text from another player - wire format is
+;	"user text" (mcText method 4, no room field), unlike the room-wide
+;	peer chat's "room user text" (mcLobby method 4, clientProcRoomPeerMsg).
+;	Dispatched here before inetScanReadParams runs, so scan params
+;	ourselves. Always shows the sender header (no continuation-folding
+;	against room_lastuser) and clears room_lastuser afterward so the
+;	next ordinary room message reprints its own header too.
+		JSR	inetScanReadParams
+		LDA	readparmcnt
+		CMP	#$02
+		BCS	@dowhisper
+
+		RTS
+
+@dowhisper:
+		JSR	ctrlsLockAcquire
+
+		LDA	#<lpanel_room_log
+		STA	tempptr2
+		LDA	#>lpanel_room_log
+		STA	tempptr2 + 1
+
+		LDA	room_haveblank
+		BNE	@wskip0
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+@wskip0:
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_msg_pref
+		JSR	strsAppendString
+
+		LDA	readparm0
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDAX	#text_room_uwhisp
+		JSR	strsAppendString
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		LDY	readmsg0
+		INY
+
+		LDA	#$00
+		STA	readmsg0, Y
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		CLC
+		LDA	#<readmsg0
+		ADC	readparm1
+		STA	tempptr3
+		LDA	#>readmsg0
+		ADC	#$00
+		STA	tempptr3 + 1
+
+		LDAX	tempptr3
+		JSR	strsAppendWrapped
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		LDA	#$00
+		STA	room_haveblank
+		STA	room_lastuser
+
+		JSR	roomLogNotifyUpdate
+
+		JSR	ctrlsLockRelease
 
 		RTS
 
@@ -7638,16 +7793,13 @@ clientProcRoomJoinMsg:
 
 		LDA	#$01
 		STA	room_haveblank
-		
+
 		LDA	#$00
 		STA	room_lastuser
 
-		JSR	ctrlsLogPanelUpdate
+		JSR	roomLogNotifyUpdate
 
-;TODO
-;	Notify user when not viewing the Chat|Room page
-
-;	Change Game Join button to Part 
+;	Change Game Join button to Part
 		LDA	#<button_room_join
 		STA	elemptr0
 		LDA	#>button_room_join
@@ -7789,11 +7941,7 @@ clientProcRoomPartMsg:
 		LDA	#$00
 		STA	room_lastuser
 
-		JSR	ctrlsLogPanelUpdate
-
-;TODO
-;	Notify user when not viewing the Chat|Room page
-
+		JSR	roomLogNotifyUpdate
 
 ;	Check that the user was us before updating the ui
 		LDX	readparm1
@@ -7992,17 +8140,11 @@ clientProcRoomPeerMsg:
 		LDY	readmsg0
 		INY
 
-;FIXME
-;	Check message text length and only output 40 chars at a time!!
-
 		LDA	#$00
 		STA	readmsg0, Y
 
 		JSR	ctrlsLogPanelGetNextLine
-		
-;		LDAX	#readmsg0
-;		STAX	tempptr3
-		
+
 		CLC
 		LDA	#<readmsg0
 		ADC	readparm2
@@ -8010,9 +8152,9 @@ clientProcRoomPeerMsg:
 		LDA	#>readmsg0
 		ADC	#$00
 		STA	tempptr3 + 1
-		
+
 		LDAX	tempptr3
-		JSR	strsAppendString
+		JSR	strsAppendWrapped
 		
 		LDA	#$00
 		JSR	strsAppendChar
@@ -8039,8 +8181,8 @@ clientProcRoomPeerMsg:
 		LDA	#$00
 		STA	room_lastuser, X
 
-		JSR	ctrlsLogPanelUpdate
-		
+		JSR	roomLogNotifyUpdate
+
 		JSR	ctrlsLockRelease
 
 		RTS
@@ -8091,8 +8233,8 @@ clientProcLobbyMsg:
 		
 		LDA	#$01
 		STA	room_haveblank
-		
-		JSR	ctrlsLogPanelUpdate
+
+		JSR	roomLogNotifyUpdate
 
 		RTS
 
@@ -9331,12 +9473,10 @@ clientProcPlayMsg:
 		
 ;	Error message
 
-;!!TODO	
-;	Use play log instead of connection log
-		LDA	#<lpanel_cnct_log
+		LDA	#<lpanel_play_log
 		STA	tempptr2
-		LDA	#>lpanel_cnct_log
-		STA	tempptr2 + 1 
+		LDA	#>lpanel_play_log
+		STA	tempptr2 + 1
 
 		JSR	ctrlsLogPanelGetNextLine
 
@@ -12163,23 +12303,100 @@ strsAppendParam:
 
 
 ;-------------------------------------------------------------------------------
+;	Every caller of strsAppendMessage fills a fixed-size log-panel line
+;	buffer (.res 41 - 40 visible columns + 1 null terminator, e.g.
+;	cnct_log_line0). Stopping the copy once tempdat0 reaches this
+;	leaves exactly the 1 byte callers need for their own trailing
+;	strsAppendChar #$00 - without it, a line too long (a long poem
+;	verse, chat message, etc) silently overruns into the NEXT line's
+;	buffer with no warning at all.
+LOGLINE_MAX = 40
+
 strsAppendMessage:
 ;-------------------------------------------------------------------------------
+;	Bound checked BEFORE each copy (not just via an exact-match exit)
+;	so an empty tail - tempdat1 already at or past readmsglen, e.g. a
+;	Data message whose text param is empty - can't make Y overshoot
+;	readmsglen and run away copying garbage for up to 256 bytes before
+;	accidentally landing back on an exact match. Also capped against
+;	LOGLINE_MAX so an over-length message can't overrun the
+;	destination buffer either.
 		LDY	tempdat1
+		CPY	readmsglen
+		BCS	@done
+
+		LDY	tempdat0
+		CPY	#LOGLINE_MAX
+		BCS	@done
+
 @loop:
+		LDY	tempdat1
 		LDA 	readmsg0, Y
 		INY
 		STY	tempdat1
-		
+
 		LDY	tempdat0
 		STA	(tempptr0), Y
 		INY
 		STY	tempdat0
 
+		CPY	#LOGLINE_MAX
+		BCS	@done
+
 		LDY	tempdat1
 		CPY	readmsglen
-		BNE	@loop
+		BCC	@loop
 
+@done:
+		RTS
+
+
+;-------------------------------------------------------------------------------
+;	Wraps an arbitrary-length null-terminated string (AX) across the
+;	current log line and, if it doesn't fit, additional lines obtained
+;	via ctrlsLogPanelGetNextLine - each continuation line is prefixed
+;	"/ " to match the motd/README.txt convention. Unlike the poem text
+;	(pre-wrapped by hand at file-authoring time), chat text arrives at
+;	whatever length another client sent (up to readmsg0's 100 bytes),
+;	so the client has to wrap it itself. Caller must still close out
+;	the final line with its own trailing strsAppendChar #$00, same as
+;	after strsAppendString/strsAppendMessage.
+strsAppendWrapped:
+;-------------------------------------------------------------------------------
+		STA	tempptr3
+		STX	tempptr3 + 1
+
+@loop:
+		LDY	#$00
+		LDA	(tempptr3), Y
+		BEQ	@done
+
+		LDA	tempdat0
+		CMP	#LOGLINE_MAX
+		BCC	@haveroom
+
+;	Current line full - close it out and continue on a new one
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_wrap_pref
+		JSR	strsAppendString
+
+@haveroom:
+		LDY	#$00
+		LDA	(tempptr3), Y
+
+		LDY	tempdat0
+		STA	(tempptr0), Y
+		INY
+		STY	tempdat0
+
+		INW	tempptr3
+		JMP	@loop
+
+@done:
 		RTS
 
 
@@ -15950,7 +16167,44 @@ ip65_process:
 
     JSR  RECV_DATA
 
+;	Diagnostic: log how many bytes THIS poll's RECV_DATA actually
+;	received, whenever it received anything.
+    .if	DEBUG_RXSIZE
     LDA tcp_inbound_data_length
+    ORA tcp_inbound_data_length + 1
+    BEQ @norx
+
+    LDA #<lpanel_cnct_log
+    STA tempptr2
+    LDA #>lpanel_cnct_log
+    STA tempptr2 + 1
+
+    JSR ctrlsLogPanelGetNextLine
+
+    LDAX #text_dbg_rx_pref
+    JSR strsAppendString
+
+    LDA tcp_inbound_data_length + 1
+    JSR strsAppendHex
+    LDA tcp_inbound_data_length
+    JSR strsAppendHex
+
+    LDA #$00
+    JSR strsAppendChar
+
+    JSR ctrlsLogPanelUpdate
+
+@norx:
+    .endif
+;	Was checking the low byte alone, which was harmless while
+;	tcp_inbound_data_length could never actually exceed 255 (the old,
+;	buggy RECV_DATA wrapped there anyway). Now that bursts can
+;	genuinely exceed that, a burst landing on an exact multiple of
+;	256 would read as "nothing received" here and inet_callback would
+;	never run - silently losing data already drained from the ring
+;	buffer. ORA both bytes together so either one being nonzero counts.
+    LDA tcp_inbound_data_length
+    ORA tcp_inbound_data_length + 1
 
     BNE @TERMINAL_HANDLE_RX
 
@@ -15983,19 +16237,46 @@ TERMINAL_POLL_STATUS:
 
 
 RECV_DATA:
+;	tcp_inbound_data_length is a 16-bit counter, but the old version
+;	reloaded Y straight from its low byte each time and INC'd only
+;	that byte - past 255 bytes in one burst, Y silently wrapped back
+;	to 0 and the loop started overwriting the start of the buffer
+;	(including the first message's own length byte) with the tail of
+;	the burst, corrupting everything already received. Y now stays 0
+;	for the whole loop; inetread itself is walked forward one byte at
+;	a time with INW instead, so there's no 255-byte addressing limit.
 		LDAX 	tcp_inbound_data_ptr
 		STAX 	inetread
 
+    LDA #$00
+    STA tcp_inbound_data_length
+    STA tcp_inbound_data_length + 1
+
     LDY #$00
-    STY tcp_inbound_data_length
 @loop:
+;	tcp_inbound_data_ptr points at RX_BLOCK_BUF, a fixed 256-byte
+;	buffer - stop once it's full rather than walking inetread past
+;	its end into whatever memory follows. Anything not drained here
+;	stays safely queued in the ring buffer (MIP_ML_RECV_BYTE only
+;	consumes what it actually returns) for the next poll to pick up;
+;	inet_callback already handles a message continuing across polls.
+    LDA tcp_inbound_data_length + 1
+    BNE @done
+
     JSR MIP_ML_RECV_BYTE
     CPX #$01
     BNE @done
 
-    LDY tcp_inbound_data_length
     STA (inetread), Y
+
+    INW inetread
+
+;	tcp_inbound_data_length isn't zero-page, and INW only supports
+;	zero-page operands on the 4510, so this stays a manual carry-
+;	checked increment.
     INC tcp_inbound_data_length
+    BNE @loop
+    INC tcp_inbound_data_length + 1
 
     BRA @loop
 
@@ -16447,7 +16728,10 @@ uiflshcnt:
 			.res 	1
 uiflshdly:
 			.res	1
-		
+
+room_log_notify_cnt:
+			.res	1
+
 ctrlvar_a:
 			.res	1
 ctrlvar_b:
@@ -16885,6 +17169,8 @@ text_room_uparts:
 			.asciiz	" PARTS "
 text_room_usays:
 			.asciiz	" SAYS"
+text_room_uwhisp:
+			.asciiz	" WHISPERS"
 
 text_page_play:
 			.asciiz	"GAME"
@@ -17138,6 +17424,10 @@ text_outdent_pref:
 			.asciiz "< "
 text_msg_pref:
 			.asciiz ": "
+text_wrap_pref:
+			.asciiz "/ "
+text_dbg_rx_pref:
+			.asciiz "RX $"
 
 
 text_err_init:
@@ -17160,9 +17450,28 @@ hexdigits:
 			.byte "0123456789ABCDEF"
 			
 healthbars:
-			.byte	$A0, $E3, $F7, $F8, $62, $79, $6F, $64, $20
+			.byte	$A0, $A0
+      .byte $E3, $A0
+      .byte $F7, $A0
+      .byte $F8, $A0
+      .byte $62, $A0
+      .byte $79, $A0
+      .byte $6F, $A0
+      .byte $64, $A0
+      .byte $20, $A0
+			.byte	$20, $A0
+      .byte $20, $E3
+      .byte $20, $F7
+      .byte $20, $F8
+      .byte $20, $62
+      .byte $20, $79
+      .byte $20, $6F
+      .byte $20, $64
+      .byte $20, $20
+
 healthclrs:
-			.byte	$0D, $05, $05, $07, $07, $0A, $02, $02, $02
+			.byte	$0D, $0D, $05, $05, $05, $05, $07, $07, $07
+      .byte $07, $0A, $0A, $0A, $08, $08, $02, $02, $02
 
 			
 clrschme_idx:
