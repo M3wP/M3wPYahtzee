@@ -239,8 +239,7 @@ type
 
 		Counter: Integer;
 		KeepAliveCntr: Integer;
-		NeedKeepAlive: Integer;
-		SendKeepAlive: Boolean;
+		KeepAliveMisses: Integer;
 
 //		Messages: TMessages;
 
@@ -506,7 +505,7 @@ procedure TSystemZone.PlayersKeepAliveExpire;
 	with FPlayers.LockList do
 		try
 		for i:= Count - 1 downto 0 do
-			if  Items[i].NeedKeepAlive <= 0 then
+			if  Items[i].KeepAliveMisses >= 5 then
 				Self.Remove(Items[i]);
 
 		finally
@@ -1111,34 +1110,30 @@ procedure TPlayer.KeepAliveDecrement(Ams: Integer);
 		Dec(KeepAliveCntr, Ams)
 	else
 		begin
-		if  SendKeepAlive then
-			begin
-			SendKeepAlive:= False;
+		// A steady 30s heartbeat rather than a single challenge/short
+		// grace window - each unanswered challenge just increments
+		// KeepAliveMisses and another one goes out 30s later.
+		// PlayersKeepAliveExpire only drops the player once 5 land in a
+		// row unanswered (~2.5 minutes of total silence), which gives
+		// real tolerance for the packet loss/latency a stop-and-wait
+		// client stack sees on a real internet path.
+		Inc(KeepAliveMisses);
 
-			m:= TBaseMessage.Create;
+		m:= TBaseMessage.Create;
 
-			m.Category:= mcServer;
-			m.Method:= 2;
+		m.Category:= mcServer;
+		m.Method:= 2;
 
-			AddSendMessage(m);
-			end;
+		AddSendMessage(m);
 
-		Dec(NeedKeepAlive, Ams);
+		KeepAliveCntr:= 30000;
 		end;
 	end;
 
 procedure TPlayer.KeepAliveReset;
 	begin
-	KeepAliveCntr:= 10000;
-
-	// Logged round trips on the challenge/response over a real internet
-	// path (same continent) ran 0.7-2.9s even when healthy - close to
-	// 60% of the old 5000ms budget before a single lost/retransmitted
-	// packet on a stop-and-wait client stack could blow through it.
-	// Doubled again on top of that headroom for intercontinental
-	// connections, which will run considerably worse.
-	NeedKeepAlive:= 30000;
-	SendKeepAlive:= True;
+	KeepAliveCntr:= 30000;
+	KeepAliveMisses:= 0;
 	end;
 
 procedure TPlayer.RemoveZone(AZone: TZone);
