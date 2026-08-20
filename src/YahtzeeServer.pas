@@ -1130,7 +1130,14 @@ procedure TPlayer.KeepAliveDecrement(Ams: Integer);
 procedure TPlayer.KeepAliveReset;
 	begin
 	KeepAliveCntr:= 10000;
-	NeedKeepAlive:= 5000;
+
+	// Logged round trips on the challenge/response over a real internet
+	// path (same continent) ran 0.7-2.9s even when healthy - close to
+	// 60% of the old 5000ms budget before a single lost/retransmitted
+	// packet on a stop-and-wait client stack could blow through it.
+	// Doubled again on top of that headroom for intercontinental
+	// connections, which will run considerably worse.
+	NeedKeepAlive:= 30000;
 	SendKeepAlive:= True;
 	end;
 
