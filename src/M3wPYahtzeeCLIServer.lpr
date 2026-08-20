@@ -56,7 +56,7 @@ procedure TYahtzeeServer.DoRun;
 
 	begin
 	// quick check parameters
-	ErrorMsg:= CheckOptions('hm:s', 'help');
+	ErrorMsg:= CheckOptions('hm:sd', 'help');
 	if  ErrorMsg <> '' then
 		begin
 		ShowException(Exception.Create(ErrorMsg));
@@ -71,6 +71,9 @@ procedure TYahtzeeServer.DoRun;
 		Terminate;
 		Exit;
 		end;
+
+	if  HasOption('d', '') then
+		Include(FilterLogKinds, slkDebug);
 
     TCPServer.TCPServer:= TTCPServer.Create;
 	TCPServer.TCPServer.OnConnect:= DoConnect;

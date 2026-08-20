@@ -25,7 +25,7 @@
         <Mode0 Name="default"/>
       </Modes>
     </RunParams>
-    <Units Count="14">
+    <Units Count="6">
       <Unit0>
         <Filename Value="M3wPYahtzeeCLIServer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -39,50 +39,17 @@
         <IsPartOfProject Value="True"/>
       </Unit2>
       <Unit3>
-        <Filename Value="FPC\inc\generics.dictionaries.inc"/>
+        <Filename Value="TCPServer.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit3>
       <Unit4>
-        <Filename Value="FPC\inc\generics.dictionariesh.inc"/>
+        <Filename Value="synalist-code\synsock.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit4>
       <Unit5>
-        <Filename Value="FPC\generics.collections.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Generics.Collections"/>
-      </Unit5>
-      <Unit6>
-        <Filename Value="FPC\generics.defaults.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit6>
-      <Unit7>
-        <Filename Value="FPC\generics.hashes.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit7>
-      <Unit8>
-        <Filename Value="FPC\generics.helpers.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit8>
-      <Unit9>
-        <Filename Value="FPC\generics.memoryexpanders.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit9>
-      <Unit10>
-        <Filename Value="FPC\generics.strings.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit10>
-      <Unit11>
-        <Filename Value="TCPServer.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit11>
-      <Unit12>
-        <Filename Value="synalist-code\synsock.pas"/>
-        <IsPartOfProject Value="True"/>
-      </Unit12>
-      <Unit13>
         <Filename Value="synalist-code\blcksock.pas"/>
         <IsPartOfProject Value="True"/>
-      </Unit13>
+      </Unit5>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -92,8 +59,8 @@
       <Filename Value="M3wPYahtzeeCLIServer"/>
     </Target>
     <SearchPaths>
-      <IncludeFiles Value="$(ProjOutDir);FPC\inc"/>
-      <OtherUnitFiles Value="FPC;synalist-code"/>
+      <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="synalist-code"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

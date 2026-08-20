@@ -411,6 +411,7 @@ ML_STAGE_ARG_Z      = 5
 	.define	OPT_NOAUTOINVL	$01
 	.define	OPT_NONAVIGATE	$02
 	.define OPT_NODOWNACTV	$04
+	.define OPT_CAPTURECRSR $08
 	.define OPT_DOWNCAPTURE $10
 	.define	OPT_AUTOCHECK	$20
 	.define OPT_TEXTACCEL2X	$40
@@ -727,7 +728,7 @@ keyZPAbort = $43
 ;-----------------------------------------------------------
 ;BASIC interface
 ;-----------------------------------------------------------
-	.code
+.segment "CODE"
 ;start 2 before load address so
 ;we can inject it into the binary
 	.org		$07FF			
@@ -995,6 +996,7 @@ init:
 
     JSR initROM
     JSR initM65IOFast
+    JSR initHiVars
     JSR initMem
 		JSR	initCore
 
@@ -1019,9 +1021,33 @@ initROM:
 ;		AND	#$FC
 ;		ORA	#$01
 		LDA	#$1D
-		STA	$01		
+		STA	$01
 
     RTS
+
+
+;-------------------------------------------------------------------------------
+;	High memory ($E000-$FFF9, see m65.cfg's HIMEM/HIVARS) is bss - it
+;	costs nothing in the .prg, but that also means it's genuine
+;	garbage until cleared here, once, at startup (initROM must run
+;	first so it's actually RAM under the banked-out KERNAL). Inline
+;	enhanced DMA fill job rather than a CPU loop.
+	.import	__HIMEM_START__
+	.import	__HIMEM_SIZE__
+initHiVars:
+;-------------------------------------------------------------------------------
+		STA	$D707
+		.byte	$00			;end of job options
+		.byte	$03			;fill
+		.word	__HIMEM_SIZE__		;count
+		.word	$0000			;value (fill byte in low byte)
+		.byte	$00			;src bank
+		.word	__HIMEM_START__		;dst
+		.byte	$00			;dst bank
+		.byte	$00			;cmd hi
+		.word	$0000			;modulo/ignored
+
+		RTS
 
 
 ;-------------------------------------------------------------------------------
@@ -1078,6 +1104,8 @@ initMem:
 		
 		STA	uiflshcnt
 		STA	room_log_notify_cnt
+		STA	crsr_active
+		STA	crsr_on
 
 ;	Initialise logs
 
@@ -2035,13 +2063,15 @@ panel_config_theme:
 			.byte	$00		;tag	.byte
 			.word	page_config
 			.word	panel_config_theme_ctrls;controls .word
-			.byte	$04
+			.byte	$06
 
 panel_config_theme_ctrls:
 			.word	label_config_theme
 			.word	button_config_theme_prv
 			.word	button_config_theme_nxt
 			.word	label_config_theme_name
+			.word	label_config_interface
+			.word	checkbx_config_flashchat
 			.word	$0000
 
 label_config_theme:
@@ -2125,6 +2155,46 @@ label_config_theme_name:
 			.byte	$FF		;textaccel .byte
 			.byte	$00		;accelchar .byte
 			.word	$0000		;actvctrl .word
+
+label_config_interface:
+;			.word	$0000		;prepare
+			.word	$0000		;present	.word
+			.word	ctrlsLabelDefChanged	;changed
+			.word	$0000		;keypress .word
+;			.byte	TYPE_LABEL
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_NONAVIGATE
+			.byte	CLR_PAPER	;colour	.byte
+			.byte	$15		;posx	.byte
+			.byte	$0B		;posy	.byte
+			.byte	$12		;width	.byte
+			.byte	$01		;height	.byte
+			.byte	$00		;tag	.byte
+			.word	panel_config_theme	;panel	.word
+			.word	text_config_interface;textptr	.word
+			.byte	$00		;textoffx .byte
+			.byte	$FF		;textaccel .byte
+			.byte	$00		;accelchar .byte
+			.word	$0000		;actvctrl .word
+
+checkbx_config_flashchat:
+;			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	ctrlsControlDefChanged	;changed - plain toggle, roomLogNotifyUpdate reads the tag directly
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour
+			.byte	$15			;posx
+			.byte	$0D			;posy
+			.byte	$13			;width
+			.byte	$01			;height
+			.byte	$01			;tag	- checked (default on)
+			.word	panel_config_theme	;panel
+			.word	text_config_flashchat	;textptr
+			.byte	$00			;textoffx
+			.byte	$00			;textaccel
+			.byte	$00			;accelchar
 
 
 page_connect:
@@ -2211,7 +2281,7 @@ edit_cnct_host:
 			.word	ctrlsEditDefKeyPress
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE | OPT_TEXTCONTMRK
+			.byte	OPT_DOWNCAPTURE | OPT_TEXTCONTMRK | OPT_CAPTURECRSR
 			.byte	CLR_PAPER	;colour	.byte
 			.byte	$0B		;posx	.byte
 			.byte	$04		;posy	.byte
@@ -2257,11 +2327,11 @@ label_cnct_user:
 edit_cnct_user:
 ;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
-			.word	$0000			;changed 
+			.word	$0000			;changed
 			.word	ctrlsEditDefKeyPress
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	
 			.byte	$0B			;posx	
 			.byte	$06			;posy	
@@ -2565,7 +2635,7 @@ edit_room_room:
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	.byte
 			.byte	$0C			;posx	.byte
 			.byte	$04			;posy	.byte
@@ -2630,7 +2700,7 @@ edit_room_pwd:
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	.byte
 			.byte	$0C			;posx	.byte
 			.byte	$06			;posy	.byte
@@ -2776,11 +2846,11 @@ panel_room_data_ctrls:
 edit_room_text:
 ;			.word	$0000			;prepare
 			.word	ctrlsEditDefPresent
-			.word	ctrlsRoomTextChng	;changed 
+			.word	ctrlsRoomTextChng	;changed
 			.word	ctrlsEditDefKeyPress
 ;			.byte	TYPE_CONTROL
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	
 			.byte	$00			;posx	
 			.byte	$18			;posy	
@@ -2923,7 +2993,7 @@ edit_play_game:
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	.byte
 			.byte	$0C			;posx	.byte
 			.byte	$04			;posy	.byte
@@ -2988,7 +3058,7 @@ edit_play_pwd:
 			.word	$0000			;changed .word
 			.word	ctrlsEditDefKeyPress
 			.byte	STATE_VISIBLE | STATE_ENABLED
-			.byte	OPT_DOWNCAPTURE
+			.byte	OPT_DOWNCAPTURE | OPT_CAPTURECRSR
 			.byte	CLR_PAPER		;colour	.byte
 			.byte	$0C			;posx	.byte
 			.byte	$06			;posy	.byte
@@ -4550,6 +4620,39 @@ userIRQHandler:
 		DEC	uiflshcnt
 
 @flshfin:
+;	Blinking text-entry cursor - every 6 frames, XOR $80 (reverse
+;	video) into whatever character is currently at crsr_col/crsr_row.
+;	crsr_on tracks which phase we're in so ctrlsUnDownCtrl knows
+;	whether a matching XOR is needed to restore the cell on release.
+		LDA	crsr_active
+		BEQ	@crsrfin
+
+		LDA	crsr_dly
+		BEQ	@crsrflash
+
+		DEC	crsr_dly
+		JMP	@crsrfin
+
+@crsrflash:
+		LDA	crsr_on
+		EOR	#$01
+		STA	crsr_on
+
+		LDY	crsr_row
+		LDA	screenRowsLo, Y
+		STA	tempptr1
+		LDA	screenRowsHi, Y
+		STA	tempptr1 + 1
+
+		LDY	crsr_col
+		LDA	(tempptr1), Y
+		EOR	#$80
+		STA	(tempptr1), Y
+
+		LDA	#$06
+		STA	crsr_dly
+
+@crsrfin:
 		JSR	userProcessMouse	;Do mouse first so we can skip
 						;	expensive all lines
 						;	keyboard scan when mouse
@@ -6259,6 +6362,9 @@ roomLogNotifyUpdate:
 		LDA	tempptr2 + 1
 		CMP	#>lpanel_room_log
 		BNE	@exit
+
+		LDA	checkbx_config_flashchat + ELEMENT::tag
+		BEQ	@exit
 
 		LDA	pageptr0
 		CMP	#<page_room
@@ -8596,10 +8702,31 @@ clientProcPlayJoinMsg:
 		
 		JSR	ctrlsControlInvalidate
 
-		JSR	ctrlsLockRelease
+		LDA	#<lpanel_play_log
+		STA	tempptr2
+		LDA	#>lpanel_play_log
+		STA	tempptr2 + 1
 
-;!!TODO
-;	Produce joined log message
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_indent_pref
+		JSR	strsAppendString
+
+		LDA	readparm1
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDAX	#text_play_ujoins
+		JSR	strsAppendString
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelUpdate
+
+		JSR	ctrlsLockRelease
 
 		RTS
 
@@ -8621,9 +8748,32 @@ clientProcPlayPartMsg:
 		JMP	@unknown
 		
 @part:
-;!!TODO
-;	Check the game name against our game to be sure??
-		
+;	Ignore Part broadcasts for a game that isn't the one we're in -
+;	edit_play_game_buf holds the name we joined/created with (it's
+;	what clientSendPlayJoin sends), and readparm0 is the game name
+;	this Part is for. Guards against a stale in-flight message from a
+;	game we've already left landing after gameData has been reused
+;	for a new one, which could otherwise false-match on slot number
+;	alone.
+		LDX	#$00
+		LDY	readparm0
+
+@gmcmp:
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@gmmsgend
+
+		CMP	edit_play_game_buf, X
+		BNE	@gmmismatch
+
+		INX
+		INY
+		JMP	@gmcmp
+
+@gmmsgend:
+		LDA	edit_play_game_buf, X
+		BNE	@gmmismatch
+
 ;	Get the slot number the message refers to
 		LDY	readparm2
 		LDA	readmsg0, Y
@@ -8647,15 +8797,29 @@ clientProcPlayPartMsg:
 
 		JSR	initGameData
 		JSR	clientInitGameOvrvw
-		
+
 		JSR	clientResetPlayGame
-		
-;!!TODO
-;	If on one of the play overview or detail pages, switch back to game page
-		
+
+;	No longer in any game - if we're sat on the overview or detail
+;	page, kick back to the game list page.
+		LDA	currpgtag
+		CMP	#PAGE_PLYOVRVW
+		BEQ	@weppage
+		CMP	#PAGE_PLYDETAIL
+		BNE	@wepdone
+
+@weppage:
+		LDA	#<page_play
+		STA	elemptr0
+		LDA	#>page_play
+		STA	elemptr0 + 1
+
+		JSR	ctrlsPageSelect
+
+@wepdone:
 		PLA
 		JMP	@exit
-		
+
 @complete:
 		PLA
 		ASL
@@ -8670,6 +8834,9 @@ clientProcPlayPartMsg:
 
 @exit:
 		JSR	ctrlsLockRelease
+		RTS
+
+@gmmismatch:
 		RTS
 
 @unknown:
@@ -8835,7 +9002,7 @@ clientProcPlayStatGameMsg:
 		STA	elemptr0
 		LDA	#>label_ovrwv_round_det
 		STA	elemptr0 + 1
-		
+
 		LDY	#CONTROL::textptr
 		LDA	#<text_ovrvw_finish
 		STA	(elemptr0), Y
@@ -8843,8 +9010,22 @@ clientProcPlayStatGameMsg:
 		LDA	#>text_ovrvw_finish
 		STA	(elemptr0), Y
 
-		JSR	ctrlsControlInvalidate		
-	
+		JSR	ctrlsControlInvalidate
+
+;	Game's over - if we're sat on the detail page, kick back to the
+;	overview so the result is visible right away instead of a dead
+;	detail view.
+		LDA	currpgtag
+		CMP	#PAGE_PLYDETAIL
+		BNE	@cont0
+
+		LDA	#<page_ovrvw
+		STA	elemptr0
+		LDA	#>page_ovrvw
+		STA	elemptr0 + 1
+
+		JSR	ctrlsPageSelect
+
 @cont0:
 		JSR	ctrlsLockRelease
 		RTS
@@ -10892,12 +11073,12 @@ clientConfigThemeApply:
 
 ;-------------------------------------------------------------------------------
 ;	The three speed checkboxes below are coerced into acting like a
-;	radio group: each one is a normal OPT_AUTOCHECK checkbox (so
-;	ctrlsControlDefChanged still handles its own tag toggle + redraw),
-;	but its changed handler also forces the other two back to
-;	unchecked. Not a real radio button control - clicking the already-
-;	checked box still toggles it off like any other checkbox - that's
-;	fine for now per the "don't need proper radio buttons yet" plan.
+;	real radio group: each one is a normal OPT_AUTOCHECK checkbox (so
+;	ctrlsControlDefChanged still handles the redraw), but its changed
+;	handler forces its own tag back to checked (undoing a toggle-off
+;	click on the already-checked box) and forces the other two to
+;	unchecked. No toggle-off limitation - clicking the checked box is
+;	a no-op, clicking either other box switches selection.
 ;-------------------------------------------------------------------------------
 clientConfigSpeedSlowChng:
 ;-------------------------------------------------------------------------------
@@ -10910,6 +11091,9 @@ clientConfigSpeedSlowChng:
 		LDA	tempdat0
 		AND	#STATE_DOWN
 		BEQ	@exit
+
+    LDA #$01
+    STA checkbx_config_mouse_slow + ELEMENT::tag
 
 		LDA	#<checkbx_config_mouse_medium
 		STA	elemptr0
@@ -10943,6 +11127,9 @@ clientConfigSpeedMediumChng:
 		AND	#STATE_DOWN
 		BEQ	@exit
 
+    LDA #$01
+    STA checkbx_config_mouse_medium + ELEMENT::tag
+
 		LDA	#<checkbx_config_mouse_slow
 		STA	elemptr0
 		LDA	#>checkbx_config_mouse_slow
@@ -10974,6 +11161,9 @@ clientConfigSpeedFastChng:
 		LDA	tempdat0
 		AND	#STATE_DOWN
 		BEQ	@exit
+
+    LDA #$01
+    STA checkbx_config_mouse_fast + ELEMENT::tag
 
 		LDA	#<checkbx_config_mouse_slow
 		STA	elemptr0
@@ -11393,9 +11583,28 @@ clientDetailUpdateRoll:
 		INY
 		LDA	text_det_rolls + 1, X
 		STA	(elemptr0), Y
-		
+
 		JSR	ctrlsControlInvalidate
-		
+
+;	Disable Roll once all 3 rolls are used, even if this is our own
+;	slot being viewed - clientDetailUpdateEnable doesn't know about
+;	roll count, so this is the only place that can gate it.
+		CPX	#$06
+		BCS	@exhausted
+
+		LDA	gameData + GAME::ourslt
+		CMP	gameData + GAME::detslt
+		BNE	@exhausted
+
+		LDA	#STATE_ENABLED
+		JSR	ctrlsIncludeState
+
+		RTS
+
+@exhausted:
+		LDA	#STATE_ENABLED
+		JSR	ctrlsExcludeState
+
 		RTS
 
 
@@ -12637,6 +12846,29 @@ ctrlsUnDownCtrl:
 		LDA	#$00
 		STA	downCtrl
 		STA	downCtrl + 1
+
+;	Stop the blinking cursor. If it's currently sitting reversed
+;	(crsr_on), one more XOR $80 undoes the last one and leaves the
+;	cell normal; if it's already normal, nothing to touch.
+		LDA	crsr_active
+		BEQ	@exit
+
+		LDA	#$00
+		STA	crsr_active
+
+		LDA	crsr_on
+		BEQ	@exit
+
+		LDY	crsr_row
+		LDA	screenRowsLo, Y
+		STA	tempptr1
+		LDA	screenRowsHi, Y
+		STA	tempptr1 + 1
+
+		LDY	crsr_col
+		LDA	(tempptr1), Y
+		EOR	#$80
+		STA	(tempptr1), Y
 
 @exit:
 		RTS
@@ -15435,12 +15667,100 @@ ctrlsSPanelDefPresDirect:
 
 		LDA	tempvar_h
 		CMP	#$07
-		BCC	@convsl
+		LBCC	@convsl
 
-;!!TODO
-;	Convert yahtzee bonus for score sheet
+		BEQ	@bonustally
+
+;	tempvar_h can only be 7 or 8 here (loop runs 0-8) - row 8, the
+;	bonus total
+;	Sum whichever yahtzee bonus slots are claimed (each slot's own
+;	stored value, not a hardcoded 100, in case of future house rules)
+;	- leave blank if none claimed, same as an unscored category.
+		LDA	#$00
+		STA	tempvar_e
+		STA	tempvar_f
+
+		LDY	#SCRSHEET::ybnus1
+		LDA	(tempptr3), Y
+		BMI	@bt2
+
+		CLC
+		ADC	tempvar_e
+		STA	tempvar_e
+		LDA	#$00
+		ADC	tempvar_f
+		STA	tempvar_f
+
+@bt2:
+		LDY	#SCRSHEET::ybnus2
+		LDA	(tempptr3), Y
+		BMI	@bt3
+
+		CLC
+		ADC	tempvar_e
+		STA	tempvar_e
+		LDA	#$00
+		ADC	tempvar_f
+		STA	tempvar_f
+
+@bt3:
+		LDY	#SCRSHEET::ybnus3
+		LDA	(tempptr3), Y
+		BMI	@btdone
+
+		CLC
+		ADC	tempvar_e
+		STA	tempvar_e
+		LDA	#$00
+		ADC	tempvar_f
+		STA	tempvar_f
+
+@btdone:
+		LDA	tempvar_e
+		ORA	tempvar_f
+		BEQ	@drawsl
+
+		LDA	tempvar_e
+		LDX	tempvar_f
+		JSR	strsAppendInteger
+
 		JMP	@drawsl
-		
+
+@bonustally:
+;	Row 7 - one "X " per claimed yahtzee bonus slot, mirroring the two
+;	dedicated cells (marks + total) on the official scoresheet and on
+;	the Windows client's grid.
+		LDY	#SCRSHEET::ybnus1
+		LDA	(tempptr3), Y
+		BMI	@tly2
+
+		LDA	#'X'
+		JSR	strsAppendChar
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+
+@tly2:
+		LDY	#SCRSHEET::ybnus2
+		LDA	(tempptr3), Y
+		BMI	@tly3
+
+		LDA	#'X'
+		JSR	strsAppendChar
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+
+@tly3:
+		LDY	#SCRSHEET::ybnus3
+		LDA	(tempptr3), Y
+		BMI	@drawsl
+
+		LDA	#'X'
+		JSR	strsAppendChar
+		LDA	#KEY_ASC_SPACE
+		JSR	strsAppendChar
+
+		JMP	@drawsl
+
 @convsl:
 		CLC
 		ADC	#$07	
@@ -15470,7 +15790,7 @@ ctrlsSPanelDefPresDirect:
 		
 		LDA	tempvar_h
 		CMP	#$09
-		BNE	@loopsl		
+		LBNE	@loopsl
 		
 ;	Score select indicator
 @tstind:
@@ -15692,7 +16012,42 @@ ctrlsEditDefPresent:
 		STA	tempdat3
 
 		JSR	ctrlsDrawText
-		
+
+;	Stash where the text draw left off (tempvar_a/b are left as the
+;	screen column/row right after the last drawn character) for
+;	userIRQHandler's blinking cursor - only when this is actually the
+;	current down-captured control (downCtrl), since STATE_DOWN alone
+;	shouldn't change here - only ctrlsControlDefChanged/ctrlsDownCtrl/
+;	ctrlsUnDownCtrl touch that. Cell's just been redrawn plain, so
+;	start untouched (crsr_on=0) and let the IRQ handler flip it after
+;	its own 6-frame delay, same as it would mid-blink.
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#OPT_CAPTURECRSR
+		BEQ	@exit
+
+		LDA	elemptr0
+		CMP	downCtrl
+		BNE	@exit
+		LDA	elemptr0 + 1
+		CMP	downCtrl + 1
+		BNE	@exit
+
+		LDA	tempvar_a
+		STA	crsr_col
+		LDA	tempvar_b
+		STA	crsr_row
+
+		LDA	#$01
+		STA	crsr_active
+
+		LDA	#$00
+		STA	crsr_on
+
+		LDA	#$06
+		STA	crsr_dly
+
+@exit:
 		RTS
 
 @normal:
@@ -16611,11 +16966,7 @@ tcp_connect_ip:
 tcp_inbound_data_ptr:
     .word RX_BLOCK_BUF
 
-
-
-RX_BLOCK_BUF:
-    .res 256, 0
-;RX_BLOCK_COUNT:         
+;RX_BLOCK_COUNT:
 ;    .byte 0
 
 ;	.import tcp_inbound_data_length
@@ -16732,6 +17083,23 @@ uiflshdly:
 room_log_notify_cnt:
 			.res	1
 
+;	Blinking text-entry cursor (OPT_CAPTURECRSR) - crsr_col/crsr_row
+;	are the screen position userIRQHandler XORs $80 (reverse video)
+;	into every 6 frames; crsr_on is the toggle (0=normal, 1=reversed)
+;	so ctrlsUnDownCtrl knows whether one more XOR is needed to restore
+;	the cell on release; crsr_active gates all of it off when no
+;	captured control wants a cursor.
+crsr_col:
+			.res	1
+crsr_row:
+			.res	1
+crsr_active:
+			.res	1
+crsr_on:
+			.res	1
+crsr_dly:
+			.res	1
+
 ctrlvar_a:
 			.res	1
 ctrlvar_b:
@@ -16789,19 +17157,7 @@ data_received:
 
 sendmsgscnt:
 			.res 	1
-sendmsg0:
-			.res	100
-sendmsg1:
-			.res 	100
-sendmsg2:
-			.res 	100
-sendmsg3:
-			.res 	100
-sendmsg4:
-			.res 	100
-sendmsg5:
-			.res 	100
-			
+
 readmsgbuflen:
 			.res	2
 readmsgidx:
@@ -16810,8 +17166,6 @@ readbufidx:
 			.res	1
 readmsglen:
 			.res	1
-readmsg0:
-			.res	100
 
 readparmcnt:
 			.res	1
@@ -16842,104 +17196,6 @@ current_clrs:
 			.res	10
 
 
-cnct_log_line0:
-			.res	41
-cnct_log_line1:
-			.res	41
-cnct_log_line2:
-			.res	41
-cnct_log_line3:
-			.res	41
-cnct_log_line4:
-			.res	41
-cnct_log_line5:
-			.res	41
-cnct_log_line6:
-			.res	41
-cnct_log_line7:
-			.res	41
-cnct_log_line8:
-			.res	41
-cnct_log_line9:
-			.res	41
-cnct_log_lineA:
-			.res	41
-cnct_log_lineB:
-			.res	41
-cnct_log_lineC:
-			.res	41
-
-
-room_log_line0:
-			.res	41
-room_log_line1:
-			.res	41
-room_log_line2:
-			.res	41
-room_log_line3:
-			.res	41
-room_log_line4:
-			.res	41
-room_log_line5:
-			.res	41
-room_log_line6:
-			.res	41
-room_log_line7:
-			.res	41
-room_log_line8:
-			.res	41
-room_log_line9:
-			.res	41
-room_log_lineA:
-			.res	41
-room_log_lineB:
-			.res	41
-room_log_lineC:
-			.res	41
-room_log_lineD:
-			.res	41
-room_log_lineE:
-			.res	41
-room_log_lineF:
-			.res	41
-room_log_line10:
-			.res	41
-
-play_log_line0:
-			.res	41
-play_log_line1:
-			.res	41
-play_log_line2:
-			.res	41
-play_log_line3:
-			.res	41
-play_log_line4:
-			.res	41
-play_log_line5:
-			.res	41
-play_log_line6:
-			.res	41
-play_log_line7:
-			.res	41
-play_log_line8:
-			.res	41
-play_log_line9:
-			.res	41
-play_log_lineA:
-			.res	41
-play_log_lineB:
-			.res	41
-play_log_lineC:
-			.res	41
-play_log_lineD:
-			.res	41
-play_log_lineE:
-			.res	41
-play_log_lineF:
-			.res	41
-play_log_line10:
-			.res	41
-			
 room_haveblank:
 			.res 	1
 room_lastuser:
@@ -16949,14 +17205,8 @@ room_lastuser:
 msgs_change_idx:
 			.res	1
 
-msgs_change:
-			.res	256
-
-msgs_dirty_idx:		
+msgs_dirty_idx:
 			.res	1
-
-msgs_dirty:
-			.res 	256
 
 
 ;===============================================================================
@@ -17080,7 +17330,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"M65"
 text_ident_verlbl:
-			.asciiz	"0.00.84B"
+			.asciiz	"0.00.91B"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -17092,7 +17342,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.84B"
+			.asciiz	"VERSION:  0.00.91B"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
@@ -17133,6 +17383,10 @@ text_config_theme_prv:
 			.asciiz	"< PRV"
 text_config_theme_nxt:
 			.asciiz	"NXT >"
+text_config_interface:
+			.asciiz	"INTERFACE"
+text_config_flashchat:
+			.asciiz	"FLASH UNSEEN CHAT"
 text_cnct_host:
 			.asciiz "HOST NAME:"
 text_cnct_user:
@@ -17165,6 +17419,8 @@ text_room_part:
 			
 text_room_ujoins:
 			.asciiz	" JOINS "
+text_play_ujoins:
+			.asciiz	" JOINS"
 text_room_uparts:
 			.asciiz	" PARTS "
 text_room_usays:
@@ -17530,3 +17786,134 @@ clrschme5:
 ;CLR_PAPER	$05
 ;CLR_MONEY	$06
 ;CLR_DIE		$07
+
+
+;===============================================================================
+;	High memory ($E000-$FFF9, KERNAL banked out by initROM) - bss, so
+;	none of this costs a byte in the .prg file, but it also means it's
+;	genuine garbage until cleared at startup (see initHiVars).
+;===============================================================================
+.segment "HIVARS"
+	.org		$E000
+
+RX_BLOCK_BUF:
+			.res	256
+
+sendmsg0:
+			.res	100
+sendmsg1:
+			.res	100
+sendmsg2:
+			.res	100
+sendmsg3:
+			.res	100
+sendmsg4:
+			.res	100
+sendmsg5:
+			.res	100
+
+readmsg0:
+			.res	100
+
+msgs_change:
+			.res	256
+msgs_dirty:
+			.res	256
+
+cnct_log_line0:
+			.res	41
+cnct_log_line1:
+			.res	41
+cnct_log_line2:
+			.res	41
+cnct_log_line3:
+			.res	41
+cnct_log_line4:
+			.res	41
+cnct_log_line5:
+			.res	41
+cnct_log_line6:
+			.res	41
+cnct_log_line7:
+			.res	41
+cnct_log_line8:
+			.res	41
+cnct_log_line9:
+			.res	41
+cnct_log_lineA:
+			.res	41
+cnct_log_lineB:
+			.res	41
+cnct_log_lineC:
+			.res	41
+
+
+room_log_line0:
+			.res	41
+room_log_line1:
+			.res	41
+room_log_line2:
+			.res	41
+room_log_line3:
+			.res	41
+room_log_line4:
+			.res	41
+room_log_line5:
+			.res	41
+room_log_line6:
+			.res	41
+room_log_line7:
+			.res	41
+room_log_line8:
+			.res	41
+room_log_line9:
+			.res	41
+room_log_lineA:
+			.res	41
+room_log_lineB:
+			.res	41
+room_log_lineC:
+			.res	41
+room_log_lineD:
+			.res	41
+room_log_lineE:
+			.res	41
+room_log_lineF:
+			.res	41
+room_log_line10:
+			.res	41
+
+play_log_line0:
+			.res	41
+play_log_line1:
+			.res	41
+play_log_line2:
+			.res	41
+play_log_line3:
+			.res	41
+play_log_line4:
+			.res	41
+play_log_line5:
+			.res	41
+play_log_line6:
+			.res	41
+play_log_line7:
+			.res	41
+play_log_line8:
+			.res	41
+play_log_line9:
+			.res	41
+play_log_lineA:
+			.res	41
+play_log_lineB:
+			.res	41
+play_log_lineC:
+			.res	41
+play_log_lineD:
+			.res	41
+play_log_lineE:
+			.res	41
+play_log_lineF:
+			.res	41
+play_log_line10:
+			.res	41
