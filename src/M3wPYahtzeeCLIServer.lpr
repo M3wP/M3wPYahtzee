@@ -100,6 +100,20 @@ procedure TYahtzeeServer.DoRun;
 
 	silent:= HasOption('s', '');
 
+	// Otherwise the only sign of life is the first client connecting - a
+	// server sitting there with no output looks indistinguishable from one
+	// that silently failed to start.
+	AddLogMessage(slkInfo, '----------------------------');
+	AddLogMessage(slkInfo, 'M3wP Yahtzee! Server ' + LIT_SYS_VERSION +
+			' (' + LIT_SYS_PLATFRM + ')');
+	AddLogMessage(slkInfo, 'Listening on port 7632');
+	if  TCPServer.TCPServer.MaxConnections > 0 then
+		AddLogMessage(slkInfo, 'Max connections: ' +
+				IntToStr(TCPServer.TCPServer.MaxConnections))
+	else
+		AddLogMessage(slkInfo, 'Max connections: unlimited');
+	AddLogMessage(slkInfo, '----------------------------');
+
 	while not Terminated do
     	begin
 		Sleep(100);

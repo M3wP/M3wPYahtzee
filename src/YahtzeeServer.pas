@@ -293,7 +293,7 @@ const
 	LIT_SYS_PLATFRM: AnsiString = 'mswindows';
 	{$ENDIF}
 {$ENDIF}
-	LIT_SYS_VERSION: AnsiString = '0.00.98B';
+	LIT_SYS_VERSION: AnsiString = '0.00.99B';
 
 
 implementation
@@ -2088,27 +2088,36 @@ procedure TPlayGame.ProcessPlayerMessage(APlayer: TPlayer;
 						else if Slots[s].ScoreSheet[n] = VAL_KND_SCOREINVALID then
 							r:= MakeScoreForLocation(n, Slots[s].Dice, u);
 
-					m:= TBaseMessage.Create;
-					m.Assign(AMessage);
-					SetLength(m.Data, Length(m.Data) + 2);
+					// A score query is game info once you've asked it -
+					// every seated player gets to see what's being
+					// previewed, not just the one who asked.
+					for i:= 0 to 5 do
+						if  Assigned(Slots[i].Player) then
+							begin
+							m:= TBaseMessage.Create;
+							m.Assign(AMessage);
+							SetLength(m.Data, Length(m.Data) + 2);
 
-					m.Data[2]:= Hi(r);
-					m.Data[3]:= Lo(r);
+							m.Data[2]:= Hi(r);
+							m.Data[3]:= Lo(r);
 
-					APlayer.AddSendMessage(m);
+							Slots[i].Player.AddSendMessage(m);
+							end;
 
 					if  o > slAces then
-						begin
-						m:= TBaseMessage.Create;
-						m.Assign(AMessage);
-						SetLength(m.Data, Length(m.Data) + 2);
+						for i:= 0 to 5 do
+							if  Assigned(Slots[i].Player) then
+								begin
+								m:= TBaseMessage.Create;
+								m.Assign(AMessage);
+								SetLength(m.Data, Length(m.Data) + 2);
 
-						m.Data[1]:= Ord(o);
-						m.Data[2]:= Hi(100);
-						m.Data[3]:= Lo(100);
+								m.Data[1]:= Ord(o);
+								m.Data[2]:= Hi(100);
+								m.Data[3]:= Lo(100);
 
-                        APlayer.AddSendMessage(m);
-						end;
+								Slots[i].Player.AddSendMessage(m);
+								end;
 
 					finally
 					Lock.Release;
