@@ -1,14 +1,6 @@
 ;===============================================================================
 ;	mouse.inc - proportional-mouse driver + joystick fire button
 ;-------------------------------------------------------------------------------
-;	The movement-tracking and acceleration logic here is ported from
-;	MEGASPUTM's input.c/input.h (src/backup/input.c, src/backup/input.h),
-;	which is GPLv3-or-later licensed. This is a from-scratch 6502
-;	rewrite of the same algorithm (proportional POT-delta tracking with
-;	an acceleration curve, plus reading a joystick fire button as an
-;	extra left-click source), not a line-by-line translation - but
-;	check licence compatibility with this project before it ships.
-;
 ;	This is a DROP-IN REPLACEMENT for userProcessMouse/MoveCheck in
 ;	test.s. It reuses the existing state (XPos/YPos/XMin/XMax/YMin/
 ;	YMax/Buttons/ButtonsOld/OldPotX/OldPotY/mouseCheck/OldValue/
@@ -17,11 +9,6 @@
 ;	(mouseCapture/mouseCapMove/mouseCapClick), hit-testing
 ;	(userMouseInCtrl and friends), or click handling (userHandleMouse/
 ;	userHandleMouseClick) - needs to change at all.
-;
-;	Not yet wired in: to merge, delete the existing userProcessMouse
-;	and MoveCheck blocks from test.s (ButtonCheck/CMOVEX/CMOVEY stay,
-;	they're unchanged) and add ".include "mouse.inc"" alongside the
-;	other .include lines near the top of test.s.
 ;===============================================================================
 
 ;-------------------------------------------------------------------------------

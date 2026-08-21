@@ -1,4 +1,6 @@
 ;	TODO:
+;   - Add a pointer state for text entry mode?
+;
 ;
 ;	LIMITATIONS:
 ;		- Making controls invisible requires some effort to redisplay 
@@ -62,6 +64,9 @@ IP65_ERROR_CONNECTION_CLOSED  = $8A
 
 ;	Debugging - sleep when internet is idle
 	.define DEBUG_INETDOSLEEP	0
+
+;	Loads the custom font via bigglesLoadFontHack at boot.
+	.define	DEBUG_LOADFONT	1
 
 
 cpuIRQ		=	$FFFE
@@ -1287,7 +1292,11 @@ initGameData:
 initCore:
 ;-------------------------------------------------------------------------------
 		;JSR	initMem
-		
+
+	.if	DEBUG_LOADFONT
+		JSR	fontLoadXirod
+	.endif
+
     JSR initScreen
     JSR	initSprites
 		
@@ -1310,6 +1319,12 @@ initCore:
 ;-------------------------------------------------------------------------------
 initScreen:
 ;-------------------------------------------------------------------------------
+;	Bit 7 of $D06F is set on an NTSC machine, clear on PAL. It can change
+;	dynamically, but we only care about it once at startup for now.
+		LDA	$D06F
+		AND	#$80
+		STA	sys_ntsc_flag
+
 ;	D018 charset nibble = 2 ($1000) - lowercase/symbol charset
 		LDA	#$24
 		STA	$D018
@@ -1398,9 +1413,13 @@ initSprites:
     STA $D06D
 
 ; Init y position offset
+    LDA sys_ntsc_flag
+    BEQ @ispal
+
     LDA #$18
     STA $D072
 
+@ispal:
 ;	Init sprite RAM locations - busy sprite by default, via the push/pop
 ;	mechanism below so it plays nicely with anything else that pushes.
 		JSR	userCursorPushBusy
@@ -2128,7 +2147,7 @@ panel_config_theme:
 			.byte	$00		;tag	.byte
 			.word	page_config
 			.word	panel_config_theme_ctrls;controls .word
-			.byte	$06
+			.byte	$07
 
 panel_config_theme_ctrls:
 			.word	label_config_theme
@@ -2137,6 +2156,7 @@ panel_config_theme_ctrls:
 			.word	label_config_theme_name
 			.word	label_config_interface
 			.word	checkbx_config_flashchat
+			.word	checkbx_config_flashactvplyr
 			.word	$0000
 
 label_config_theme:
@@ -2258,7 +2278,26 @@ checkbx_config_flashchat:
 			.word	panel_config_theme	;panel
 			.word	text_config_flashchat	;textptr
 			.byte	$00			;textoffx
-			.byte	$03			;textaccel
+			.byte	$07			;textaccel
+			.byte	KEY_ASC_L_H			;accelchar
+
+checkbx_config_flashactvplyr:
+;			.word	$0000			;prepare
+			.word	$0000			;present
+			.word	ctrlsControlDefChanged	;changed - plain toggle, read directly wherever active-player-turn flash gets checked
+			.word	$0000			;keypress
+			.byte	STATE_VISIBLE | STATE_ENABLED
+			.byte	OPT_AUTOCHECK		;options
+			.byte	CLR_FACE		;colour
+			.byte	$15			;posx
+			.byte	$0F			;posy
+			.byte	$13			;width
+			.byte	$01			;height
+			.byte	$01			;tag	- checked (default on)
+			.word	panel_config_theme	;panel
+			.word	text_config_flashactvplyr	;textptr
+			.byte	$00			;textoffx
+			.byte	$07			;textaccel
 			.byte	KEY_ASC_L_A			;accelchar
 
 
@@ -4456,6 +4495,12 @@ spanel_detail_sheet_ctrls:
 
 .out .sprintf("UI control definitions end: * = $%04X", *)
 
+;===============================================================================
+;	$2000 is a fixed load address (eth.bin/mega-ip's jump table is
+;	hardcoded to it).
+;===============================================================================
+.include "bigglesworth.s"
+
 .out .sprintf("Before eth.bin pad: * = $%04X, room until $2000 = %d bytes", *, $2000 - *)
 
 .res    $2000 - *, 0
@@ -4706,9 +4751,13 @@ userIRQHandler:
 @flshfin:
 ;	Blinking text-entry cursor - every crsrBlinkDelay frames (10 on
 ;	NTSC, 8 on PAL), XOR $80 (reverse video) into whatever character
-;	is currently at crsr_col/crsr_row. crsr_on tracks which phase
-;	we're in so ctrlsUnDownCtrl knows whether a matching XOR is
-;	needed to restore the cell on release.
+;	is currently at crsr_col/crsr_row, and swap its colour between
+;	CLR_FOCUS and the down control's own colour. crsr_on tracks which
+;	phase we're in so ctrlsUnDownCtrl knows whether a matching XOR/
+;	colour restore is needed on release.
+;	NB: reads downCtrl directly rather than via elemptr0 - elemptr0 is
+;	in heavy use by foreground control-drawing code this IRQ can
+;	preempt, so it's not safe to touch here.
 		LDA	crsr_active
 		BEQ	@crsrfin
 
@@ -4732,6 +4781,28 @@ userIRQHandler:
 		LDY	crsr_col
 		LDA	(tempptr1), Y
 		EOR	#$80
+		STA	(tempptr1), Y
+
+		LDX	crsr_row
+		LDA	screenRowsLo, X
+		STA	tempptr1
+		LDA	colourRowsHi, X
+		STA	tempptr1 + 1
+
+		LDA	crsr_on
+		BEQ	@crsrclrctrl
+
+		LDA	#CLR_FOCUS
+		JMP	@crsrclrgo
+
+@crsrclrctrl:
+		LDY	#ELEMENT::colour
+		LDA	(downCtrl), Y
+
+@crsrclrgo:
+		JSR	screenCtrlToLogClr
+
+		LDY	crsr_col
 		STA	(tempptr1), Y
 
 		JSR	crsrBlinkDelay
@@ -5432,6 +5503,81 @@ CMOVEY:
 
 
 ;===============================================================================
+;	YhtzeXro.tcr (see text_font_file below) is derived from Xirod, a
+;	discontinued but freely-usable font by Ray Larabie of Typodermic
+;	Fonts (https://typodermicfonts.com/) - year unknown.
+;===============================================================================
+
+;===============================================================================
+;	UsebigglesLoadFontHack (see bigglesworth.s) rather than a proper
+;	block-transfer API, which is still to be designed. No missing-file
+;	handling yet either - assumes YhtzeXro.tcr is on the SD root, and
+;	just leaves screenCharXlatVec on the PETSCII routine if the load
+;	fails, rather than disabling anything. See DEBUG_LOADFONT near the
+;	top of the file for the flag that gates the boot-time call to this.
+;
+;	Bit 4 of $D07A isn't a "custom font on/off" switch - it tells the
+;	VIC to read character data as 8x16 (upscaled) instead of 8x8, which
+;	is the format this font is actually stored in. Screen translation
+;	gets switched over in the same breath as that bit, since both only
+;	make sense once the load has actually succeeded - and unlike the
+;	bit, which just changes how the (now-overwritten) character data at
+;	$FF7E000 gets read, there's no clean way back afterwards: loading
+;	replaces the actual VIC character data, and undoing that needs a
+;	ROM hack we're not doing for now.
+;===============================================================================
+
+;	BASIC/KERNAL are banked out (see initROM), so the classic C64
+;	input-buffer page is free - reused here as bigglesworth's
+;	page-aligned filename transfer buffer (must be in conventional low
+;	memory, not the HIVARS/high-RAM segment).
+fontXfrPage = $02
+
+text_font_file:
+			.asciiz	"YhtzeXro.tcr"
+
+;-------------------------------------------------------------------------------
+fontLoadXirod:
+;	.C		OUT	Set if error
+;-------------------------------------------------------------------------------
+		LDA	#fontXfrPage
+		STA	ptrBigglesXfrHi
+
+		LDX	#<text_font_file
+		LDY	#>text_font_file
+		JSR	bigglesSetFileName
+		BCS	@fail
+
+		JSR	bigglesOpenFile
+		BCS	@fail
+
+		LDA	#$08			;4096 bytes / 512 per sector
+		JSR	bigglesLoadFontHack
+		PHP
+
+		JSR	bigglesCloseFile
+
+		PLP
+		BCS	@fail
+
+		LDA	$D07A
+		ORA	#$10			;8x16 character data, not "font enable"
+		STA	$D07A
+
+		LDA	#<screenASCIIToScreenXirod
+		STA	screenCharXlatVec
+		LDA	#>screenASCIIToScreenXirod
+		STA	screenCharXlatVec + 1
+
+		CLC
+		RTS
+
+@fail:
+		SEC
+		RTS
+
+
+;===============================================================================
 ;MAIN PROGRAM CODE STARTS HERE
 ;===============================================================================
 
@@ -5441,14 +5587,6 @@ CMOVEY:
 ;-------------------------------------------------------------------------------
 main:
 ;-------------------------------------------------------------------------------
-;	Initialise the screen
-
-;	Bit 7 of $D06F is set on an NTSC machine, clear on PAL. It can change
-;	dynamically, but we only care about it once at startup for now.
-		LDA	$D06F
-		AND	#$80
-		STA	sys_ntsc_flag
-
 		LDA	#$00
 		JSR	colourSchemeSelect
 		
@@ -6492,7 +6630,11 @@ roomLogNotifyUpdate:
 		CMP	#>page_room
 		BNE	@away
 
-		LDA	#$00
+;	Pinned at 4 (not 0) while visible, so the first message after
+;	leaving the room page hits 5 and flashes right away, rather than
+;	needing 5 to accumulate first - @away's own reset-to-0 after a
+;	flash still makes it every 5 after that.
+		LDA	#$04
 		STA	room_log_notify_cnt
 
 @exit:
@@ -8964,7 +9106,7 @@ clientProcPlayPartMsg:
 		BEQ	@gmmsgend
 
 		CMP	edit_play_game_buf, X
-		BNE	@gmmismatch
+		LBNE	@gmmismatch
 
 		INX
 		INY
@@ -8983,6 +9125,30 @@ clientProcPlayPartMsg:
 
 ;	Start updating user interface
 		JSR	ctrlsLockAcquire
+
+		LDA	#<lpanel_play_log
+		STA	tempptr2
+		LDA	#>lpanel_play_log
+		STA	tempptr2 + 1
+
+		JSR	ctrlsLogPanelGetNextLine
+
+		LDAX	#text_outdent_pref
+		JSR	strsAppendString
+
+		LDA	readparm1
+		STA	tempdat3
+
+		LDAX	#readmsg0
+		JSR	strsAppendParam
+
+		LDAX	#text_play_uparts
+		JSR	strsAppendString
+
+		LDA	#$00
+		JSR	strsAppendChar
+
+		JSR	ctrlsLogPanelUpdate
 
 ;	Check if we have our slot number still
 		PLA
@@ -9338,12 +9504,44 @@ clientProcPlayStatPeerMsg:
 		JMP	@cont1
 		
 @ourslt:
+;	Flash the border if it just became our turn and either we're
+;	auto-following play (could be watching someone else's turn go by)
+;	or we're not even on the play tab at all - either way the player
+;	might not notice otherwise. Skipped if we're sat on the play tab
+;	without following, since presumably we'd see it land regardless.
+		LDA	readmsg0 + 3
+		CMP	#SLOT_ST_PLAY
+		BNE	@noflash
+
+		LDA	checkbx_det_flwactv + ELEMENT::tag
+		BNE	@flashgate
+
+		LDA	currpgtag
+		CMP	#PAGE_PLYOVRVW
+		BEQ	@noflash
+		CMP	#PAGE_PLYDETAIL
+		BEQ	@noflash
+
+@flashgate:
+		LDA	checkbx_config_flashactvplyr + ELEMENT::tag
+		BEQ	@noflash
+
+		SEI
+		LDA	#$06
+		STA	uiflshcnt
+		LDA	#$08
+		STA	uiflshdly
+		LDA	current_clrs
+		STA	vicBrdrClr
+		CLI
+
+@noflash:
 ;	Update Play|Overview game control button
 		LDA	#<button_ovrvw_cntrl
 		STA	elemptr0
 		LDA	#>button_ovrvw_cntrl
 		STA	elemptr0 + 1
-	
+
 		LDA	readmsg0 + 3
 		CMP	#SLOT_ST_READY
 		BCS 	@tstrdy
@@ -12684,6 +12882,81 @@ screenASCIIToScreen:
 
 
 ;-------------------------------------------------------------------------------
+;	Every ASCII->screen-code translation goes through this indirect
+;	call instead of JSR'ing screenASCIIToScreen straight, so switching
+;	fonts is just a case of pointing screenCharXlatVec at a different
+;	routine (see screenASCIIToScreenXirod below) rather than checking a
+;	flag on every character drawn.
+;-------------------------------------------------------------------------------
+screenCharXlatVec:
+		.word	screenASCIIToScreen
+
+	.export	screenCharXlat
+screenCharXlat:
+		JMP	(screenCharXlatVec)
+
+
+;-------------------------------------------------------------------------------
+;	Character->screen-code translation for the Xirod font (see
+;	fontLoadXirod) - turns out the font maps ASCII values onto PETSCII
+;	_screen codes_, same as screenASCIIToScreen above, not raw ASCII
+;	identity - so the letter/digit arithmetic here is identical to it.
+;	The only difference is the 8 "special" characters PETSCII has no
+;	real glyph for (see screenASCIIXLAT below screenASCIIToScreen, used
+;	as the shared search/key table here too) - Xirod draws real glyphs
+;	for those, but NOT at their raw ASCII value like the letters/digits
+;	- confirmed on hardware: \ is $1C, ^ is $1E, _ is $1F, ` is $40,
+;	{ is $5B, | is $5C, } is $5D, ~ is $5E (see screenASCIIXLATSubXirod).
+;	Uppercase 'Q' lands on screen code $11 via the same arithmetic as
+;	every other letter - that's the slot getting repurposed as the dot.
+;-------------------------------------------------------------------------------
+screenASCIIToScreenXirod:
+		STA	tempvar_z
+		LDY	#$07
+@loop:
+		LDA	screenASCIIXLAT, Y
+		CMP	tempvar_z
+		BEQ	@subst
+		DEY
+		BPL	@loop
+
+		LDA	tempvar_z
+
+		CMP	#$20
+		BCS	@regular
+
+@irregular:
+		LDA	#$66
+		RTS
+
+@regular:
+		CMP	#$7F
+		BCS	@irregular
+
+		CMP	#$40
+		BCC	@exit
+
+		CMP	#$60
+		BCC	@upper
+
+		SEC
+		SBC	#$60
+
+		RTS
+
+@upper:
+		SEC
+		SBC	#$40
+
+@exit:
+		RTS
+
+@subst:
+		LDA	screenASCIIXLATSubXirod, Y
+		RTS
+
+
+;-------------------------------------------------------------------------------
 colourSchemeSelect:
 ;-------------------------------------------------------------------------------
 		TAY
@@ -13167,7 +13440,9 @@ ctrlsUnDownCtrl:
 
 ;	Stop the blinking cursor. If it's currently sitting reversed
 ;	(crsr_on), one more XOR $80 undoes the last one and leaves the
-;	cell normal; if it's already normal, nothing to touch.
+;	cell normal, and the colour needs putting back to the control's
+;	own (it's currently CLR_FOCUS from the blink) - elemptr0 still
+;	points at the control that was downCtrl, above.
 		LDA	crsr_active
 		BEQ	@exit
 
@@ -13188,6 +13463,19 @@ ctrlsUnDownCtrl:
 		EOR	#$80
 		STA	(tempptr1), Y
 
+		LDX	crsr_row
+		LDA	screenRowsLo, X
+		STA	tempptr1
+		LDA	colourRowsHi, X
+		STA	tempptr1 + 1
+
+		LDY	#ELEMENT::colour
+		LDA	(elemptr0), Y
+		JSR	screenCtrlToLogClr
+
+		LDY	crsr_col
+		STA	(tempptr1), Y
+
 @exit:
 		RTS
 
@@ -13202,6 +13490,18 @@ ctrlsDownCtrl:
 
 		JSR	ctrlsUnDownCtrl
 
+;	If this control is already the active one, skip cycling it through
+;	deactivate/reactivate below - besides being unnecessary, doing so
+;	is what caused infinite recursion with ctrlsActivateCtrlSimple's
+;	"auto-down on activate" hook calling straight back into here.
+		LDA	tempptr0
+		CMP	actvCtrl
+		BNE	@notactv0
+		LDA	tempptr0 + 1
+		CMP	actvCtrl + 1
+		BEQ	@nodeact
+
+@notactv0:
 		LDY	#ELEMENT::options
 		LDA	(tempptr0), Y
 		AND	#OPT_NONAVIGATE
@@ -13223,6 +13523,14 @@ ctrlsDownCtrl:
 		LDA	elemptr0 + 1
 		STA	downCtrl + 1
 
+		LDA	elemptr0
+		CMP	actvCtrl
+		BNE	@notactv1
+		LDA	elemptr0 + 1
+		CMP	actvCtrl + 1
+		BEQ	@noact
+
+@notactv1:
 		LDY	#ELEMENT::options
 		LDA	(elemptr0), Y
 		AND	#OPT_NONAVIGATE
@@ -13278,6 +13586,18 @@ ctrlsActivateCtrlSimple:
 		LDA	elemptr0 + 1
 		STA	actvCtrl + 1
 
+;	Text-entry controls go straight into edit mode when activated
+;	(so e.g. TAB'ing onto one can be typed into immediately), unless
+;	they opt out with OPT_NODOWNACTV.
+		LDY	#ELEMENT::options
+		LDA	(elemptr0), Y
+		AND	#(OPT_CAPTURECRSR | OPT_NODOWNACTV)
+		CMP	#OPT_CAPTURECRSR
+		BNE	@exit
+
+		JSR	ctrlsDownCtrl
+
+@exit:
 		RTS
 
 
@@ -13393,9 +13713,18 @@ ctrlsControlInvalidate:
 ;-------------------------------------------------------------------------------
 ctrlsExcludeState:
 ;-------------------------------------------------------------------------------
+;	Builds/sends a state-change message internally (msgsPushChanging),
+;	which reuses msgsdat0/msgsdat1 as scratch for it - push/pop them so
+;	a message the caller is still in the middle of processing survives
+;	a call to this.
 		STA	tempdat0
 		EOR	#$FF
 		STA	tempdat1
+
+		LDA	msgsdat0
+		PHA
+		LDA	msgsdat1
+		PHA
 
 		LDY	#ELEMENT::state
 		LDA	(elemptr0), Y
@@ -13406,7 +13735,7 @@ ctrlsExcludeState:
 		STA	msgsdat0
 		AND	tempdat1
 		STA	(elemptr0), Y
-		
+
 		AND	#STATE_CHANGED
 		BNE	@exit
 
@@ -13418,15 +13747,29 @@ ctrlsExcludeState:
 		STA	msgsdat1
 
 		JSR	msgsPushChanging
-	
-@exit:	
+
+@exit:
+		PLA
+		STA	msgsdat1
+		PLA
+		STA	msgsdat0
+
 		RTS
 
 
 ;-------------------------------------------------------------------------------
 ctrlsIncludeState:
 ;-------------------------------------------------------------------------------
+;	Builds/sends a state-change message internally (msgsPushChanging),
+;	which reuses msgsdat0/msgsdat1 as scratch for it - push/pop them so
+;	a message the caller is still in the middle of processing survives
+;	a call to this.
 		STA	tempdat0
+
+		LDA	msgsdat0
+		PHA
+		LDA	msgsdat1
+		PHA
 
 		LDY	#ELEMENT::state
 		LDA	(elemptr0), Y
@@ -13437,7 +13780,7 @@ ctrlsIncludeState:
 		STA	msgsdat0
 		ORA	tempdat0
 		STA	(elemptr0), Y
-		
+
 		AND	#STATE_CHANGED
 		BNE	@exit
 
@@ -13449,8 +13792,13 @@ ctrlsIncludeState:
 		STA	msgsdat1
 
 		JSR	msgsPushChanging
-		
+
 @exit:
+		PLA
+		STA	msgsdat1
+		PLA
+		STA	msgsdat0
+
 		RTS
 
 
@@ -13698,7 +14046,7 @@ ctrlsDrawTextDirect:
 		
 		BEQ	@exit
 		
-		JSR	screenASCIIToScreen
+		JSR	screenCharXlat
 		ORA	tempvar_f
 		
 		LDY	tempvar_a
@@ -13723,7 +14071,7 @@ ctrlsDrawTextDirect:
 		BEQ	@exit
 
 		LDA	#'>'
-		JSR	screenASCIIToScreen
+		JSR	screenCharXlat
 		ORA	tempvar_f
 		
 		LDY	tempvar_a
@@ -14927,8 +15275,54 @@ ctrlsPageKeyPress:
 		JSR	ctrlsLogPanelUpdate
 	.endif
 
+;	TAB/SHIFT+TAB and cursor up/down all navigate controls, even while
+;	one is down (e.g. typing in an edit box) - un-capture it first
+;	(same as Enter would) before moving on. Cursor left/right stay out
+;	of this for now - reserved for mid-text cursor movement someday.
+		LDA	msgsdat0
+		CMP	#KEY_C64_TAB
+		BNE	@nottab
+
+		LDA	#KEY_C64_CDOWN
+		STA	msgsdat0
+		JMP	@navtab
+
+@nottab:
+		CMP	#KEY_C64_STAB
+		BNE	@notstab
+
+		LDA	#KEY_C64_CUP
+		STA	msgsdat0
+		JMP	@navtab
+
+@notstab:
+		CMP	#KEY_C64_CDOWN
+		BEQ	@navtab
+
+		CMP	#KEY_C64_CUP
+		BNE	@notnavtab
+
+@navtab:
+		LDA	actvCtrl + 1
+		BEQ	@navtabdiscard		;nothing to navigate to
+
+		LDA	downCtrl + 1
+		BEQ	@moveactv
+
+		LDA	downCtrl
+		STA	elemptr0
+		LDA	downCtrl + 1
+		STA	elemptr0 + 1
+		JSR	ctrlsUnDownCtrl
+
+		JMP	@moveactv
+
+@navtabdiscard:
+		RTS
+
 ;	msgsdat1 rather than TXA - X may not have survived the DEBUG_KEYSCAN
 ;	block above (strsAppendString/ctrlsLogPanelUpdate use X/Y freely)
+@notnavtab:
 		LDA	msgsdat1
 		AND	#keyModSystem
 		BNE	@findaccel
@@ -14957,40 +15351,17 @@ ctrlsPageKeyPress:
 		RTS				;discard key press
 
 @actvctrl:
-		LDA	msgsdat0
-		CMP	#KEY_C64_TAB
-		BNE	@nottab
-
-		LDA	#KEY_C64_CDOWN
-		STA	msgsdat0
-		JMP	@moveactv
-
-@nottab:
-		CMP	#KEY_C64_STAB
-		BNE	@notstab
-
-		LDA	#KEY_C64_CUP
-		STA	msgsdat0
-		JMP	@moveactv
-
-@notstab:
-		CMP	#KEY_C64_CDOWN
-		BEQ	@moveactv
-
-		CMP	#KEY_C64_CUP
-		BEQ	@moveactv
-
 		LDA	actvCtrl
 		STA	elemptr0
 		LDA	actvCtrl + 1
 		STA	elemptr0 + 1
-		
+
 		LDA	msgsdat0
 		CMP	#KEY_ASC_CR
 		BNE	@send
 
 		JMP	ctrlsDownCtrl
-;		RTS		
+;		RTS
 
 
 @moveactv:
@@ -17811,6 +18182,14 @@ screenASCIIXLAT:
 screenASCIIXLATSub:
 	.byte	$4D, $71, $64, $4A ,$55, $5D, $49, $45, $00
 
+;	Same key order as screenASCIIXLAT above (BSLASH, CARET, USCORE,
+;	BQUOTE, OCRLYB, PIPE, CCRLYB, TILDE) - used by screenASCIIToScreenXirod
+;	instead of screenASCIIXLATSub. All 8 confirmed on hardware - none
+;	of these sit at their raw ASCII value in this font.
+screenASCIIXLATSubXirod:
+	.byte	$1C, $1E, $1F, $40
+	.byte	$5B, $5C, $5D, $5E, $00
+
 
 die_flags:
 			.byte	DIE_0
@@ -17886,6 +18265,8 @@ text_config_interface:
 			.asciiz	"INTERFACE"
 text_config_flashchat:
 			.asciiz	"[FLASH HIDDN CHAT ]"
+text_config_flashactvplyr:
+			.asciiz	"[FLASH ACTV PLAYR ]"
 text_cnct_host:
 			.asciiz "HOST NAME:"
 text_cnct_user:
@@ -17917,11 +18298,15 @@ text_room_part:
 			.asciiz	"[PART    ]"
 			
 text_room_ujoins:
-			.asciiz	" JOINS "
 text_play_ujoins:
-			.asciiz	" JOINS"
+			.asciiz	" JOINS "
+;text_play_ujoins:
+;			.asciiz	" JOINS"
 text_room_uparts:
+text_play_uparts:
 			.asciiz	" PARTS "
+;text_play_uparts:
+;			.asciiz	" PARTS"
 text_room_usays:
 			.asciiz	" SAYS"
 text_room_uwhisp:
