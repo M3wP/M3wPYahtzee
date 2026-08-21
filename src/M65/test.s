@@ -1069,6 +1069,11 @@ init:
 
     JSR initROM
     JSR initM65IOFast
+
+	.if	DEBUG_LOADFONT
+		JSR	fontLoadXirod
+	.endif
+
     JSR initHiVars
     JSR initMem
 		JSR	initCore
@@ -1292,10 +1297,6 @@ initGameData:
 initCore:
 ;-------------------------------------------------------------------------------
 		;JSR	initMem
-
-	.if	DEBUG_LOADFONT
-		JSR	fontLoadXirod
-	.endif
 
     JSR initScreen
     JSR	initSprites
@@ -4515,6 +4516,9 @@ spanel_detail_sheet_ctrls:
 ;===============================================================================
 ;	.segment	"CODE"
 ;===============================================================================
+flag_custom_font:
+    .byte  $00
+
 ;-------------------------------------------------------------------------------
 ;Input driver variables
 ;-------------------------------------------------------------------------------
@@ -4605,7 +4609,6 @@ pickBlinkDelay:
 		.byte	$00
 pickBlinkState:
 		.byte	$00
-
 
 
 	.export	userIRQInstall
@@ -5568,6 +5571,9 @@ fontLoadXirod:
 		STA	screenCharXlatVec
 		LDA	#>screenASCIIToScreenXirod
 		STA	screenCharXlatVec + 1
+
+    LDA #$01
+    STA flag_custom_font
 
 		CLC
 		RTS
@@ -6722,6 +6728,7 @@ clientDispInetHealth:
 		LSR
 		LSR
 		;LSR
+
 		CMP	#$12
 		BCC	:+
 		LDA	#$12
@@ -6734,15 +6741,30 @@ clientDispInetHealth:
 		STA	inetcalc
 		LDA	screenRowsHi
 		STA	inetcalc + 1
-		
+
+    LDA flag_custom_font
+    BEQ @petscii
+
 		LDY	#$27
-		LDA	healthbars, X
+		LDA	healthbars_xirod, X
 		STA	(inetcalc), Y
     INX
 		LDY	#$4F
-		LDA	healthbars, X
+		LDA	healthbars_xirod, X
 		STA	(inetcalc), Y
 
+    BRA @colour
+
+@petscii:
+		LDY	#$27
+		LDA	healthbars_c64, X
+		STA	(inetcalc), Y
+    INX
+		LDY	#$4F
+		LDA	healthbars_c64, X
+		STA	(inetcalc), Y
+
+@colour:
 		LDA	colourRowsHi
 		STA	inetcalc + 1
 		
@@ -18232,7 +18254,7 @@ text_ident_vernam:
 text_ident_pltfrm:
 			.asciiz	"M65"
 text_ident_verlbl:
-			.asciiz	"0.00.91B"
+			.asciiz	"0.00.95B"
 
 text_init_text0:
 			.asciiz	"INITIALISING..."
@@ -18244,7 +18266,7 @@ text_splsh_text0:
 text_splsh_text1:
 			.asciiz	"FOR ECCLESTIAL SOLUTIONS"
 text_splsh_text2:
-			.asciiz	"VERSION:  0.00.91B"
+			.asciiz	"VERSION:  0.00.95B"
 text_splsh_text3:
 			.asciiz	"COPYRIGHT:  2012, HASBRO"
 text_splsh_text4:
@@ -18619,7 +18641,7 @@ text_err_okay:
 hexdigits:
 			.byte "0123456789ABCDEF"
 			
-healthbars:
+healthbars_c64:
 			.byte	$A0, $A0
       .byte $E3, $A0
       .byte $F7, $A0
@@ -18638,6 +18660,26 @@ healthbars:
       .byte $20, $6F
       .byte $20, $64
       .byte $20, $20
+
+healthbars_xirod:
+			.byte	$A0, $A0
+      .byte $4A, $A0
+      .byte $4B, $A0
+      .byte $4C, $A0
+      .byte $4D, $A0
+      .byte $4E, $A0
+      .byte $4F, $A0
+      .byte $50, $A0
+      .byte $50, $A0
+			.byte	$20, $A0
+      .byte $20, $4A
+      .byte $20, $4A
+      .byte $20, $4B
+      .byte $20, $4C
+      .byte $20, $4D
+      .byte $20, $4E
+      .byte $20, $4F
+      .byte $20, $50
 
 healthclrs:
 			.byte	$0D, $0D, $05, $05, $05, $05, $07, $07, $07
