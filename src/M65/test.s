@@ -35,7 +35,7 @@
 	.define	DEBUG_KEYSCAN	0
 
 ;	Debugging - sleep when internet is idle
-	.define DEBUG_INETDOSLEEP	1
+	.define DEBUG_INETDOSLEEP	0
 
 
 cpuIRQ		=	$FFFE
@@ -284,7 +284,28 @@ ML_STAGE_ARG_Z      = 5
 	.define KEY_ASC_BSLASH	$5C		;!!Needs screen code xlat
 	.define KEY_ASC_CSQRBR	$5D
 	.define KEY_ASC_RSQRBR	$5D		;Alternate
-	.define KEY_ASC_CARET	$5E		;!!Needs screen code xlat
+;	HARDWARE LIMITATION - confirmed on real hardware, not just here in
+;	software: '^' is doubly unsupported on the MEGA65.
+;	  1. No physical key, alone or with MEGA held, reports ASCIIKEY
+;	     $5E - unlike the other 7 "needs screen code xlat" characters
+;	     around here, which all trace to a real key (BSLASH=MEGA+/,
+;	     BQUOTE=MEGA+left-arrow, OCRLYB=MEGA+:, PIPE=MEGA+., CCRLYB=
+;	     MEGA+;, TILDE=MEGA+,, USCORE=left-arrow alone). There is no
+;	     way to type '^' on this keyboard via $D610, at least via any
+;	     modifier combo tried so far (alone, MEGA - Shift/Ctrl untested).
+;	  2. Even if $5E is produced some other way (pasted in, injected
+;	     programmatically, etc.), the active charset's glyph at that
+;	     screen-code position renders as '~' (tilde), not a caret -
+;	     screenASCIIXLAT has no entry for $5E, so it falls through
+;	     screenASCIIToScreen's generic conversion into whatever the
+;	     ROM font actually has there, which isn't a caret glyph.
+;	Matters because Pascal source (^ for pointer types) is exactly
+;	the kind of text this client might need to display correctly one
+;	day - flagging clearly rather than leaving it as a vague "needs
+;	xlat" note, since unlike its neighbours this one may not be fixable
+;	by adding a screenASCIIXLAT entry alone (there's no key to type it
+;	with in the first place, and no glyph to draw even if there were).
+	.define KEY_ASC_CARET	$5E		;!!See HARDWARE LIMITATION note above - unreachable via keyboard, no glyph either
 	.define KEY_ASC_USCORE	$5F		;!!Needs screen code xlat
 	.define KEY_ASC_BQUOTE	$60		;!!Needs screen code xlat. !!Not C64
 	.define KEY_ASC_L_A	$61
@@ -1232,9 +1253,6 @@ initGameData:
 
 		RTS
 
-
-;!!TODO
-;	Shouldn't the following init routines be in the init/once segment?
 
 	.export	initCore
 ;-------------------------------------------------------------------------------
@@ -2212,8 +2230,8 @@ checkbx_config_flashchat:
 			.word	panel_config_theme	;panel
 			.word	text_config_flashchat	;textptr
 			.byte	$00			;textoffx
-			.byte	$04			;textaccel
-			.byte	KEY_ASC_L_H			;accelchar
+			.byte	$02			;textaccel
+			.byte	KEY_ASC_L_A			;accelchar
 
 
 page_connect:
@@ -5621,10 +5639,8 @@ inetInitialise:
 ;-------------------------------------------------------------------------------
 inetIdle:
 ;-------------------------------------------------------------------------------
-;!!TODO:
 ;	This is a whole lot of nothing to do - sleep
 ;	Can probably be stubbed out once things are settled
-
 	.if	DEBUG_INETDOSLEEP
 		LDX	$7F
 @sleep0:
@@ -5968,7 +5984,7 @@ inetExecute:
 ;		BNE 	:+
 ; 
 ;		JSR 	timer_read
-;		CPX 	inet_timeout		;!!TODO:  if no data and not timeout
+;		CPX 	inet_timeout		
 ;		BNE 	:+			;	should sleep?
 ; 
 ;		JSR 	tcp_send_keep_alive
@@ -7925,8 +7941,40 @@ clientProcRoomJoinMsg:
 		LDA	#KEY_ASC_SPACE
 		STA	readmsg0, Y
 
-;TODO
-;	Update edit_room_room_buf with room actually joined
+;	Update edit_room_room_buf with the room actually joined - may
+;	differ slightly from what was typed/requested (server-side
+;	normalisation, or joining by clicking a room in the list rather
+;	than typing one in).
+		LDY	readparm0
+		LDX	#$00
+
+@roombufloop:
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@roombufdone
+
+		CPX	#$08
+		BCS	@roombufdone
+
+		STA	edit_room_room_buf, X
+		INX
+		INY
+		JMP	@roombufloop
+
+@roombufdone:
+		LDA	#$00
+		STA	edit_room_room_buf, X
+
+		LDA	#<edit_room_room
+		STA	elemptr0
+		LDA	#>edit_room_room
+		STA	elemptr0 + 1
+
+		LDY	#EDITCTRL::textsiz
+		TXA
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
 
 		JSR	ctrlsLockAcquire
 		
@@ -8070,9 +8118,6 @@ clientProcRoomPartMsg:
 		LDA	#KEY_ASC_SPACE
 		STA	readmsg0, Y
 		
-;TODO
-;	Update edit_room_room_buf with room actually parted??
-
 		JSR	ctrlsLockAcquire
 		
 		LDA	#<lpanel_room_log
@@ -8631,16 +8676,68 @@ clientProcPlayJoinMsg:
 		JMP	@complete
 			
 @wejoined:
-;	NB:  I really should compare the player name given with our name to 
-;	check if the message is for us but if we haven't already gotten this 
-;	message, then it will be anyway.
+;	Confirm this Join is actually reporting our own join, not another
+;	player's arriving before our own confirmation does - a real race,
+;	not just theoretical, since ourslt only stops looking negative
+;	once we get here. Compares the player name given (readparm1)
+;	against our own name (edit_cnct_user_buf) all the way to both
+;	terminators, same style as clientProcPlayPartMsg's game-name
+;	guard, so a name that's just a prefix of the other doesn't
+;	false-match. Not us - treat it like any other player's join
+;	(@complete already handles that generically).
+		LDX	#$00
+		LDY	readparm1
 
-;!!FIXME
-;	Test player name with our player name to be sure?
+@wenamecmp:
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@wenameend
 
-;!!TODO
-;	Set game name from message
-		
+		CMP	edit_cnct_user_buf, X
+		LBNE	@complete
+
+		INX
+		INY
+		JMP	@wenamecmp
+
+@wenameend:
+		LDA	edit_cnct_user_buf, X
+		LBNE	@complete
+
+;	Update edit_play_game_buf with the game actually joined - may
+;	differ slightly from what was typed/requested, same reasoning as
+;	clientProcRoomJoinMsg's edit_room_room_buf update.
+		LDY	readparm0
+		LDX	#$00
+
+@gamebufloop:
+		LDA	readmsg0, Y
+		CMP	#KEY_ASC_SPACE
+		BEQ	@gamebufdone
+
+		CPX	#$08
+		BCS	@gamebufdone
+
+		STA	edit_play_game_buf, X
+		INX
+		INY
+		JMP	@gamebufloop
+
+@gamebufdone:
+		LDA	#$00
+		STA	edit_play_game_buf, X
+
+		LDA	#<edit_play_game
+		STA	elemptr0
+		LDA	#>edit_play_game
+		STA	elemptr0 + 1
+
+		LDY	#EDITCTRL::textsiz
+		TXA
+		STA	(elemptr0), Y
+
+		JSR	ctrlsControlInvalidate
+
 ;	Init game state to waiting - only need overview string
 		LDA	#<label_ovrwv_round_det
 		STA	elemptr0
@@ -9548,9 +9645,6 @@ clientProcPlayRollMsg:
 		JSR	clientDetailUpdateRoll
 
 		JSR	clientDetailUpdateDice
-
-;!!TODO
-;	Update roll button with roll count
 
 		JSR	ctrlsLockRelease
 
