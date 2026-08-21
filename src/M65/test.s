@@ -2068,7 +2068,7 @@ checkbx_config_mouse_slow:
 			.word	panel_config_mouse	;panel
 			.word	text_config_mouse_slow	;textptr
 			.byte	$00			;textoffx
-			.byte	$00			;textaccel
+			.byte	$01			;textaccel
 			.byte	KEY_ASC_L_S	;accelchar
 
 checkbx_config_mouse_medium:
@@ -2087,7 +2087,7 @@ checkbx_config_mouse_medium:
 			.word	panel_config_mouse	;panel
 			.word	text_config_mouse_medium	;textptr
 			.byte	$00			;textoffx
-			.byte	$00			;textaccel
+			.byte	$01			;textaccel
 			.byte	KEY_ASC_L_M			;accelchar
 
 checkbx_config_mouse_fast:
@@ -2106,7 +2106,7 @@ checkbx_config_mouse_fast:
 			.word	panel_config_mouse	;panel
 			.word	text_config_mouse_fast	;textptr
 			.byte	$00			;textoffx
-			.byte	$00			;textaccel
+			.byte	$01			;textaccel
 			.byte	KEY_ASC_L_F		;accelchar
 
 
@@ -2175,7 +2175,7 @@ button_config_theme_prv:
 			.word	panel_config_theme	;panel	.word
 			.word	text_config_theme_prv	;textptr	.word
 			.byte	$00		;textoffx .byte
-			.byte	$02		;textaccel .byte
+			.byte	$03		;textaccel .byte
 			.byte	KEY_ASC_L_P		;accelchar .byte
 
 button_config_theme_nxt:
@@ -2195,7 +2195,7 @@ button_config_theme_nxt:
 			.word	panel_config_theme	;panel	.word
 			.word	text_config_theme_nxt	;textptr	.word
 			.byte	$00		;textoffx .byte
-			.byte	$00		;textaccel .byte
+			.byte	$01		;textaccel .byte
 			.byte	KEY_ASC_L_N		;accelchar .byte
 
 label_config_theme_name:
@@ -2256,7 +2256,7 @@ checkbx_config_flashchat:
 			.word	panel_config_theme	;panel
 			.word	text_config_flashchat	;textptr
 			.byte	$00			;textoffx
-			.byte	$02			;textaccel
+			.byte	$03			;textaccel
 			.byte	KEY_ASC_L_A			;accelchar
 
 
@@ -17853,21 +17853,21 @@ text_page_config:
 text_config_mouse:
 			.asciiz	"MOUSE SETTINGS"
 text_config_mouse_slow:
-			.asciiz	"SLOW"
+			.asciiz	"[SLOW          ]"
 text_config_mouse_medium:
-			.asciiz	"MEDIUM"
+			.asciiz	"[MEDIUM        ]"
 text_config_mouse_fast:
-			.asciiz	"FAST"
+			.asciiz	"[FAST          ]"
 text_config_theme:
 			.asciiz	"THEME SETTINGS"
 text_config_theme_prv:
-			.asciiz	"< PRV"
+			.asciiz	"[< PRV]"
 text_config_theme_nxt:
-			.asciiz	"NXT >"
+			.asciiz	"[NXT >]"
 text_config_interface:
 			.asciiz	"INTERFACE"
 text_config_flashchat:
-			.asciiz	"FLASH UNSEEN CHAT"
+			.asciiz	"[FLASH HIDDN CHAT ]"
 text_cnct_host:
 			.asciiz "HOST NAME:"
 text_cnct_user:
