@@ -11829,14 +11829,38 @@ clientDetailUpdatePreview:
 ;	IN	tempdat0	score slot
 ;	IN	tempdat1	score value
 ;-------------------------------------------------------------------------------
-		LDA	tempdat1
-		STA	tempvar_h
-		
 		LDA	#<spanel_detail_sheet
 		STA	elemptr0
 		LDA	#>spanel_detail_sheet
 		STA	elemptr0 + 1
-		
+
+;	Clear any existing preview first by redrawing the sheet's scores
+;	fresh - same check ctrlsSPanelDefChanged already makes for our own
+;	selections, only doing the extra redraw when a preview (hveprvw)
+;	is actually showing, so a run of previews from the same broadcast
+;	source doesn't force a full redraw every single time.
+		LDY	#SCRSHTPANEL::hveprvw
+		LDA	(elemptr0), Y
+		BEQ	@noclear
+
+		LDA	tempdat0
+		PHA
+		LDA	tempdat1
+		PHA
+
+		LDA	#SCRSHT_SCORES
+		STA	tempvar_t
+		JSR	ctrlsSPanelDefPresDirect
+
+		PLA
+		STA	tempdat1
+		PLA
+		STA	tempdat0
+
+@noclear:
+		LDA	tempdat1
+		STA	tempvar_h
+
 		LDY	#ELEMENT::posx
 		LDA	(elemptr0), Y
 		STA	tempvar_r		;x
