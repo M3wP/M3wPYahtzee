@@ -15,9 +15,35 @@
 
 	.setcpu		"4510"
 
-	.include "common.inc"
-	.include "net.inc"
-	.include "error.inc"
+;	LDAX/STAX (16-bit load/store via A/X) and the three IP65_ERROR_*
+;	codes below were pulled in from ip65's common.inc/error.inc -
+;	copied in directly since that was all that was actually used out
+;	of them (net.inc was entirely dead and dropped outright). Original
+;	source: ip65 (https://github.com/cc65/ip65), MPL 1.1.
+;	common.inc - Per Olofsson, MagerValp@gmail.com, Copyright (C) 2009.
+;	error.inc  - Jonno Downes, jonno@jamtronix.com, Copyright (C) 2009.
+.macro ldax arg
+.if (.match (.left (1, arg), #))      ; immediate mode
+    lda #<(.right (.tcount (arg)-1, arg))
+    ldx #>(.right (.tcount (arg)-1, arg))
+.else                                 ; assume absolute or zero page
+    lda arg
+    ldx 1+(arg)
+.endif
+.endmacro
+
+.define LDAX ldax
+
+.macro stax arg
+  sta arg
+  stx 1+(arg)
+.endmacro
+
+.define STAX stax
+
+IP65_ERROR_TIMEOUT_ON_RECEIVE = $81
+IP65_ERROR_ABORTED_BY_USER    = $86
+IP65_ERROR_CONNECTION_CLOSED  = $8A
 
 
 ;	Debugging - show raster time usage on border
