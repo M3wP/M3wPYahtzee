@@ -371,9 +371,11 @@ ML_STAGE_ARG_Z      = 5
 	.define KEY_C64_SYS	$02
 	.define KEY_C64_STOP	$03	
 	.define KEY_C64_CTRL	$04
-	.define	KEY_C64_CRIGHT 	$1D		;Could be ascii tab? $09
+	.define	KEY_C64_CRIGHT 	$1D
 	.define	KEY_C64_CDOWN 	$11		;Could be ascii line feed? $0A
 	.define KEY_C64_HOME	$13
+	.define KEY_C64_TAB	$09		;Confirmed on hardware - MEGA65 has no C64 equivalent
+	.define KEY_C64_STAB	$0F		;TAB + SHIFT (either) - confirmed on hardware
 	.define KEY_C64_POUND	$5C
 	.define KEY_C64_ARRUP	$5E
 	.define KEY_C64_ARRLEFT	$5F
@@ -14956,6 +14958,22 @@ ctrlsPageKeyPress:
 
 @actvctrl:
 		LDA	msgsdat0
+		CMP	#KEY_C64_TAB
+		BNE	@nottab
+
+		LDA	#KEY_C64_CDOWN
+		STA	msgsdat0
+		JMP	@moveactv
+
+@nottab:
+		CMP	#KEY_C64_STAB
+		BNE	@notstab
+
+		LDA	#KEY_C64_CUP
+		STA	msgsdat0
+		JMP	@moveactv
+
+@notstab:
 		CMP	#KEY_C64_CDOWN
 		BEQ	@moveactv
 
