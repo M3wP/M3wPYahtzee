@@ -15,3 +15,19 @@
 *.PDF	 diff=astextplain
 *.rtf	 diff=astextplain
 *.RTF	 diff=astextplain
+
+# --- LINE ENDINGS THAT ARE NOT COSMETIC -------------------------------
+# "* text=auto" above normalises everything to LF in the index and hands
+# it back in the platform's native ending on checkout - CRLF on Windows.
+# For these three that is not a style question, it breaks the build:
+#
+#   Makefile   a CRLF in a recipe passes a stray  through to the shell
+#   *.sh       same, for the dev scripts
+#   *.asm      the vendored mega-ip sources, assembled by 64tass
+#
+# They happen to be LF in this working tree, so the damage only shows up
+# on a FRESH CLONE - which is the worst way to find out. Pin them.
+Makefile        text eol=lf
+*.mk            text eol=lf
+*.sh            text eol=lf
+*.asm           text eol=lf
